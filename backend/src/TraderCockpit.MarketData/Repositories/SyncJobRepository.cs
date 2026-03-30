@@ -64,4 +64,23 @@ public sealed class SyncJobRepository(NpgsqlDataSource db) : ISyncJobRepository
         await using var conn = await db.OpenConnectionAsync(ct);
         await conn.ExecuteAsync(sql, new { Id = id, ErrorMessage = errorMessage });
     }
+
+    public async Task<bool> HasActiveJobsAsync(CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT EXISTS (
+                SELECT 1 FROM sync_jobs
+                WHERE status IN ('Pending', 'InProgress')
+            )
+            """;
+        await using var conn = await db.OpenConnectionAsync(ct);
+        return await conn.ExecuteScalarAsync<bool>(sql);
+    }
+
+    public async Task ResetAllAsync(CancellationToken ct = default)
+    {
+        const string sql = "TRUNCATE TABLE sync_jobs";
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await conn.ExecuteAsync(sql);
+    }
 }

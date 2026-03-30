@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Threading.RateLimiting;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,24 @@ public static class DependencyInjection
 
         // ── Dhan API client ───────────────────────────────────────────────────
         services.Configure<DhanOptions>(configuration.GetSection(DhanOptions.SectionName));
+
+        // Global token-bucket rate limiter shared across all workers.
+        services.AddSingleton<RateLimiter>(sp =>
+        {
+            var opts = configuration
+                .GetSection(DhanOptions.SectionName)
+                .Get<DhanOptions>() ?? new();
+
+            return new TokenBucketRateLimiter(new TokenBucketRateLimiterOptions
+            {
+                TokenLimit           = opts.RateLimitPerSecond,
+                ReplenishmentPeriod  = TimeSpan.FromSeconds(1),
+                TokensPerPeriod      = opts.RateLimitPerSecond,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit           = int.MaxValue,
+                AutoReplenishment    = true,
+            });
+        });
 
         services.AddHttpClient<DhanClient>((sp, http) =>
         {

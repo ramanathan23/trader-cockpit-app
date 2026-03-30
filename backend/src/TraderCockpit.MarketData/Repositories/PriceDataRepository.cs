@@ -82,6 +82,12 @@ public sealed class PriceDataRepository(NpgsqlDataSource db) : IPriceDataReposit
         }
     }
 
+    public async Task ResetAsync(CancellationToken ct = default)
+    {
+        await using var conn = await db.OpenConnectionAsync(ct);
+        await conn.ExecuteAsync("TRUNCATE TABLE price_data_1m");
+    }
+
     public async Task<IReadOnlyList<OhlcvBar>> GetBarsAsync(
         int symbolId, string timeframe, DateTime from, DateTime to,
         CancellationToken ct = default)

@@ -45,13 +45,14 @@ public sealed class DhanSecurityIdSeeder(
             return;
         }
 
-        var headers      = headerLine.Split(',');
-        int idxSecId     = Array.IndexOf(headers, "SEM_SMST_SECURITY_ID");
-        int idxIsin      = Array.IndexOf(headers, "SEM_ISIN_NUMBER");
-        int idxSegment   = Array.IndexOf(headers, "SEM_SEGMENT");
-        int idxInstrument= Array.IndexOf(headers, "SEM_INSTRUMENT_NAME");
+        var headers       = headerLine.Split(',');
+        int idxSecId      = Array.IndexOf(headers, "SEM_SMST_SECURITY_ID");
+        int idxSymbol     = Array.IndexOf(headers, "SEM_TRADING_SYMBOL");
+        int idxExchange   = Array.IndexOf(headers, "SEM_EXM_EXCH_ID");
+        int idxSegment    = Array.IndexOf(headers, "SEM_SEGMENT");
+        int idxInstrument = Array.IndexOf(headers, "SEM_INSTRUMENT_NAME");
 
-        if (idxSecId < 0 || idxIsin < 0 || idxSegment < 0 || idxInstrument < 0)
+        if (idxSecId < 0 || idxSymbol < 0 || idxExchange < 0 || idxSegment < 0 || idxInstrument < 0)
         {
             logger.LogError(
                 "DhanSecurityIdSeeder: unexpected CSV header format — required columns not found. " +
@@ -59,10 +60,10 @@ public sealed class DhanSecurityIdSeeder(
             return;
         }
 
-        int minCols = Math.Max(Math.Max(idxSecId, idxIsin), Math.Max(idxSegment, idxInstrument)) + 1;
+        int minCols = new[] { idxSecId, idxSymbol, idxExchange, idxSegment, idxInstrument }.Max() + 1;
 
-        // ── Parse rows: keep NSE_EQ EQUITY only ───────────────────────────────
-        var isinToSecurityId = new Dictionary<string, string>(
+        // ── Parse rows: NSE equity (exchange=NSE, segment=E, instrument=EQUITY) ─
+        var symbolToSecurityId = new Dictionary<string, string>(
             capacity: 3000, StringComparer.OrdinalIgnoreCase);
 
         string? line;
@@ -73,31 +74,33 @@ public sealed class DhanSecurityIdSeeder(
             var cols = line.Split(',');
             if (cols.Length < minCols) continue;
 
-            if (!cols[idxSegment].Trim().Equals("NSE_EQ", StringComparison.OrdinalIgnoreCase))
+            if (!cols[idxExchange].Trim().Equals("NSE", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!cols[idxSegment].Trim().Equals("E", StringComparison.OrdinalIgnoreCase))
                 continue;
             if (!cols[idxInstrument].Trim().Equals("EQUITY", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var isin   = cols[idxIsin].Trim();
+            var symbol = cols[idxSymbol].Trim();
             var secId  = cols[idxSecId].Trim();
 
-            if (!string.IsNullOrEmpty(isin) && !string.IsNullOrEmpty(secId))
-                isinToSecurityId[isin] = secId;
+            if (!string.IsNullOrEmpty(symbol) && !string.IsNullOrEmpty(secId))
+                symbolToSecurityId[symbol] = secId;
         }
 
-        if (isinToSecurityId.Count == 0)
+        if (symbolToSecurityId.Count == 0)
         {
             logger.LogWarning(
-                "DhanSecurityIdSeeder: no NSE_EQ EQUITY rows found in scrip master. " +
+                "DhanSecurityIdSeeder: no NSE / E / EQUITY rows found in scrip master. " +
                 "Check if Dhan changed the CSV format.");
             return;
         }
 
         logger.LogInformation(
-            "DhanSecurityIdSeeder: parsed {Count} NSE EQ security IDs.", isinToSecurityId.Count);
+            "DhanSecurityIdSeeder: parsed {Count} NSE EQ security IDs.", symbolToSecurityId.Count);
 
         // ── Bulk-update symbols table ─────────────────────────────────────────
-        var updated = await symbolRepo.BulkSetDhanSecurityIdByIsinAsync(isinToSecurityId, ct);
+        var updated = await symbolRepo.BulkSetDhanSecurityIdBySymbolAsync(symbolToSecurityId, ct);
         logger.LogInformation(
             "DhanSecurityIdSeeder: updated dhan_security_id for {Count} symbols.", updated);
     }

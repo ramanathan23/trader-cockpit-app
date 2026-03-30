@@ -51,13 +51,13 @@ public sealed class SymbolRepository(NpgsqlDataSource db) : ISymbolRepository
         await conn.ExecuteAsync(sql, new { Symbol = symbol, DhanSecurityId = dhanSecurityId });
     }
 
-    public async Task<int> BulkSetDhanSecurityIdByIsinAsync(
-        IDictionary<string, string> isinToSecurityId, CancellationToken ct = default)
+    public async Task<int> BulkSetDhanSecurityIdBySymbolAsync(
+        IDictionary<string, string> symbolToSecurityId, CancellationToken ct = default)
     {
-        if (isinToSecurityId.Count == 0) return 0;
+        if (symbolToSecurityId.Count == 0) return 0;
 
-        var isins      = isinToSecurityId.Keys.ToArray();
-        var securityIds = isinToSecurityId.Values.ToArray();
+        var symbols     = symbolToSecurityId.Keys.ToArray();
+        var securityIds = symbolToSecurityId.Values.ToArray();
 
         // unnest the two arrays in lockstep and UPDATE matching rows,
         // skipping rows where the value is already correct.
@@ -65,12 +65,12 @@ public sealed class SymbolRepository(NpgsqlDataSource db) : ISymbolRepository
             UPDATE symbols s
             SET    dhan_security_id = u.security_id,
                    updated_at       = NOW()
-            FROM   unnest(@Isins::text[], @SecurityIds::text[]) AS u(isin, security_id)
-            WHERE  s.isin = u.isin
+            FROM   unnest(@Symbols::text[], @SecurityIds::text[]) AS u(symbol, security_id)
+            WHERE  s.symbol = u.symbol
               AND  s.dhan_security_id IS DISTINCT FROM u.security_id
             """;
 
         await using var conn = await db.OpenConnectionAsync(ct);
-        return await conn.ExecuteAsync(sql, new { Isins = isins, SecurityIds = securityIds });
+        return await conn.ExecuteAsync(sql, new { Symbols = symbols, SecurityIds = securityIds });
     }
 }

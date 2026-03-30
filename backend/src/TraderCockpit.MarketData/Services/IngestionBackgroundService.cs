@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
+using TraderCockpit.MarketData.Dhan;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TraderCockpit.MarketData.Dhan;
@@ -26,7 +27,7 @@ public sealed class IngestionBackgroundService(
     IOptions<DhanOptions>       options,
     ILogger<IngestionBackgroundService> logger) : BackgroundService
 {
-    private static readonly TimeSpan BatchWindow = TimeSpan.FromDays(30);
+    private static readonly TimeSpan BatchWindow = TimeSpan.FromDays(90);  // Dhan max per request
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -62,8 +63,31 @@ public sealed class IngestionBackgroundService(
                 var batchEnd = cursor.Add(BatchWindow);
                 if (batchEnd > req.ToTime) batchEnd = req.ToTime;
 
-                var bars = await dhanClient.GetIntradayAsync(
-                    req.DhanSecurityId, req.ExchangeSegment, cursor, batchEnd, ct);
+                IReadOnlyList<OhlcvBar> bars;
+                try
+                {
+                    bars = await dhanClient.GetIntradayAsync(
+                        req.DhanSecurityId, req.ExchangeSegment, cursor, batchEnd, ct);
+                }
+                catch (DhanNoDataException ex)
+                {
+                    if (totalBars > 0)
+                    {
+                        // Had data earlier but now none — we've passed the available range.
+                        logger.LogInformation(
+                            "[{Symbol}] No data after {Cursor:yyyy-MM-dd} — stopping.",
+                            req.Symbol, cursor);
+                        break;
+                    }
+
+                    // Still seeking the listing date — jump forward 6 months to find it faster.
+                    logger.LogDebug(
+                        "[{Symbol}] DH-905 for {From:yyyy-MM-dd}–{To:yyyy-MM-dd}, no data yet — jumping 6 months.",
+                        req.Symbol, ex.From, ex.To);
+                    cursor = cursor.AddMonths(6);
+                    await Task.Delay(options.Value.DelayBetweenCallsMs, ct);
+                    continue;
+                }
 
                 if (bars.Count > 0)
                 {

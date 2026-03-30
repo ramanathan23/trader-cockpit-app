@@ -11,6 +11,9 @@
     <PackageReference Include="Dapper"  Version="2.1.35" />
     <PackageReference Include="Npgsql"  Version="8.0.5"  />
 
+    <!-- Rate limiting (global token bucket for Dhan API) -->
+    <PackageReference Include="System.Threading.RateLimiting" Version="9.0.4" />
+
     <!-- DI / Hosting abstractions (no web dependency) -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"            Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http"                            Version="9.0.0" />

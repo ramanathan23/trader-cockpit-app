@@ -10,9 +10,9 @@ public interface ISymbolRepository
     Task SetDhanSecurityIdAsync(string symbol, string dhanSecurityId, CancellationToken ct = default);
 
     /// <summary>
-    /// Bulk-updates <c>dhan_security_id</c> by matching on ISIN.
+    /// Bulk-updates <c>dhan_security_id</c> by matching on trading symbol.
     /// Returns the number of rows actually changed.
     /// </summary>
-    Task<int> BulkSetDhanSecurityIdByIsinAsync(
-        IDictionary<string, string> isinToSecurityId, CancellationToken ct = default);
+    Task<int> BulkSetDhanSecurityIdBySymbolAsync(
+        IDictionary<string, string> symbolToSecurityId, CancellationToken ct = default);
 }

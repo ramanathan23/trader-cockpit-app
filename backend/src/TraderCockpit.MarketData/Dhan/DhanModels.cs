@@ -16,13 +16,21 @@ internal sealed class IntradayRequest
     public string Instrument                 { get; init; } = "EQUITY";
 
     [JsonPropertyName("interval")]
-    public string Interval                   { get; init; } = "1";   // 1-minute
+    public int    Interval                   { get; init; } = 1;     // 1-minute (API requires integer)
 
     [JsonPropertyName("fromDate")]
     public required string FromDate          { get; init; }          // yyyy-MM-dd
 
     [JsonPropertyName("toDate")]
     public required string ToDate            { get; init; }          // yyyy-MM-dd
+}
+
+// ── Error ─────────────────────────────────────────────────────────────────────
+
+internal sealed class DhanErrorResponse
+{
+    [JsonPropertyName("errorCode")]
+    public string ErrorCode { get; init; } = "";
 }
 
 // ── Response ─────────────────────────────────────────────────────────────────
@@ -44,9 +52,11 @@ internal sealed class IntradayResponse
     [JsonPropertyName("close")]
     public decimal[] Close     { get; init; } = [];
 
+    // Dhan returns volume as float (e.g. 12345.0), so deserialize as double then cast.
     [JsonPropertyName("volume")]
-    public long[]    Volume    { get; init; } = [];
+    public double[]  Volume    { get; init; } = [];
 
+    // Dhan returns timestamp as float (e.g. 1234567890.0), so deserialize as double then cast.
     [JsonPropertyName("timestamp")]
-    public long[]    Timestamp { get; init; } = [];
+    public double[]  Timestamp { get; init; } = [];
 }

@@ -17,4 +17,7 @@ public interface IPriceDataRepository
     Task<IReadOnlyList<OhlcvBar>> GetBarsAsync(
         int symbolId, string timeframe, DateTime from, DateTime to,
         CancellationToken ct = default);
+
+    /// <summary>Deletes all rows from price_data_1m (truncate).</summary>
+    Task ResetAsync(CancellationToken ct = default);
 }

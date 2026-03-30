@@ -10,4 +10,6 @@ public interface ISyncJobRepository
     Task UpdateInProgressAsync(Guid id, CancellationToken ct = default);
     Task UpdateCompletedAsync(Guid id, int barsFetched, CancellationToken ct = default);
     Task UpdateFailedAsync(Guid id, string errorMessage, CancellationToken ct = default);
+    Task<bool> HasActiveJobsAsync(CancellationToken ct = default);
+    Task ResetAllAsync(CancellationToken ct = default);
 }

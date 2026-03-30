@@ -116,15 +116,17 @@ marketData.MapPost("/sync", async (
     {
         var jobId = await manager.EnqueueSymbolSyncAsync(body.Symbol, ct);
         return jobId is null
-            ? Results.NotFound(new { message = $"Symbol '{body.Symbol}' not found or missing dhan_security_id." })
+            ? Results.Conflict(new { message = "Sync already in progress, or symbol not found / missing dhan_security_id." })
             : Results.Accepted($"/api/market-data/sync/{jobId}", new { jobId });
     }
 
     var count = await manager.EnqueueFullSyncAsync(ct);
-    return Results.Accepted("/api/market-data/sync", new { enqueued = count });
+    return count == -1
+        ? Results.Conflict(new { message = "Sync already in progress. Poll /api/market-data/sync to check status." })
+        : Results.Accepted("/api/market-data/sync", new { enqueued = count });
 })
 .WithName("TriggerSync")
-.WithSummary("Trigger sync for all syncable symbols, or a single symbol via { \"symbol\": \"RELIANCE\" }.");
+.WithSummary("Trigger sync for all syncable symbols, or a single symbol via { \"symbol\": \"RELIANCE\" }. Returns 409 if a sync is already running.");
 
 marketData.MapGet("/sync", async (
     ISyncJobRepository repo,
@@ -143,6 +145,18 @@ marketData.MapGet("/sync/{id:guid}", async (
 })
 .WithName("GetSyncJob")
 .WithSummary("Poll a specific sync job by ID.");
+
+marketData.MapDelete("/reset", async (
+    IPriceDataRepository priceRepo,
+    ISyncJobRepository   syncRepo,
+    CancellationToken    ct) =>
+{
+    await priceRepo.ResetAsync(ct);
+    await syncRepo.ResetAllAsync(ct);
+    return Results.Ok(new { message = "All price data and sync jobs cleared. Ready for a fresh sync." });
+})
+.WithName("ResetMarketData")
+.WithSummary("Wipes all price_data_1m rows and sync_jobs. Does NOT touch symbols or dhan_security_id.");
 
 // ── Market Data — OHLCV query ─────────────────────────────────────────────
 

@@ -23,9 +23,15 @@ public sealed class SyncManager(
     /// <summary>
     /// Queues a sync request for every syncable symbol (i.e., those with a
     /// <c>dhan_security_id</c>).  Symbols missing the ID are logged and skipped.
+    /// Returns -1 if a sync is already in progress.
     /// </summary>
     public async Task<int> EnqueueFullSyncAsync(CancellationToken ct = default)
     {
+        if (await syncJobRepo.HasActiveJobsAsync(ct))
+        {
+            logger.LogWarning("EnqueueFullSyncAsync: sync already in progress — skipping.");
+            return -1;
+        }
         var symbols = await symbolRepo.GetSyncableAsync(ct);
 
         if (symbols.Count == 0)
@@ -76,9 +82,17 @@ public sealed class SyncManager(
         return enqueued;
     }
 
-    /// <summary>Enqueues a sync request for a single symbol by ticker string.</summary>
+    /// <summary>
+    /// Enqueues a sync request for a single symbol by ticker string.
+    /// Returns null if the symbol is not found/missing ID, or if sync is already active.
+    /// </summary>
     public async Task<Guid?> EnqueueSymbolSyncAsync(string ticker, CancellationToken ct = default)
     {
+        if (await syncJobRepo.HasActiveJobsAsync(ct))
+        {
+            logger.LogWarning("EnqueueSymbolSyncAsync: sync already in progress — skipping '{Ticker}'.", ticker);
+            return null;
+        }
         var symbols = await symbolRepo.GetSyncableAsync(ct);
         var sym = symbols.FirstOrDefault(s =>
             string.Equals(s.Symbol, ticker, StringComparison.OrdinalIgnoreCase));
