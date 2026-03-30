@@ -34,10 +34,13 @@ public sealed class PriceDataRepository(NpgsqlDataSource db) : IPriceDataReposit
         if (bars.Count == 0) return;
 
         await using var conn = await db.OpenConnectionAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         // Stage into a temp table so we can use ON CONFLICT on the final insert.
+        // ON COMMIT DROP requires an explicit transaction to behave correctly.
         await using (var cmd = conn.CreateCommand())
         {
+            cmd.Transaction = tx;
             cmd.CommandText = """
                 CREATE TEMP TABLE tmp_price_import (
                     time      TIMESTAMPTZ   NOT NULL,
@@ -73,6 +76,7 @@ public sealed class PriceDataRepository(NpgsqlDataSource db) : IPriceDataReposit
         // Move from temp → hypertable, skipping any existing rows.
         await using (var cmd = conn.CreateCommand())
         {
+            cmd.Transaction = tx;
             cmd.CommandText = """
                 INSERT INTO price_data_1m (time, symbol_id, open, high, low, close, volume)
                 SELECT time, symbol_id, open, high, low, close, volume FROM tmp_price_import
@@ -80,6 +84,8 @@ public sealed class PriceDataRepository(NpgsqlDataSource db) : IPriceDataReposit
                 """;
             await cmd.ExecuteNonQueryAsync(ct);
         }
+
+        await tx.CommitAsync(ct);
     }
 
     public async Task ResetAsync(CancellationToken ct = default)
