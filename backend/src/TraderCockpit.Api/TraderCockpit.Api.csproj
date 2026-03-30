@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TraderCockpit.Application\TraderCockpit.Application.csproj" />
     <ProjectReference Include="..\TraderCockpit.Infrastructure\TraderCockpit.Infrastructure.csproj" />
     <ProjectReference Include="..\TraderCockpit.MarketData\TraderCockpit.MarketData.csproj" />
   </ItemGroup>

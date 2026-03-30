@@ -1,6 +1,3 @@
-using TraderCockpit.Application.Common;
-using TraderCockpit.Application.Trades.Commands;
-using TraderCockpit.Application.Trades.Queries;
 using TraderCockpit.Infrastructure;
 using TraderCockpit.MarketData;
 using TraderCockpit.MarketData.Database;
@@ -11,7 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
     .AddInfrastructure()
-    .AddApplication()
     .AddMarketData(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -40,48 +36,6 @@ app.UseSwaggerUI(c =>
 {
     c.ConfigObject.AdditionalItems["tryItOutEnabled"] = true;
 });
-
-// ── Trades ────────────────────────────────────────────────────────────────
-var trades = app.MapGroup("/api/trades").WithTags("Trades");
-
-trades.MapGet("/", async (
-    string? status,
-    IUseCase<GetTradesRequest, GetTradesResponse> useCase,
-    CancellationToken ct) =>
-{
-    var result = await useCase.ExecuteAsync(new GetTradesRequest(status), ct);
-    return Results.Ok(result.Trades);
-})
-.WithName("GetTrades")
-.WithSummary("List all trades, optionally filtered by status (Open/Closed)");
-
-trades.MapPost("/", async (
-    OpenTradeRequest request,
-    IUseCase<OpenTradeRequest, OpenTradeResponse> useCase,
-    CancellationToken ct) =>
-{
-    var result = await useCase.ExecuteAsync(request, ct);
-    return Results.Created($"/api/trades/{result.TradeId}", result);
-})
-.WithName("OpenTrade")
-.WithSummary("Open a new trade");
-
-trades.MapPost("/{id:guid}/close", async (
-    Guid id,
-    CloseTradeBody body,
-    IUseCase<CloseTradeRequest, CloseTradeResponse> useCase,
-    CancellationToken ct) =>
-{
-    try
-    {
-        var result = await useCase.ExecuteAsync(new CloseTradeRequest(id, body.ExitPrice, body.Currency), ct);
-        return Results.Ok(result);
-    }
-    catch (KeyNotFoundException ex)   { return Results.NotFound(new { ex.Message }); }
-    catch (InvalidOperationException ex) { return Results.Conflict(new { ex.Message }); }
-})
-.WithName("CloseTrade")
-.WithSummary("Close an open trade and calculate PnL");
 
 // ── Market Data — Symbols ─────────────────────────────────────────────────
 var marketData = app.MapGroup("/api/market-data").WithTags("MarketData");
@@ -194,4 +148,3 @@ app.Run();
 // ── Request DTOs ──────────────────────────────────────────────────────────
 record SecurityIdRequest(string DhanSecurityId);
 record SyncTriggerRequest(string? Symbol);
-record CloseTradeBody(decimal ExitPrice, string Currency);
