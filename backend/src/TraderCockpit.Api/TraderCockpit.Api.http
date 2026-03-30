@@ -1,0 +1,6 @@
+@TraderCockpit.Api_HostAddress = http://localhost:5136
+
+GET {{TraderCockpit.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

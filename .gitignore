@@ -1,0 +1,18 @@
+# Credentials — never commit
+.env
+
+# .NET build output
+**/bin/
+**/obj/
+**/TestResults/
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- High-speed data access (replaces EF Core for market data) -->
+    <PackageReference Include="Dapper"  Version="2.1.35" />
+    <PackageReference Include="Npgsql"  Version="8.0.5"  />
+
+    <!-- DI / Hosting abstractions (no web dependency) -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"            Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http"                            Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"            Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed TimescaleDB schema so DatabaseInitializer can run it at startup -->
+    <EmbeddedResource Include="Database\schema.sql" />
+    <!-- Embed symbols CSV for the startup seeder -->
+    <EmbeddedResource Include="..\data\symbols.csv" LogicalName="symbols.csv" />
+  </ItemGroup>
+
+</Project>
