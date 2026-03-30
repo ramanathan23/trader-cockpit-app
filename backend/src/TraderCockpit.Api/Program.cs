@@ -29,6 +29,10 @@ await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider
         .GetRequiredService<SymbolSeeder>()
         .SeedAsync();
+
+    await scope.ServiceProvider
+        .GetRequiredService<DhanSecurityIdSeeder>()
+        .SeedAsync();
 }
 
 app.UseSwagger();

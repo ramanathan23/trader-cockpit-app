@@ -50,8 +50,11 @@ public static class DependencyInjection
         services.AddScoped<ISyncJobRepository,  SyncJobRepository>();
 
         // ── Services ──────────────────────────────────────────────────────────
+        services.AddHttpClient();   // default IHttpClientFactory for DhanSecurityIdSeeder
+
         services.AddScoped<SyncManager>();
         services.AddScoped<SymbolSeeder>();
+        services.AddScoped<DhanSecurityIdSeeder>();
         services.AddSingleton<DatabaseInitializer>();
         services.AddHostedService<IngestionBackgroundService>();
 
