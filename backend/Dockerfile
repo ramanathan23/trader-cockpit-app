@@ -5,8 +5,6 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
 WORKDIR /src
 
 COPY TraderCockpit.sln .
-COPY src/TraderCockpit.Domain/TraderCockpit.Domain.csproj            src/TraderCockpit.Domain/
-COPY src/TraderCockpit.Application/TraderCockpit.Application.csproj  src/TraderCockpit.Application/
 COPY src/TraderCockpit.Infrastructure/TraderCockpit.Infrastructure.csproj src/TraderCockpit.Infrastructure/
 COPY src/TraderCockpit.MarketData/TraderCockpit.MarketData.csproj    src/TraderCockpit.MarketData/
 COPY src/TraderCockpit.Api/TraderCockpit.Api.csproj                  src/TraderCockpit.Api/

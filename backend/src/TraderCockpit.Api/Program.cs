@@ -15,20 +15,35 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// ── Startup: schema migration + symbol seed ───────────────────────────────
+// ── Startup sequence ──────────────────────────────────────────────────────────
+//
+// All steps run before the port opens so the DB is fully ready on the first request.
+//
+// 1. DatabaseInitializer  — idempotent DDL (creates tables/hypertables if missing)
+// 2. SymbolSeeder         — upserts 2,278 NSE equities from embedded CSV
+// 3. DhanSecurityIdSeeder — maps dhan_security_id from Dhan's scrip-master CSV
+// 4. ReconcileStuckJobs   — marks Pending/InProgress jobs from the previous run as
+//                           Failed so the HasActiveJobs guard does not block new syncs.
+//                           price_data_1m is untouched; the next POST /sync resumes
+//                           incrementally from the last saved bar.
+//
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    await scope.ServiceProvider
-        .GetRequiredService<DatabaseInitializer>()
-        .InitializeAsync();
+    var sp = scope.ServiceProvider;
 
-    await scope.ServiceProvider
-        .GetRequiredService<SymbolSeeder>()
-        .SeedAsync();
+    await sp.GetRequiredService<DatabaseInitializer>().InitializeAsync();
+    await sp.GetRequiredService<SymbolSeeder>().SeedAsync();
+    await sp.GetRequiredService<DhanSecurityIdSeeder>().SeedAsync();
 
-    await scope.ServiceProvider
-        .GetRequiredService<DhanSecurityIdSeeder>()
-        .SeedAsync();
+    var stuckCount = await sp
+        .GetRequiredService<ISyncJobRepository>()
+        .ReconcileStuckJobsAsync();
+
+    if (stuckCount > 0)
+        app.Logger.LogWarning(
+            "Reconciled {Count} stuck sync job(s) left over from the previous run. " +
+            "Trigger POST /api/market-data/sync to resume — data already inserted is preserved.",
+            stuckCount);
 }
 
 app.UseSwagger();
@@ -37,7 +52,7 @@ app.UseSwaggerUI(c =>
     c.ConfigObject.AdditionalItems["tryItOutEnabled"] = true;
 });
 
-// ── Market Data — Symbols ─────────────────────────────────────────────────
+// ── Market Data — Symbols ─────────────────────────────────────────────────────
 var marketData = app.MapGroup("/api/market-data").WithTags("MarketData");
 
 marketData.MapGet("/symbols", async (
@@ -59,7 +74,7 @@ marketData.MapPut("/symbols/{symbol}/security-id", async (
 .WithName("SetDhanSecurityId")
 .WithSummary("Map a symbol to its Dhan internal security ID (required before sync).");
 
-// ── Market Data — Sync ────────────────────────────────────────────────────
+// ── Market Data — Sync ────────────────────────────────────────────────────────
 
 marketData.MapPost("/sync", async (
     SyncTriggerRequest? body,
@@ -68,15 +83,22 @@ marketData.MapPost("/sync", async (
 {
     if (!string.IsNullOrWhiteSpace(body?.Symbol))
     {
-        var jobId = await manager.EnqueueSymbolSyncAsync(body.Symbol, ct);
-        return jobId is null
-            ? Results.Conflict(new { message = "Sync already in progress, or symbol not found / missing dhan_security_id." })
-            : Results.Accepted($"/api/market-data/sync/{jobId}", new { jobId });
+        var result = await manager.EnqueueSymbolSyncAsync(body.Symbol, ct);
+        return result switch
+        {
+            { IsEnqueued: true  } => Results.Accepted(
+                $"/api/market-data/sync/{result.JobId}",
+                new { result.JobId }),
+            { IsEnqueued: false, Reason: SyncSkipReason.AlreadyRunning } => Results.Conflict(
+                new { message = "A sync is already in progress. Poll /api/market-data/sync for status." }),
+            _ => Results.Conflict(
+                new { message = $"Symbol '{body.Symbol}' not found or has no dhan_security_id mapped." }),
+        };
     }
 
     var count = await manager.EnqueueFullSyncAsync(ct);
     return count == -1
-        ? Results.Conflict(new { message = "Sync already in progress. Poll /api/market-data/sync to check status." })
+        ? Results.Conflict(new { message = "A sync is already in progress. Poll /api/market-data/sync for status." })
         : Results.Accepted("/api/market-data/sync", new { enqueued = count });
 })
 .WithName("TriggerSync")
@@ -112,7 +134,7 @@ marketData.MapDelete("/reset", async (
 .WithName("ResetMarketData")
 .WithSummary("Wipes all price_data_1m rows and sync_jobs. Does NOT touch symbols or dhan_security_id.");
 
-// ── Market Data — OHLCV query ─────────────────────────────────────────────
+// ── Market Data — OHLCV query ─────────────────────────────────────────────────
 
 marketData.MapGet("/{symbol}/ohlcv", async (
     string symbol,
@@ -145,6 +167,6 @@ marketData.MapGet("/{symbol}/ohlcv", async (
 
 app.Run();
 
-// ── Request DTOs ──────────────────────────────────────────────────────────
+// ── Request / result DTOs ─────────────────────────────────────────────────────
 record SecurityIdRequest(string DhanSecurityId);
 record SyncTriggerRequest(string? Symbol);

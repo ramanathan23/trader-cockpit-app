@@ -18,16 +18,16 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration          configuration)
     {
-        // Make Dapper map snake_case columns → PascalCase properties automatically.
+        // Make Dapper map snake_case columns to PascalCase properties automatically.
         DefaultTypeMap.MatchNamesWithUnderscores = true;
 
-        // ── TimescaleDB connection ────────────────────────────────────────────
+        // TimescaleDB connection pool (singleton — one pool for the process lifetime).
         var connString = configuration.GetConnectionString("TimescaleDb")
             ?? throw new InvalidOperationException("Missing connection string 'TimescaleDb'.");
 
         services.AddSingleton(NpgsqlDataSource.Create(connString));
 
-        // ── Dhan API client ───────────────────────────────────────────────────
+        // Dhan API client
         services.Configure<DhanOptions>(configuration.GetSection(DhanOptions.SectionName));
 
         // Global token-bucket rate limiter shared across all workers.
@@ -59,22 +59,29 @@ public static class DependencyInjection
             http.DefaultRequestHeaders.Add("client-id",    opts.ClientId);
         });
 
-        // ── Work queue (unbounded channel — writes from SyncManager, reads from BackgroundService) ─
+        // Work queue: SyncManager writes, IngestionBackgroundService workers read.
         services.AddSingleton(Channel.CreateUnbounded<SyncRequest>(
             new UnboundedChannelOptions { SingleReader = false, SingleWriter = false }));
 
-        // ── Repositories ──────────────────────────────────────────────────────
-        services.AddScoped<ISymbolRepository,   SymbolRepository>();
-        services.AddScoped<IPriceDataRepository, PriceDataRepository>();
-        services.AddScoped<ISyncJobRepository,  SyncJobRepository>();
+        // Repositories are singletons because they are stateless wrappers around the
+        // singleton NpgsqlDataSource (open/close a connection per method call, hold no
+        // per-request state). Singleton lifetime is required so that SyncManager's
+        // background scheduling task — which outlives the HTTP request scope — can
+        // safely call repository methods without hitting a disposed scope error.
+        services.AddSingleton<ISymbolRepository,   SymbolRepository>();
+        services.AddSingleton<IPriceDataRepository, PriceDataRepository>();
+        services.AddSingleton<ISyncJobRepository,  SyncJobRepository>();
 
-        // ── Services ──────────────────────────────────────────────────────────
+        // Singleton for the same reason: ScheduleAllAsync runs after the HTTP request
+        // scope is disposed.
+        services.AddSingleton<SyncManager>();
+
+        // Seeders and initializer only run at startup inside an explicit scope.
         services.AddHttpClient();   // default IHttpClientFactory for DhanSecurityIdSeeder
-
-        services.AddScoped<SyncManager>();
         services.AddScoped<SymbolSeeder>();
         services.AddScoped<DhanSecurityIdSeeder>();
         services.AddSingleton<DatabaseInitializer>();
+
         services.AddHostedService<IngestionBackgroundService>();
 
         return services;

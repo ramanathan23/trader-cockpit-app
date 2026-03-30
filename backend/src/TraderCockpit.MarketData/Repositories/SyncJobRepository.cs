@@ -77,6 +77,25 @@ public sealed class SyncJobRepository(NpgsqlDataSource db) : ISyncJobRepository
         return await conn.ExecuteScalarAsync<bool>(sql);
     }
 
+    /// <inheritdoc/>
+    public async Task<int> ReconcileStuckJobsAsync(CancellationToken ct = default)
+    {
+        // Jobs left Pending or InProgress means the process died before they completed.
+        // Their in-memory SyncRequest was lost with the process; mark them Failed so the
+        // HasActiveJobsAsync guard no longer blocks new sync attempts.
+        // The next POST /sync will recalculate their window from MAX(time) in price_data_1m,
+        // resuming incrementally from whatever bars were already inserted.
+        const string sql = """
+            UPDATE sync_jobs
+            SET    status        = 'Failed',
+                   error_message = 'Job was in-flight when the app stopped. Trigger a new sync to resume from the last saved bar.',
+                   updated_at    = NOW()
+            WHERE  status IN ('Pending', 'InProgress')
+            """;
+        await using var conn = await db.OpenConnectionAsync(ct);
+        return await conn.ExecuteAsync(sql);
+    }
+
     public async Task ResetAllAsync(CancellationToken ct = default)
     {
         const string sql = "TRUNCATE TABLE sync_jobs";
