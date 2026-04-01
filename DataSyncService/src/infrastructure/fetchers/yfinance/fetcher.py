@@ -38,6 +38,24 @@ class YFinanceFetcher:
         return f"{symbol}{_NSE_SUFFIX}"
 
     @staticmethod
+    def _extract_single_symbol(raw: pd.DataFrame, symbol: str) -> pd.DataFrame:
+        ticker = f"{symbol}{_NSE_SUFFIX}"
+
+        if isinstance(raw.columns, pd.MultiIndex):
+            parsed = YFinanceFetcher._parse_multiindex(raw, [symbol])
+            return parsed.get(symbol, pd.DataFrame())
+
+        cols = {str(col).strip().lower(): col for col in raw.columns}
+        required = ["open", "high", "low", "close", "volume"]
+        if not all(name in cols for name in required):
+            logger.debug("Single-symbol yfinance response missing OHLCV columns for %s: %s", ticker, list(raw.columns))
+            return pd.DataFrame()
+
+        df = raw[[cols["open"], cols["high"], cols["low"], cols["close"], cols["volume"]]].copy()
+        df.columns = ["Open", "High", "Low", "Close", "Volume"]
+        return df.dropna(subset=["Open", "Close"])
+
+    @staticmethod
     def _parse_multiindex(raw: pd.DataFrame, symbols: list[str]) -> dict[str, pd.DataFrame]:
         result: dict[str, pd.DataFrame] = {}
         for symbol in symbols:
@@ -95,8 +113,7 @@ class YFinanceFetcher:
             return {}
 
         if len(symbols) == 1:
-            df = raw[["Open", "High", "Low", "Close", "Volume"]].copy()
-            df = df.dropna(subset=["Open", "Close"])
+            df = self._extract_single_symbol(raw, symbols[0])
             return {symbols[0]: df} if not df.empty else {}
 
         return self._parse_multiindex(raw, symbols)

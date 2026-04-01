@@ -43,10 +43,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
       DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
-      DHAN_MAX_CONCURRENCY: ${DHAN_MAX_CONCURRENCY:-5}
+      DHAN_MAX_CONCURRENCY: ${DHAN_MAX_CONCURRENCY:-10}
+      DHAN_SYMBOL_BATCH_SIZE: "10"
       SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-50}
       SYNC_1D_HISTORY_DAYS: ${SYNC_1D_HISTORY_DAYS:-1825}
-      SYNC_1M_HISTORY_DAYS: ${SYNC_1M_HISTORY_DAYS:-90}
+      SYNC_1M_HISTORY_DAYS: ${SYNC_1M_HISTORY_DAYS:-365}
     ports:
       - "8001:8000"
     depends_on:
@@ -97,4 +98,3 @@ services:
     volumes:
       - ./notebooks:/app/notebooks
     restart: unless-stopped
-

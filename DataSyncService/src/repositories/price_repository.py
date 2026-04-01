@@ -20,6 +20,10 @@ _TABLE_MAP: dict[str, str] = {
 }
 
 _COLUMNS = ("time", "symbol", "open", "high", "low", "close", "volume")
+_INGEST_CHUNK_SIZE: dict[str, int] = {
+    "1m": 10_000,
+    "1d": 50_000,
+}
 
 
 def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
@@ -108,24 +112,29 @@ class PriceRepository:
         if not all_records:
             return 0
 
-        async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(f"""
-                    CREATE TEMP TABLE _ingest_tmp
-                        (LIKE {table} INCLUDING DEFAULTS)
-                    ON COMMIT DROP
-                """)
-                await conn.copy_records_to_table(
-                    "_ingest_tmp",
-                    records=all_records,
-                    columns=list(_COLUMNS),
-                )
-                result = await conn.execute(f"""
-                    INSERT INTO {table} ({", ".join(_COLUMNS)})
-                    SELECT {", ".join(_COLUMNS)} FROM _ingest_tmp
-                    ON CONFLICT (time, symbol) DO NOTHING
-                """)
+        chunk_size = _INGEST_CHUNK_SIZE.get(interval, len(all_records))
+        inserted = 0
 
-        inserted = int(result.split()[-1])
+        async with self._pool.acquire() as conn:
+            for i in range(0, len(all_records), chunk_size):
+                chunk = all_records[i: i + chunk_size]
+                async with conn.transaction():
+                    await conn.execute(f"""
+                        CREATE TEMP TABLE _ingest_tmp
+                            (LIKE {table} INCLUDING DEFAULTS)
+                        ON COMMIT DROP
+                    """)
+                    await conn.copy_records_to_table(
+                        "_ingest_tmp",
+                        records=chunk,
+                        columns=list(_COLUMNS),
+                    )
+                    result = await conn.execute(f"""
+                        INSERT INTO {table} ({", ".join(_COLUMNS)})
+                        SELECT {", ".join(_COLUMNS)} FROM _ingest_tmp
+                        ON CONFLICT (time, symbol) DO NOTHING
+                    """)
+                    inserted += int(result.split()[-1])
+
         logger.debug("[%s] Inserted %d / %d records", interval, inserted, len(all_records))
         return inserted

@@ -2,12 +2,13 @@
 Dhan API fetcher for 1-minute historical OHLCV data (dhanhq SDK).
 
 Why Dhan for 1m:
-  yfinance caps 1-min history at 7 days; Dhan provides up to 90 days.
+  yfinance caps 1-min history at 7 days; Dhan provides up to 5 years
+  of intraday history, with at most 90 days per API call.
 
 Strategy:
-  Split 90-day range into CHUNK_DAYS windows, call dhanhq.intraday_minute_data()
-  for each via asyncio.to_thread (SDK is synchronous), concat into a single
-  UTC-indexed DataFrame.
+  Split the requested range into CHUNK_DAYS windows, call
+  dhanhq.intraday_minute_data() for each via asyncio.to_thread
+  (SDK is synchronous), concat into a single UTC-indexed DataFrame.
 
 Dhan docs: https://dhanhq.co/docs/v2/
 """
@@ -23,7 +24,7 @@ from .security_master import DhanSecurityMaster
 
 logger = logging.getLogger(__name__)
 
-_CHUNK_DAYS = 30
+_CHUNK_DAYS = 90
 
 
 def _fetch_chunk_sync(

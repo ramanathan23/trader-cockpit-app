@@ -25,7 +25,11 @@ class Settings(BaseSettings):
     dhan_client_id: str = Field(default="", description="Dhan API client ID")
     dhan_access_token: str = Field(default="", description="Dhan API access token")
     dhan_max_concurrency: int = Field(
-        default=5, description="Max parallel Dhan API calls (stay under rate limit)"
+        default=10, description="Max parallel Dhan API calls (stay under rate limit)"
+    )
+    dhan_symbol_batch_size: int = Field(
+        default=10,
+        description="Symbols per Dhan ingest batch before persisting to DB",
     )
     dhan_security_master_url: str = Field(
         default="https://images.dhan.co/api-data/api-scrip-master.csv",
@@ -46,7 +50,8 @@ class Settings(BaseSettings):
         default=1825, description="Daily bar lookback depth in days (~5 years)"
     )
     sync_1m_history_days: int = Field(
-        default=90, description="1-minute bar lookback depth in days (Dhan API max)"
+        default=365,
+        description="1-minute bar lookback depth in days (project default: 1 year; Dhan supports more)",
     )
 
     log_level: str = Field(default="INFO", description="Python root logging level")

@@ -67,8 +67,15 @@ class SyncService:
         total = await self.bootstrap_symbols()
         all_symbols = [s.symbol for s in load_from_csv()]
         logger.info("Starting initial sync for %d symbols", len(all_symbols))
-        await self._sync_daily_initial(all_symbols)
-        await self._sync_1m_initial(all_symbols)
+        daily_result, intraday_result = await asyncio.gather(
+            self._sync_daily_initial(all_symbols),
+            self._sync_1m_initial(all_symbols),
+            return_exceptions=True,
+        )
+        if isinstance(daily_result, Exception):
+            logger.error("[1d] Initial sync failed: %s", daily_result, exc_info=daily_result)
+        if isinstance(intraday_result, Exception):
+            logger.error("[1m] Initial sync failed: %s", intraday_result, exc_info=intraday_result)
         return {"symbols_loaded": total, "intervals": ["1d", "1m"]}
 
     async def run_patch_sync(self) -> dict:
@@ -98,16 +105,19 @@ class SyncService:
             await asyncio.sleep(settings.sync_batch_delay_s)
 
     async def _sync_1m_initial(self, symbols: list[str]) -> None:
-        # DhanFetcher.fetch_batch internally bounds concurrency via its semaphore,
-        # so we can pass all symbols at once without risk of slamming the API.
-        try:
-            data = await self._dhan.fetch_batch(symbols, days=settings.sync_1m_history_days)
-        except Exception as exc:
-            logger.error("[1m] Initial sync failed before fetch: %s", exc)
-            await self._mark_state_error(symbols, "1m", str(exc))
-            return
-        await self._persist_batch(symbols, data, "1m")
-        logger.info("[1m] Fetched data for %d / %d symbols", len(data), len(symbols))
+        total_persisted = 0
+        for i, batch in enumerate(_batches(symbols, settings.dhan_symbol_batch_size)):
+            try:
+                data = await self._dhan.fetch_batch(batch, days=settings.sync_1m_history_days)
+            except Exception as exc:
+                logger.error("[1m] Initial sync batch failed before fetch: %s", exc)
+                await self._mark_state_error(batch, "1m", str(exc))
+                continue
+
+            batch_persisted = await self._persist_intraday_results(batch, data)
+            total_persisted += batch_persisted
+            done = min((i + 1) * settings.dhan_symbol_batch_size, len(symbols))
+            logger.info("[1m] Fetched data for %d symbols; processed %d / %d", total_persisted, done, len(symbols))
 
     # ── Patch sync helpers ────────────────────────────────────────────────────
 
@@ -153,27 +163,32 @@ class SyncService:
             return 0
 
         logger.info("[1m] Patching %d symbols", len(stale))
-        tasks = {
-            sym: asyncio.create_task(
-                self._dhan.fetch_since(sym, last_time)
-                if last_time is not None
-                else self._dhan.fetch_1m(sym, days=settings.sync_1m_history_days)
-            )
-            for sym, last_time in stale
-        }
+        updated = 0
 
-        all_data: dict = {}
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-        for sym, result in zip(tasks.keys(), results):
-            if isinstance(result, Exception):
-                logger.warning("[1m] fetch failed for %s: %s", sym, result)
-            elif not result.empty:
-                all_data[sym] = result
+        for i, batch in enumerate(_batches(stale, settings.dhan_symbol_batch_size)):
+            tasks = {
+                sym: asyncio.create_task(
+                    self._dhan.fetch_since(sym, last_time)
+                    if last_time is not None
+                    else self._dhan.fetch_1m(sym, days=settings.sync_1m_history_days)
+                )
+                for sym, last_time in batch
+            }
 
-        if all_data:
-            await self._prices.bulk_ingest(all_data, "1m")
-        await self._update_state([s for s, _ in stale], all_data, "1m")
-        return len(all_data)
+            batch_data: dict = {}
+            results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            for sym, result in zip(tasks.keys(), results):
+                if isinstance(result, Exception):
+                    logger.warning("[1m] fetch failed for %s: %s", sym, result)
+                elif not result.empty:
+                    batch_data[sym] = result
+
+            updated += await self._persist_intraday_results([s for s, _ in batch], batch_data)
+
+            done = min((i + 1) * settings.dhan_symbol_batch_size, len(stale))
+            logger.info("[1m] Processed %d / %d stale symbols", done, len(stale))
+
+        return updated
 
     # ── Shared state helpers ──────────────────────────────────────────────────
 
@@ -226,3 +241,18 @@ class SyncService:
         async with self._pool.acquire() as conn:
             for sym in syms:
                 await self._state.upsert(conn, sym, interval, "error", error_msg=error_msg)
+
+    async def _persist_intraday_results(
+        self,
+        batch_symbols: list[str],
+        data: dict[str, object],
+    ) -> int:
+        persisted = 0
+        for sym in batch_symbols:
+            df = data.get(sym)
+            if df is None or df.empty:
+                await self._update_state([sym], {}, "1m")
+                continue
+            await self._persist_batch([sym], {sym: df}, "1m")
+            persisted += 1
+        return persisted
