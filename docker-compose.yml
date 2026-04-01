@@ -1,0 +1,91 @@
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: trader_timescaledb
+    environment:
+      POSTGRES_USER: ${DB_USER:-trader}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-trader_secret}
+      POSTGRES_DB: ${DB_NAME:-trader_cockpit}
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/00_init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trader_cockpit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: trader_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  data-sync:
+    build:
+      context: ./DataSyncService
+      dockerfile: Dockerfile
+    container_name: trader_data_sync
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@timescaledb:5432/${DB_NAME:-trader_cockpit}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8001:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./DataSyncService/src:/app/src:ro
+    restart: unless-stopped
+
+  momentum-scorer:
+    build:
+      context: ./MomentumScorerService
+      dockerfile: Dockerfile
+    container_name: trader_momentum_scorer
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@timescaledb:5432/${DB_NAME:-trader_cockpit}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8002:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notebooks:
+    build:
+      context: ./notebooks
+      dockerfile: Dockerfile
+    container_name: trader_notebooks
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@timescaledb:5432/${DB_NAME:-trader_cockpit}
+    ports:
+      - "8888:8888"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ./notebooks:/app/notebooks
+    restart: unless-stopped
+
+volumes:
+  timescale_data:
+  redis_data:
