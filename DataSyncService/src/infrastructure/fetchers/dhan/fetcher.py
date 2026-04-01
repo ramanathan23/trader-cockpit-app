@@ -80,10 +80,12 @@ class DhanFetcher:
         client_id: str,
         access_token: str,
         max_concurrency: int = 5,
+        security_master_url: str = "https://images.dhan.co/api-data/api-scrip-master.csv",
+        master_ttl_hours: int = 24,
     ) -> None:
         self._dhan = DhanHQ(client_id=client_id, access_token=access_token)
         self._semaphore = asyncio.Semaphore(max_concurrency)
-        self._master = DhanSecurityMaster()
+        self._master = DhanSecurityMaster(url=security_master_url, ttl_hours=master_ttl_hours)
 
     async def refresh_security_master(self) -> int:
         return await self._master.refresh()

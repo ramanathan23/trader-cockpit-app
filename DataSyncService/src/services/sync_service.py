@@ -2,8 +2,8 @@
 SyncService — orchestrates full and incremental OHLCV sync for all NSE symbols.
 
 Data sources:
-  1d → YFinanceFetcher  (batched, up to 1825 days)
-  1m → DhanFetcher      (per-symbol concurrent, 90 days via Dhan API)
+  1d → YFinanceFetcher  (batched, configurable history depth)
+  1m → DhanFetcher      (concurrent per-symbol, configurable history depth via Dhan API)
 """
 
 import asyncio
@@ -21,11 +21,6 @@ from ..repositories.sync_state_repository import SyncStateRepository
 
 logger = logging.getLogger(__name__)
 
-_SYNC_CONFIG: dict[str, dict] = {
-    "1d": {"days": 1825},
-    "1m": {"days": 90},
-}
-
 
 def _batches(lst: list, size: int):
     for i in range(0, len(lst), size):
@@ -41,11 +36,11 @@ def _to_utc_datetime(ts) -> datetime:
 class SyncService:
     """
     Coordinates symbol loading, price fetching, ingestion, and sync-state updates.
-    All dependencies are injected; no global state.
+    All configuration comes from Settings; all dependencies are injected via the pool.
     """
 
     def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
+        self._pool    = pool
         self._symbols = SymbolRepository(pool)
         self._prices  = PriceRepository(pool)
         self._state   = SyncStateRepository(pool)
@@ -54,6 +49,8 @@ class SyncService:
             client_id=settings.dhan_client_id,
             access_token=settings.dhan_access_token,
             max_concurrency=settings.dhan_max_concurrency,
+            security_master_url=settings.dhan_security_master_url,
+            master_ttl_hours=settings.dhan_master_ttl_hours,
         )
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -61,17 +58,21 @@ class SyncService:
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
 
+    async def refresh_security_master(self) -> int:
+        """Force re-download of the Dhan NSE scrip master CSV."""
+        return await self._dhan.refresh_security_master()
+
     async def run_initial_sync(self) -> dict:
-        """Full backfill: 5yr daily via yfinance + 90d 1-min via Dhan."""
+        """Full backfill: daily via yfinance + 1-min via Dhan API."""
         total = await self.bootstrap_symbols()
         all_symbols = [s.symbol for s in load_from_csv()]
         logger.info("Starting initial sync for %d symbols", len(all_symbols))
         await self._sync_daily_initial(all_symbols)
         await self._sync_1m_initial(all_symbols)
-        return {"symbols_loaded": total, "intervals": list(_SYNC_CONFIG)}
+        return {"symbols_loaded": total, "intervals": ["1d", "1m"]}
 
     async def run_patch_sync(self) -> dict:
-        """Incremental sync: 1d (yfinance) and 1m (Dhan) run in parallel."""
+        """Incremental sync: daily (yfinance) and 1-min (Dhan) run in parallel."""
         all_symbols = [s.symbol for s in load_from_csv()]
         daily_result, intraday_result = await asyncio.gather(
             self._run_daily_patch(all_symbols),
@@ -89,22 +90,19 @@ class SyncService:
     # ── Initial sync helpers ──────────────────────────────────────────────────
 
     async def _sync_daily_initial(self, symbols: list[str]) -> None:
-        days = _SYNC_CONFIG["1d"]["days"]
         for i, batch in enumerate(_batches(symbols, settings.sync_batch_size)):
-            data = await self._yf.fetch_batch(batch, "1d", days)
+            data = await self._yf.fetch_batch(batch, "1d", settings.sync_1d_history_days)
             await self._persist_batch(batch, data, "1d")
             done = min((i + 1) * settings.sync_batch_size, len(symbols))
             logger.info("[1d] %d / %d done", done, len(symbols))
             await asyncio.sleep(settings.sync_batch_delay_s)
 
     async def _sync_1m_initial(self, symbols: list[str]) -> None:
-        days = _SYNC_CONFIG["1m"]["days"]
-        dhan_batch = 200
-        for i, batch in enumerate(_batches(symbols, dhan_batch)):
-            data = await self._dhan.fetch_batch(batch, days=days)
-            await self._persist_batch(batch, data, "1m")
-            done = min((i + 1) * dhan_batch, len(symbols))
-            logger.info("[1m] %d / %d done", done, len(symbols))
+        # DhanFetcher.fetch_batch internally bounds concurrency via its semaphore,
+        # so we can pass all symbols at once without risk of slamming the API.
+        data = await self._dhan.fetch_batch(symbols, days=settings.sync_1m_history_days)
+        await self._persist_batch(symbols, data, "1m")
+        logger.info("[1m] Fetched data for %d / %d symbols", len(data), len(symbols))
 
     # ── Patch sync helpers ────────────────────────────────────────────────────
 
@@ -127,7 +125,7 @@ class SyncService:
                     if not df.empty:
                         all_data[sym] = df
             else:
-                data = await self._yf.fetch_batch(batch, "1d", _SYNC_CONFIG["1d"]["days"])
+                data = await self._yf.fetch_batch(batch, "1d", settings.sync_1d_history_days)
                 all_data.update(data)
             await asyncio.sleep(settings.sync_batch_delay_s)
 
@@ -147,7 +145,7 @@ class SyncService:
             sym: asyncio.create_task(
                 self._dhan.fetch_since(sym, last_time)
                 if last_time is not None
-                else self._dhan.fetch_1m(sym, days=90)
+                else self._dhan.fetch_1m(sym, days=settings.sync_1m_history_days)
             )
             for sym, last_time in stale
         }

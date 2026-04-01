@@ -8,14 +8,20 @@ logger = logging.getLogger(__name__)
 _MIGRATION = Path(__file__).parent / "migrations" / "001_schema.sql"
 
 
-async def create_pool(dsn: str) -> asyncpg.Pool:
+async def create_pool(
+    dsn: str,
+    *,
+    min_size: int = 5,
+    max_size: int = 20,
+    command_timeout: int = 60,
+) -> asyncpg.Pool:
     pool = await asyncpg.create_pool(
         dsn,
-        min_size=5,
-        max_size=20,
-        command_timeout=60,
+        min_size=min_size,
+        max_size=max_size,
+        command_timeout=command_timeout,
     )
-    logger.info("Database pool created")
+    logger.info("Database pool created (min=%d, max=%d)", min_size, max_size)
     return pool
 
 

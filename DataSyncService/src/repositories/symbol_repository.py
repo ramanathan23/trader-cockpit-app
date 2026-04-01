@@ -1,13 +1,13 @@
 """
-Symbol persistence: CSV parsing and database upserts.
+Symbol persistence: CSV loading and database upserts.
 """
 
-import csv
 import logging
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 
 import asyncpg
+import pandas as pd
 
 from ..domain.models import Symbol
 
@@ -16,41 +16,34 @@ logger = logging.getLogger(__name__)
 _SYMBOLS_CSV = Path(__file__).parent.parent / "data" / "symbols.csv"
 
 
-def _parse_date(val: str):
-    val = val.strip()
-    for fmt in ("%d-%b-%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(val, fmt).date()
-        except ValueError:
-            continue
-    return None
+def load_from_csv(csv_path: Path = _SYMBOLS_CSV) -> list[Symbol]:
+    """
+    Parse NSE symbols.csv and return EQ-series Symbol records.
 
+    Uses pandas with skipinitialspace=True to handle the leading spaces
+    present in column names of the NSE-published CSV format.
+    """
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    df.columns = df.columns.str.strip()
 
-def _parse_float(val: str):
-    try:
-        return float(val.strip())
-    except (ValueError, AttributeError):
-        return None
+    eq = df[df["SERIES"].str.strip() == "EQ"].copy()
+    eq["DATE OF LISTING"] = pd.to_datetime(
+        eq["DATE OF LISTING"], dayfirst=True, errors="coerce"
+    ).dt.date
 
-
-def load_from_csv() -> list[Symbol]:
-    """Parse symbols.csv and return EQ-series Symbol records."""
-    rows: list[Symbol] = []
-    with open(_SYMBOLS_CSV, newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
-            series = row.get(" SERIES", "").strip()
-            if series != "EQ":
-                continue
-            rows.append(Symbol(
-                symbol=row["SYMBOL"].strip(),
-                company_name=row["NAME OF COMPANY"].strip(),
-                series=series,
-                isin=row[" ISIN NUMBER"].strip(),
-                listed_date=_parse_date(row.get(" DATE OF LISTING", "")),
-                face_value=_parse_float(row.get(" FACE VALUE", "")),
-            ))
-    return rows
+    symbols: list[Symbol] = []
+    for _, row in eq.iterrows():
+        isin = str(row.get("ISIN NUMBER", "")).strip()
+        face = row.get("FACE VALUE")
+        symbols.append(Symbol(
+            symbol=str(row["SYMBOL"]).strip(),
+            company_name=str(row["NAME OF COMPANY"]).strip(),
+            series="EQ",
+            isin=isin if isin and isin != "nan" else None,
+            listed_date=row["DATE OF LISTING"] if isinstance(row["DATE OF LISTING"], date) else None,
+            face_value=float(face) if pd.notna(face) else None,
+        ))
+    return symbols
 
 
 class SymbolRepository:

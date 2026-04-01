@@ -9,16 +9,24 @@ from .api.routes import router
 from .repositories.score_repository import ScoreRepository
 from .services.score_service import ScoreService
 
-logging.basicConfig(level=settings.log_level)
+logging.basicConfig(
+    level=settings.log_level.upper(),
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    pool = await create_pool(settings.database_url)
+    pool = await create_pool(
+        settings.database_url,
+        min_size=settings.db_pool_min_size,
+        max_size=settings.db_pool_max_size,
+        command_timeout=settings.db_command_timeout,
+    )
     await run_migrations(pool)
-    app.state.pool        = pool
-    app.state.score_repo  = ScoreRepository(pool)
+    app.state.pool          = pool
+    app.state.score_repo    = ScoreRepository(pool)
     app.state.score_service = ScoreService(pool)
     logger.info("MomentumScorerService ready")
     yield

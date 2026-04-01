@@ -15,8 +15,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_SECURITY_MASTER_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
-_MASTER_TTL_HOURS = 24
+_DEFAULT_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
+_DEFAULT_TTL_HOURS = 24
 _CACHE_PATH = Path(tempfile.gettempdir()) / "dhan_security_master.csv"
 
 _COL_ALIASES: dict[str, list[str]] = {
@@ -40,29 +40,33 @@ def _find_col(df: pd.DataFrame, aliases: list[str]) -> str | None:
 
 
 class DhanSecurityMaster:
-    """Thread-safe, lazily-loaded Dhan security master with TTL-based cache."""
+    """Thread-safe, lazily-loaded Dhan security master with configurable TTL-based cache."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        url: str = _DEFAULT_URL,
+        ttl_hours: int = _DEFAULT_TTL_HOURS,
+    ) -> None:
+        self._url = url
+        self._ttl_hours = ttl_hours
         self._map: dict[str, str] | None = None
         self._lock = asyncio.Lock()
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    @staticmethod
-    def _is_stale() -> bool:
+    def _is_stale(self) -> bool:
         if not _CACHE_PATH.exists():
             return True
         age_hours = (time.time() - _CACHE_PATH.stat().st_mtime) / 3600
-        return age_hours > _MASTER_TTL_HOURS
+        return age_hours > self._ttl_hours
 
     @staticmethod
     def _load_from_disk() -> pd.DataFrame:
         return pd.read_csv(_CACHE_PATH, low_memory=False)
 
-    @staticmethod
-    def _download_sync() -> pd.DataFrame:
-        logger.info("Downloading Dhan security master…")
-        resp = httpx.get(_SECURITY_MASTER_URL, timeout=60, follow_redirects=True)
+    def _download_sync(self) -> pd.DataFrame:
+        logger.info("Downloading Dhan security master from %s", self._url)
+        resp = httpx.get(self._url, timeout=60, follow_redirects=True)
         resp.raise_for_status()
         _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _CACHE_PATH.write_bytes(resp.content)

@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-trader_secret}
       POSTGRES_DB: ${DB_NAME:-trader_cockpit}
     volumes:
-      - d:/docker-data/timescaledb:/var/lib/postgresql/data
+      - ${DOCKER_DATA_PATH:-d:/docker-data}/timescaledb:/var/lib/postgresql/data
       - ./infra/db/init.sql:/docker-entrypoint-initdb.d/00_init.sql
     ports:
       - "5432:5432"
@@ -24,7 +24,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - d:/docker-data/redis:/data
+      - ${DOCKER_DATA_PATH:-d:/docker-data}/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -39,8 +39,14 @@ services:
     container_name: trader_data_sync
     environment:
       DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@timescaledb:5432/${DB_NAME:-trader_cockpit}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
+      DHAN_MAX_CONCURRENCY: ${DHAN_MAX_CONCURRENCY:-5}
+      SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-50}
+      SYNC_1D_HISTORY_DAYS: ${SYNC_1D_HISTORY_DAYS:-1825}
+      SYNC_1M_HISTORY_DAYS: ${SYNC_1M_HISTORY_DAYS:-90}
     ports:
       - "8001:8000"
     depends_on:
@@ -59,8 +65,14 @@ services:
     container_name: trader_momentum_scorer
     environment:
       DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@timescaledb:5432/${DB_NAME:-trader_cockpit}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SCORE_LOOKBACK_BARS: ${SCORE_LOOKBACK_BARS:-200}
+      SCORE_CONCURRENCY: ${SCORE_CONCURRENCY:-10}
+      WEIGHT_RSI: ${WEIGHT_RSI:-0.30}
+      WEIGHT_MACD: ${WEIGHT_MACD:-0.30}
+      WEIGHT_ROC: ${WEIGHT_ROC:-0.25}
+      WEIGHT_VOL: ${WEIGHT_VOL:-0.15}
     ports:
       - "8002:8000"
     depends_on:

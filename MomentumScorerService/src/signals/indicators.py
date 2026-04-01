@@ -1,25 +1,26 @@
 """
-Pure-pandas technical indicator implementations.
-All functions accept a pd.Series and return a pd.Series of the same length.
+Technical indicator implementations backed by the `ta` library.
+
+All functions accept a pd.Series and return a pd.Series of the same length,
+preserving the index. Implementations delegate to battle-tested ta classes
+rather than re-implementing rolling/EWM logic by hand.
+
+`ta` docs: https://technical-analysis-library-in-python.readthedocs.io/
 """
 
 import numpy as np
 import pandas as pd
+from ta.momentum import RSIIndicator, ROCIndicator
+from ta.trend import MACD
+from ta.volatility import AverageTrueRange
 
 
 def rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """
-    Wilder's RSI.  Range: 0–100.
+    Wilder's RSI — Range: 0–100.
     Values > 60 indicate bullish momentum; < 40 indicate weakness.
     """
-    delta = prices.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    # Wilder smoothing = EWM with com = period - 1
-    avg_gain = gain.ewm(com=period - 1, min_periods=period).mean()
-    avg_loss = loss.ewm(com=period - 1, min_periods=period).mean()
-    rs = avg_gain / avg_loss.replace(0, np.nan)
-    return 100.0 - (100.0 / (1.0 + rs))
+    return RSIIndicator(close=prices, window=period).rsi()
 
 
 def macd(
@@ -32,22 +33,18 @@ def macd(
     Returns (macd_line, signal_line, histogram).
     Positive histogram = bullish momentum acceleration.
     """
-    ema_fast = prices.ewm(span=fast, adjust=False).mean()
-    ema_slow = prices.ewm(span=slow, adjust=False).mean()
-    macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
-    histogram = macd_line - signal_line
-    return macd_line, signal_line, histogram
+    m = MACD(close=prices, window_slow=slow, window_fast=fast, window_sign=signal)
+    return m.macd(), m.macd_signal(), m.macd_diff()
 
 
 def rate_of_change(prices: pd.Series, period: int = 10) -> pd.Series:
     """Percentage price change over `period` bars. Range: unbounded."""
-    return (prices / prices.shift(period) - 1.0) * 100.0
+    return ROCIndicator(close=prices, window=period).roc()
 
 
 def volume_ratio(volume: pd.Series, period: int = 20) -> pd.Series:
     """
-    Current volume relative to rolling average.
+    Current volume relative to its rolling average.
     > 1 means above-average volume (confirms momentum).
     """
     avg = volume.rolling(period, min_periods=1).mean()
@@ -56,10 +53,4 @@ def volume_ratio(volume: pd.Series, period: int = 20) -> pd.Series:
 
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Average True Range — volatility measure."""
-    prev_close = close.shift(1)
-    tr = pd.concat([
-        high - low,
-        (high - prev_close).abs(),
-        (low  - prev_close).abs(),
-    ], axis=1).max(axis=1)
-    return tr.ewm(com=period - 1, min_periods=period).mean()
+    return AverageTrueRange(high=high, low=low, close=close, window=period).average_true_range()

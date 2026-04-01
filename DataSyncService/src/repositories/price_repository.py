@@ -39,9 +39,57 @@ def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
     return records
 
 
+_QUERY_TABLE: dict[str, str] = {
+    "1m": "price_data_1m",
+    "1d": "price_data_daily",
+}
+
+
 class PriceRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
+
+    async def get_ohlcv(
+        self,
+        symbol: str,
+        interval: str,
+        *,
+        limit: int = 500,
+        from_ts: str | None = None,
+        to_ts: str | None = None,
+    ) -> list[dict]:
+        """Query OHLCV rows for a symbol. Table is selected from a static whitelist — no injection risk."""
+        table = _QUERY_TABLE.get(interval)
+        if not table:
+            raise ValueError(f"Unsupported interval: {interval!r}")
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT time, open, high, low, close, volume "
+                f"FROM {table} "
+                f"WHERE symbol = $1 "
+                f"  AND ($2::timestamptz IS NULL OR time >= $2::timestamptz) "
+                f"  AND ($3::timestamptz IS NULL OR time <= $3::timestamptz) "
+                f"ORDER BY time DESC LIMIT $4",
+                symbol, from_ts, to_ts, limit,
+            )
+        return [dict(r) for r in rows]
+
+    async def get_ohlcv_hourly(
+        self,
+        symbol: str,
+        *,
+        limit: int = 168,
+    ) -> list[dict]:
+        """Query from the pre-built hourly continuous aggregate view."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT bucket AS time, open, high, low, close, volume "
+                "FROM price_1m_hourly "
+                "WHERE symbol = $1 "
+                "ORDER BY bucket DESC LIMIT $2",
+                symbol, limit,
+            )
+        return [dict(r) for r in rows]
 
     async def bulk_ingest(
         self,

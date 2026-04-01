@@ -17,16 +17,21 @@ logger = logging.getLogger(__name__)
 
 class ScoreService:
     def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool   = pool
-        self._prices = PriceRepository(pool)
-        self._scores = ScoreRepository(pool)
+        self._pool      = pool
+        self._prices    = PriceRepository(pool)
+        self._scores    = ScoreRepository(pool)
+        self._semaphore = asyncio.Semaphore(settings.score_concurrency)
 
     async def compute_all(self, timeframe: str = "1d") -> int:
         """
         Compute and persist momentum scores for all synced symbols.
 
-        Fetches all price data in a single batched query (no N+1),
-        offloads CPU-bound scoring to a thread, and bulk-upserts results.
+        Steps:
+          1. Load all synced symbol names (single query).
+          2. Batch-fetch all OHLCV data in one windowed query (no N+1).
+          3. Run CPU-bound scoring concurrently in threads, bounded by semaphore.
+          4. Bulk-upsert results via a single connection.
+
         Returns the number of symbols successfully scored.
         """
         symbols = await self._prices.fetch_synced_symbols()
@@ -40,17 +45,44 @@ class ScoreService:
             symbols, timeframe, settings.score_lookback_bars
         )
 
+        # Build scoring params once from config — avoids repeated attribute lookups
+        score_kwargs = dict(
+            rsi_period=settings.rsi_period,
+            macd_fast=settings.macd_fast,
+            macd_slow=settings.macd_slow,
+            macd_signal=settings.macd_signal,
+            roc_period=settings.roc_period,
+            vol_period=settings.vol_avg_period,
+            min_bars=settings.score_min_bars,
+            weights=(
+                settings.weight_rsi,
+                settings.weight_macd,
+                settings.weight_roc,
+                settings.weight_vol,
+            ),
+        )
+
+        async def _score_one(symbol: str, df):
+            async with self._semaphore:
+                return symbol, await asyncio.to_thread(scorer.compute_score, df, **score_kwargs)
+
+        tasks = [_score_one(sym, df) for sym, df in price_data.items()]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
         scored = 0
         async with self._pool.acquire() as conn:
-            for symbol, df in price_data.items():
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning("Scoring task failed: %s", result)
+                    continue
+                symbol, breakdown = result
+                if breakdown is None:
+                    continue
                 try:
-                    breakdown = await asyncio.to_thread(scorer.compute_score, df)
-                    if breakdown is None:
-                        continue
                     await self._scores.upsert(conn, symbol, timeframe, breakdown)
                     scored += 1
                 except Exception:
-                    logger.warning("Scoring failed for %s", symbol, exc_info=True)
+                    logger.warning("Score persist failed for %s", symbol, exc_info=True)
 
         logger.info("Scored %d / %d symbols (%s)", scored, len(symbols), timeframe)
         return scored
