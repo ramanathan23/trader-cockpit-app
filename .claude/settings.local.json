@@ -7,7 +7,9 @@
       "Bash(python -c \"from dhanhq import dhanhq; attrs = {a: getattr\\(dhanhq, a\\) for a in dir\\(dhanhq\\) if not a.startswith\\(''_''\\) and not callable\\(getattr\\(dhanhq, a\\)\\)}; print\\(attrs\\)\")",
       "Bash(python -c \"from dhanhq import dhanhq; import inspect; print\\(inspect.getsource\\(dhanhq.intraday_minute_data\\)\\)\")",
       "Bash(xargs wc:*)",
-      "Bash(find . -name \"*.py\" -type f -exec wc -l {} +)"
+      "Bash(find . -name \"*.py\" -type f -exec wc -l {} +)",
+      "Bash(docker volume:*)",
+      "Bash(docker run:*)"
     ]
   }
 }

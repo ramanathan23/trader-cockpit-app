@@ -14,7 +14,7 @@ import asyncpg
 
 from ..config import settings
 from ..infrastructure.fetchers.dhan.fetcher import DhanFetcher
-from ..infrastructure.fetchers.yfinance_fetcher import YFinanceFetcher
+from ..infrastructure.fetchers.yfinance.fetcher import YFinanceFetcher
 from ..repositories.price_repository import PriceRepository
 from ..repositories.symbol_repository import SymbolRepository, load_from_csv
 from ..repositories.sync_state_repository import SyncStateRepository
