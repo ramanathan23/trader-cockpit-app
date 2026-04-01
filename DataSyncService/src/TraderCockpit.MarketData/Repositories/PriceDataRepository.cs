@@ -171,9 +171,10 @@ public sealed class PriceDataRepository(NpgsqlDataSource db) : IPriceDataReposit
     public async Task ResetAsync(CancellationToken ct = default)
     {
         await using var conn = await db.OpenConnectionAsync(ct);
-        // commandTimeout: 0 = unlimited — TRUNCATE on a large hypertable can exceed
-        // Npgsql's default 30 s command timeout.
-        await conn.ExecuteAsync(new CommandDefinition("TRUNCATE TABLE price_data_1m",
+        // commandTimeout: 0 = unlimited — TRUNCATE on a large hypertable can be slow.
+        // Truncate both price tables in one statement so they share the same lock cycle.
+        await conn.ExecuteAsync(new CommandDefinition(
+            "TRUNCATE TABLE price_data_1m, price_data_daily_raw",
             commandTimeout: 0, cancellationToken: ct));
     }
 

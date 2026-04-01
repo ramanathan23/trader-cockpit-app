@@ -51,7 +51,8 @@ public interface IPriceDataRepository
         CancellationToken ct = default);
 
     /// <summary>
-    /// Truncates <c>price_data_1m</c>. Continuous aggregates are refreshed lazily.
+    /// Truncates <c>price_data_1m</c> and <c>price_data_daily_raw</c>.
+    /// Continuous aggregates are refreshed lazily.
     /// Intended for the reset endpoint only.
     /// </summary>
     Task ResetAsync(CancellationToken ct = default);

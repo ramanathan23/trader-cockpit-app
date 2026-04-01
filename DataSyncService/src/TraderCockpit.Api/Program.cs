@@ -104,17 +104,32 @@ marketData.MapGet("/sync/{id:guid}", async (
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
 
-marketData.MapDelete("/reset", async (
+marketData.MapDelete("/reset", (
     IPriceDataRepository priceRepo,
-    ISyncRunRepository   syncRepo) =>
+    ISyncRunRepository   syncRepo,
+    ILogger<Program>     log) =>
 {
-    // CancellationToken.None — TRUNCATE must complete even if the HTTP client disconnects.
-    await priceRepo.ResetAsync(CancellationToken.None);
-    await syncRepo.ResetAllAsync(CancellationToken.None);
-    return Results.Ok(new { message = "All price data and sync runs cleared. Ready for a fresh sync." });
+    // Fire and forget — TRUNCATE on a large hypertable can take many seconds.
+    // Returns 202 immediately; the wipe continues in the background.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await priceRepo.ResetAsync(CancellationToken.None);
+            await syncRepo.ResetAllAsync(CancellationToken.None);
+            log.LogInformation("Reset complete — price_data_1m, price_data_daily_raw and sync_runs cleared.");
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Reset failed.");
+        }
+    });
+
+    return Results.Accepted((string?)null,
+        new { message = "Reset started. price_data_1m, price_data_daily_raw and sync_runs are being cleared." });
 })
 .WithName("ResetMarketData")
-.WithSummary("Wipes price_data_1m and sync_runs. Does NOT touch symbols or dhan_security_id.");
+.WithSummary("Wipes all price data and sync runs in the background. Returns 202 immediately.");
 
 // ── OHLCV query ───────────────────────────────────────────────────────────────
 
