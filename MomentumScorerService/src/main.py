@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from .config import settings
 from .db.connection import create_pool, run_migrations
 from .api.routes import router
+from .repositories.score_repository import ScoreRepository
+from .services.score_service import ScoreService
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -15,7 +17,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     pool = await create_pool(settings.database_url)
     await run_migrations(pool)
-    app.state.pool = pool
+    app.state.pool        = pool
+    app.state.score_repo  = ScoreRepository(pool)
+    app.state.score_service = ScoreService(pool)
     logger.info("MomentumScorerService ready")
     yield
     await pool.close()

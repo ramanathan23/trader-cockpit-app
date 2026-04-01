@@ -1,0 +1,56 @@
+"""
+ScoreService — orchestrates batch momentum score computation and persistence.
+"""
+
+import asyncio
+import logging
+
+import asyncpg
+
+from ..config import settings
+from ..repositories.price_repository import PriceRepository
+from ..repositories.score_repository import ScoreRepository
+from ..signals import scorer
+
+logger = logging.getLogger(__name__)
+
+
+class ScoreService:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool   = pool
+        self._prices = PriceRepository(pool)
+        self._scores = ScoreRepository(pool)
+
+    async def compute_all(self, timeframe: str = "1d") -> int:
+        """
+        Compute and persist momentum scores for all synced symbols.
+
+        Fetches all price data in a single batched query (no N+1),
+        offloads CPU-bound scoring to a thread, and bulk-upserts results.
+        Returns the number of symbols successfully scored.
+        """
+        symbols = await self._prices.fetch_synced_symbols()
+        if not symbols:
+            logger.warning("No synced symbols found — run initial sync first")
+            return 0
+
+        logger.info("Computing %s momentum scores for %d symbols", timeframe, len(symbols))
+
+        price_data = await self._prices.fetch_ohlcv_batch(
+            symbols, timeframe, settings.score_lookback_bars
+        )
+
+        scored = 0
+        async with self._pool.acquire() as conn:
+            for symbol, df in price_data.items():
+                try:
+                    breakdown = await asyncio.to_thread(scorer.compute_score, df)
+                    if breakdown is None:
+                        continue
+                    await self._scores.upsert(conn, symbol, timeframe, breakdown)
+                    scored += 1
+                except Exception:
+                    logger.warning("Scoring failed for %s", symbol, exc_info=True)
+
+        logger.info("Scored %d / %d symbols (%s)", scored, len(symbols), timeframe)
+        return scored

@@ -2,8 +2,6 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
-from ..services import dhan_fetcher, sync_manager
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -12,35 +10,26 @@ router = APIRouter()
 
 @router.post("/symbols/load", summary="Load/refresh symbols from CSV into DB")
 async def load_symbols(request: Request):
-    pool = request.app.state.pool
-    count = await sync_manager.bootstrap_symbols(pool)
+    count = await request.app.state.sync_service.bootstrap_symbols()
     return {"symbols_loaded": count}
 
 
 @router.post("/symbols/refresh-master", summary="Re-download Dhan security master CSV")
-async def refresh_security_master():
-    count = await dhan_fetcher.refresh_security_map()
+async def refresh_security_master(request: Request):
+    count = await request.app.state.sync_service._dhan.refresh_security_master()
     return {"symbols_mapped": count}
 
 
 @router.get("/symbols", summary="List symbols")
 async def list_symbols(request: Request, series: str = "EQ"):
-    pool = request.app.state.pool
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT symbol, company_name, series, isin, listed_date "
-            "FROM symbols WHERE series = $1 ORDER BY symbol",
-            series.upper(),
-        )
-    return [dict(r) for r in rows]
+    return await request.app.state.symbol_repo.list_by_series(series)
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
 @router.post("/sync/initial", summary="Trigger full historical load (background)")
 async def initial_sync(background_tasks: BackgroundTasks, request: Request):
-    pool = request.app.state.pool
-    background_tasks.add_task(sync_manager.run_initial_sync, pool)
+    background_tasks.add_task(request.app.state.sync_service.run_initial_sync)
     return {
         "status": "started",
         "message": "Initial sync running in background. "
@@ -50,42 +39,21 @@ async def initial_sync(background_tasks: BackgroundTasks, request: Request):
 
 @router.post("/sync/patch", summary="Trigger incremental patch sync (background)")
 async def patch_sync(background_tasks: BackgroundTasks, request: Request):
-    pool = request.app.state.pool
-    background_tasks.add_task(sync_manager.run_patch_sync, pool)
+    background_tasks.add_task(request.app.state.sync_service.run_patch_sync)
     return {"status": "started", "message": "Patch sync running in background"}
 
 
 @router.get("/sync/status", summary="Overall sync status per interval")
 async def sync_status(request: Request):
-    pool = request.app.state.pool
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT
-                timeframe,
-                COUNT(*)                                    AS total,
-                COUNT(*) FILTER (WHERE status = 'synced')  AS synced,
-                COUNT(*) FILTER (WHERE status = 'empty')   AS empty,
-                COUNT(*) FILTER (WHERE status = 'error')   AS errors,
-                COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-                MAX(last_synced_at)                         AS last_synced_at
-            FROM sync_state
-            GROUP BY timeframe
-            ORDER BY timeframe
-        """)
-    return [dict(r) for r in rows]
+    return await request.app.state.sync_state_repo.get_summary()
 
 
 @router.get("/sync/status/{symbol}", summary="Sync status for a specific symbol")
 async def symbol_sync_status(symbol: str, request: Request):
-    pool = request.app.state.pool
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM sync_state WHERE symbol = $1 ORDER BY timeframe",
-            symbol.upper(),
-        )
+    rows = await request.app.state.sync_state_repo.get_for_symbol(symbol.upper())
     if not rows:
         raise HTTPException(404, f"No sync state found for symbol '{symbol}'")
-    return [dict(r) for r in rows]
+    return rows
 
 
 # ── Prices ────────────────────────────────────────────────────────────────────
@@ -94,7 +62,7 @@ async def symbol_sync_status(symbol: str, request: Request):
 async def get_1m_prices(
     symbol: str,
     request: Request,
-    limit: int = Query(default=1000, le=10_000),
+    limit:   int      = Query(default=500, le=5000),
     from_ts: str | None = Query(default=None, description="ISO-8601 start timestamp"),
     to_ts:   str | None = Query(default=None, description="ISO-8601 end timestamp"),
 ):
@@ -130,7 +98,7 @@ async def get_daily_prices(
     return [dict(r) for r in rows]
 
 
-@router.get("/prices/{symbol}/hourly", summary="Query hourly aggregate (from 1m continuous aggregate)")
+@router.get("/prices/{symbol}/hourly", summary="Query hourly aggregate")
 async def get_hourly_prices(
     symbol: str,
     request: Request,

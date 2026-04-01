@@ -5,7 +5,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql://trader:trader_secret@localhost:5432/trader_cockpit"
-    redis_url: str = "redis://localhost:6379"
 
     # Dhan API credentials (required for 1-min historical data)
     # Get these from https://dhanhq.co → My Account → API Access
