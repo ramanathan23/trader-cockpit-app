@@ -136,20 +136,63 @@ SELECT add_continuous_aggregate_policy('price_data_daily',
     if_not_exists     => TRUE);
 
 -- -----------------------------------------------------------
--- 5. Sync Jobs — client-pollable job tracker
+-- 5. Sync Runs — one row per full-universe sync trigger
 -- -----------------------------------------------------------
-CREATE TABLE IF NOT EXISTS sync_jobs (
-    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol_id     INTEGER      REFERENCES symbols(id),
-    symbol        VARCHAR(50)  NOT NULL,
-    status        VARCHAR(20)  NOT NULL DEFAULT 'Pending',  -- Pending | InProgress | Completed | Failed
-    from_time     TIMESTAMPTZ,
-    to_time       TIMESTAMPTZ,
-    bars_fetched  INTEGER      NOT NULL DEFAULT 0,
-    error_message TEXT,
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+-- Each POST /sync creates exactly one row here tracking the
+-- entire backfill/update run across all symbols.
+-- Status: InProgress | Completed | Failed
+CREATE TABLE IF NOT EXISTS sync_runs (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    status           VARCHAR(20) NOT NULL DEFAULT 'InProgress',
+    total_symbols    INTEGER     NOT NULL DEFAULT 0,
+    symbols_updated  INTEGER     NOT NULL DEFAULT 0,
+    symbols_skipped  INTEGER     NOT NULL DEFAULT 0,
+    symbols_failed   INTEGER     NOT NULL DEFAULT 0,
+    current_symbol   VARCHAR(50),
+    started_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at      TIMESTAMPTZ,
+    error_message    TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_sync_jobs_status    ON sync_jobs (status);
-CREATE INDEX IF NOT EXISTS idx_sync_jobs_symbol_id ON sync_jobs (symbol_id);
+CREATE INDEX IF NOT EXISTS idx_sync_runs_status ON sync_runs (status);
+
+-- -----------------------------------------------------------
+-- 6. Daily Raw Hypertable
+-- Stores EOD bars fetched directly from Dhan's historical API
+-- (up to BackfillDailyYears, default 5 years).
+-- Independent of price_data_1m — not derived by aggregation.
+-- The price_data_daily continuous aggregate (section 4) still
+-- exists for deriving daily candles from 1m data, but queries
+-- for the "daily" timeframe read from this table instead.
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS price_data_daily_raw (
+    time        TIMESTAMPTZ   NOT NULL,
+    symbol_id   INTEGER       NOT NULL REFERENCES symbols(id),
+    open        NUMERIC(14,4) NOT NULL,
+    high        NUMERIC(14,4) NOT NULL,
+    low         NUMERIC(14,4) NOT NULL,
+    close       NUMERIC(14,4) NOT NULL,
+    volume      BIGINT        NOT NULL
+);
+
+SELECT create_hypertable(
+    'price_data_daily_raw',
+    'time',
+    chunk_time_interval => INTERVAL '1 year',
+    if_not_exists       => TRUE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uix_price_data_daily_raw_time_symbol
+    ON price_data_daily_raw (time, symbol_id);
+
+ALTER TABLE price_data_daily_raw SET (
+    timescaledb.compress,
+    timescaledb.compress_segmentby = 'symbol_id',
+    timescaledb.compress_orderby   = 'time DESC'
+);
+
+SELECT add_compression_policy(
+    'price_data_daily_raw',
+    compress_after => INTERVAL '30 days',
+    if_not_exists  => TRUE
+);

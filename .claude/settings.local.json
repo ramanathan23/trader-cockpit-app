@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/swagger/index.html)",
+      "Bash(curl -s -w \"\\\\n%{http_code}\" http://localhost:8080/api/market-data/symbols)",
+      "Bash(dotnet build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(grep -v \"^api-1  | $\")",
+      "Bash(grep -v \"^api-1  |$\")"
+    ]
+  }
+}

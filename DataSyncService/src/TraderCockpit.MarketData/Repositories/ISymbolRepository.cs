@@ -26,6 +26,12 @@ public interface ISymbolRepository
     Task<IReadOnlyList<MarketSymbol>> GetSyncableAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Returns a single syncable symbol by ticker (case-insensitive), or <c>null</c>
+    /// if not found or its <c>dhan_security_id</c> has not been mapped.
+    /// </summary>
+    Task<MarketSymbol?> GetSyncableByTickerAsync(string ticker, CancellationToken ct = default);
+
+    /// <summary>
     /// Updates the <c>dhan_security_id</c> for a single symbol by its ticker.
     /// </summary>
     Task SetDhanSecurityIdAsync(

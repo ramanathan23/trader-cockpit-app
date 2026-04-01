@@ -8,7 +8,7 @@ using TraderCockpit.MarketData.Domain;
 namespace TraderCockpit.MarketData.Dhan;
 
 /// <summary>
-/// Thin async wrapper around the Dhan v2 intraday charts API.
+/// Thin async wrapper around the Dhan v2 charts API.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -48,10 +48,7 @@ public sealed class DhanClient(
     /// <exception cref="DhanNoDataException">
     /// Dhan returned DH-905 — no data exists for this security in the given range.
     /// </exception>
-    /// <exception cref="HttpRequestException">
-    /// A non-retryable HTTP error was returned after all retry attempts were exhausted.
-    /// </exception>
-    public async Task<IReadOnlyList<OhlcvBar>> GetIntradayAsync(
+    public Task<IReadOnlyList<OhlcvBar>> GetIntradayAsync(
         string            securityId,
         string            exchangeSegment,
         DateTime          from,
@@ -65,7 +62,47 @@ public sealed class DhanClient(
             FromDate        = from.ToString("yyyy-MM-dd"),
             ToDate          = to.ToString("yyyy-MM-dd"),
         };
+        return SendWithRetryAsync(request, "/v2/charts/intraday", securityId, from, to, ct);
+    }
 
+    /// <summary>
+    /// Fetches daily (EOD) OHLCV bars for <paramref name="securityId"/> between
+    /// <paramref name="from"/> and <paramref name="to"/> (inclusive, UTC).
+    /// </summary>
+    /// <remarks>
+    /// Uses Dhan's <c>/v2/charts/historical</c> endpoint which returns one bar per
+    /// trading day. Dhan allows up to ~1 year per call; the caller batches accordingly.
+    /// </remarks>
+    /// <exception cref="DhanNoDataException">
+    /// Dhan returned DH-905 — no data exists for this security in the given range.
+    /// </exception>
+    public Task<IReadOnlyList<OhlcvBar>> GetHistoricalAsync(
+        string            securityId,
+        string            exchangeSegment,
+        DateTime          from,
+        DateTime          to,
+        CancellationToken ct = default)
+    {
+        var request = new HistoricalRequest
+        {
+            SecurityId      = securityId,
+            ExchangeSegment = exchangeSegment,
+            FromDate        = from.ToString("yyyy-MM-dd"),
+            ToDate          = to.ToString("yyyy-MM-dd"),
+        };
+        return SendWithRetryAsync(request, "/v2/charts/historical", securityId, from, to, ct);
+    }
+
+    // ── Shared retry/rate-limit core ──────────────────────────────────────────
+
+    private async Task<IReadOnlyList<OhlcvBar>> SendWithRetryAsync<TRequest>(
+        TRequest          request,
+        string            endpoint,
+        string            securityId,
+        DateTime          from,
+        DateTime          to,
+        CancellationToken ct)
+    {
         int attempt = 0;
 
         while (true)
@@ -73,8 +110,7 @@ public sealed class DhanClient(
             // Acquire a rate-limit token before every attempt (including retries).
             using var lease = await rateLimiter.AcquireAsync(permitCount: 1, ct);
 
-            using var response = await http.PostAsJsonAsync(
-                "/v2/charts/intraday", request, ct);
+            using var response = await http.PostAsJsonAsync(endpoint, request, ct);
 
             if (response.IsSuccessStatusCode)
                 return ParseBars(await response.Content.ReadFromJsonAsync<IntradayResponse>(ct));
@@ -84,12 +120,26 @@ public sealed class DhanClient(
             // ── Retryable errors ──────────────────────────────────────────────
             if (IsRetryable(response.StatusCode) && attempt < _opts.MaxRetries)
             {
-                var backoff = TimeSpan.FromMilliseconds(_opts.RetryBackoffMs * (1 << attempt));
-                logger.LogWarning(
-                    "Dhan {Status} for {SecurityId} (attempt {Attempt}/{Max}). Retrying in {Backoff}s.",
-                    (int)response.StatusCode, securityId,
-                    attempt + 1, _opts.MaxRetries,
-                    backoff.TotalSeconds);
+                TimeSpan backoff;
+
+                // Respect Retry-After on 429 so we wait exactly as long as Dhan asks.
+                if (response.StatusCode == HttpStatusCode.TooManyRequests
+                    && response.Headers.RetryAfter?.Delta is { } retryAfterDelta
+                    && retryAfterDelta > TimeSpan.Zero)
+                {
+                    backoff = retryAfterDelta.Add(TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500)));
+                    logger.LogWarning(
+                        "Dhan 429 for {SecurityId} — honouring Retry-After {Backoff:g} (attempt {Attempt}/{Max}).",
+                        securityId, backoff, attempt + 1, _opts.MaxRetries);
+                }
+                else
+                {
+                    var baseMs = _opts.RetryBackoffMs * (1 << attempt);
+                    backoff    = TimeSpan.FromMilliseconds(baseMs + Random.Shared.Next(0, baseMs / 4));
+                    logger.LogWarning(
+                        "Dhan {Status} for {SecurityId} (attempt {Attempt}/{Max}). Retrying in {Backoff:g}.",
+                        (int)response.StatusCode, securityId, attempt + 1, _opts.MaxRetries, backoff);
+                }
 
                 await Task.Delay(backoff, ct);
                 attempt++;
@@ -99,9 +149,7 @@ public sealed class DhanClient(
             // ── DH-905: no data for this range — not an error, just no data ──
             if (response.StatusCode == HttpStatusCode.BadRequest)
             {
-                var err = System.Text.Json.JsonSerializer
-                    .Deserialize<DhanErrorResponse>(body);
-
+                var err = System.Text.Json.JsonSerializer.Deserialize<DhanErrorResponse>(body);
                 if (err?.ErrorCode == "DH-905")
                     throw new DhanNoDataException(securityId, from, to);
             }
@@ -113,7 +161,7 @@ public sealed class DhanClient(
                 from.ToString("D"), to.ToString("D"), body);
 
             response.EnsureSuccessStatusCode();  // throws HttpRequestException
-            break; // unreachable — EnsureSuccessStatusCode always throws above
+            break; // unreachable
         }
 
         return []; // unreachable
@@ -121,19 +169,10 @@ public sealed class DhanClient(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Returns <c>true</c> for status codes that represent transient conditions
-    /// worth retrying: 429 (rate limited) and 5xx (server errors).
-    /// </summary>
     private static bool IsRetryable(HttpStatusCode status)
         => status == HttpStatusCode.TooManyRequests
         || (int)status >= 500;
 
-    /// <summary>
-    /// Converts a <see cref="IntradayResponse"/> (parallel arrays) into an
-    /// array of <see cref="OhlcvBar"/> records.
-    /// Returns an empty array if the response is null or contains no timestamps.
-    /// </summary>
     private static OhlcvBar[] ParseBars(IntradayResponse? payload)
     {
         if (payload is null || payload.Timestamp.Length == 0)

@@ -7,7 +7,7 @@ High-level overview of the solution structure, technology choices, and data flow
 ## Solution layout
 
 ```
-backend/
+DataSyncService/
 ├── TraderCockpit.sln
 └── src/
     ├── TraderCockpit.Api/            # ASP.NET Core minimal-API host
@@ -160,7 +160,7 @@ export DhanApi__AccessToken=your_token
 export ConnectionStrings__TimescaleDb="Host=localhost;Port=5432;Database=tradercockpit;Username=postgres;Password=yourpassword"
 
 # Run the API
-dotnet run --project backend/src/TraderCockpit.Api
+dotnet run --project DataSyncService/src/TraderCockpit.Api
 ```
 
 Or run the full stack:

@@ -9,18 +9,31 @@ namespace TraderCockpit.MarketData.Repositories;
 public interface IPriceDataRepository
 {
     /// <summary>
-    /// Returns the UTC timestamp of the latest stored bar for <paramref name="symbolId"/>,
-    /// or <c>null</c> if the symbol has no data yet.
-    /// Used by <c>SyncManager</c> to determine incremental vs. full backfill.
+    /// Returns the UTC timestamp of the latest stored 1-minute bar for <paramref name="symbolId"/>,
+    /// or <c>null</c> if the symbol has no 1m data yet.
     /// </summary>
     Task<DateTime?> GetLatestTimeAsync(int symbolId, CancellationToken ct = default);
 
     /// <summary>
-    /// Bulk-inserts OHLCV bars using the PostgreSQL COPY (binary) protocol for
-    /// maximum throughput. Rows that already exist are silently skipped via a
-    /// temp-table staging approach with <c>ON CONFLICT DO NOTHING</c>.
+    /// Returns the UTC timestamp of the latest stored daily bar in
+    /// <c>price_data_daily_raw</c> for <paramref name="symbolId"/>,
+    /// or <c>null</c> if the symbol has no daily data yet.
+    /// </summary>
+    Task<DateTime?> GetLatestDailyTimeAsync(int symbolId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk-inserts 1-minute OHLCV bars into <c>price_data_1m</c> using the
+    /// PostgreSQL COPY protocol. Existing rows are silently skipped.
     /// </summary>
     Task BulkInsertAsync(
+        int symbolId, IReadOnlyList<OhlcvBar> bars,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Bulk-inserts daily OHLCV bars into <c>price_data_daily_raw</c> using the
+    /// PostgreSQL COPY protocol. Existing rows are silently skipped.
+    /// </summary>
+    Task BulkInsertDailyAsync(
         int symbolId, IReadOnlyList<OhlcvBar> bars,
         CancellationToken ct = default);
 

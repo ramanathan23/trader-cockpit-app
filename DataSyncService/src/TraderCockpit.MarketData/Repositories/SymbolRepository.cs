@@ -40,6 +40,18 @@ public sealed class SymbolRepository(NpgsqlDataSource db) : ISymbolRepository
         return (await conn.QueryAsync<MarketSymbol>(sql)).AsList();
     }
 
+    public async Task<MarketSymbol?> GetSyncableByTickerAsync(string ticker, CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT * FROM symbols
+            WHERE is_active = TRUE AND dhan_security_id IS NOT NULL
+              AND UPPER(symbol) = UPPER(@Ticker)
+            LIMIT 1
+            """;
+        await using var conn = await db.OpenConnectionAsync(ct);
+        return await conn.QueryFirstOrDefaultAsync<MarketSymbol>(sql, new { Ticker = ticker });
+    }
+
     public async Task SetDhanSecurityIdAsync(string symbol, string dhanSecurityId, CancellationToken ct = default)
     {
         const string sql = """

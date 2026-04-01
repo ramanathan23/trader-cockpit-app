@@ -25,6 +25,33 @@ internal sealed class IntradayRequest
     public required string ToDate            { get; init; }          // yyyy-MM-dd
 }
 
+// ── Historical (EOD) request ──────────────────────────────────────────────────
+
+/// <summary>
+/// Request body for POST /v2/charts/historical (daily EOD bars).
+/// Dhan allows up to ~1 year per call; SyncManager batches accordingly.
+/// </summary>
+internal sealed class HistoricalRequest
+{
+    [JsonPropertyName("securityId")]
+    public required string SecurityId      { get; init; }
+
+    [JsonPropertyName("exchangeSegment")]
+    public required string ExchangeSegment { get; init; }
+
+    [JsonPropertyName("instrument")]
+    public string Instrument               { get; init; } = "EQUITY";
+
+    [JsonPropertyName("expiryCode")]
+    public int ExpiryCode                  { get; init; } = 0;
+
+    [JsonPropertyName("fromDate")]
+    public required string FromDate        { get; init; }  // yyyy-MM-dd
+
+    [JsonPropertyName("toDate")]
+    public required string ToDate          { get; init; }  // yyyy-MM-dd
+}
+
 // ── Error ─────────────────────────────────────────────────────────────────────
 
 internal sealed class DhanErrorResponse

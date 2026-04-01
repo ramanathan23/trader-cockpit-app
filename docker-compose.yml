@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - timescale_data:/var/lib/postgresql/data
+      - D:/docker-volumes/timescale_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d tradercockpit"]
       interval: 5s
@@ -21,7 +21,7 @@ services:
   # ── .NET 10 API ─────────────────────────────────────────────────────────────
   api:
     build:
-      context: ./backend
+      context: ./DataSyncService
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -39,12 +39,10 @@ services:
       DhanApi__AccessToken: ${DHAN_ACCESS_TOKEN}
 
       # Optional tuning (overrides appsettings defaults).
-      DhanApi__MaxConcurrency:      ${DHAN_MAX_CONCURRENCY:-5}
-      DhanApi__DelayBetweenCallsMs: ${DHAN_DELAY_MS:-120}
+      DhanApi__MaxConcurrency:      ${DHAN_MAX_CONCURRENCY:-10}
+      DhanApi__DelayBetweenCallsMs: ${DHAN_DELAY_MS:-0}
 
     depends_on:
       db:
         condition: service_healthy
 
-volumes:
-  timescale_data:
