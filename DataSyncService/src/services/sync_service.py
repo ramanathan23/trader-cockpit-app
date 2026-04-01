@@ -100,7 +100,12 @@ class SyncService:
     async def _sync_1m_initial(self, symbols: list[str]) -> None:
         # DhanFetcher.fetch_batch internally bounds concurrency via its semaphore,
         # so we can pass all symbols at once without risk of slamming the API.
-        data = await self._dhan.fetch_batch(symbols, days=settings.sync_1m_history_days)
+        try:
+            data = await self._dhan.fetch_batch(symbols, days=settings.sync_1m_history_days)
+        except Exception as exc:
+            logger.error("[1m] Initial sync failed before fetch: %s", exc)
+            await self._mark_state_error(symbols, "1m", str(exc))
+            return
         await self._persist_batch(symbols, data, "1m")
         logger.info("[1m] Fetched data for %d / %d symbols", len(data), len(symbols))
 
@@ -138,6 +143,13 @@ class SyncService:
         stale = await self._state.get_stale_1m(all_symbols)
         if not stale:
             logger.info("[1m] All symbols up to date")
+            return 0
+
+        try:
+            self._dhan.require_credentials()
+        except Exception as exc:
+            logger.error("[1m] Patch blocked before fetch: %s", exc)
+            await self._mark_state_error([s for s, _ in stale], "1m", str(exc))
             return 0
 
         logger.info("[1m] Patching %d symbols", len(stale))
@@ -204,3 +216,13 @@ class SyncService:
             for sym in syms:
                 if sym not in data:
                     await self._state.upsert(conn, sym, interval, "empty")
+
+    async def _mark_state_error(
+        self,
+        syms: list[str],
+        interval: str,
+        error_msg: str,
+    ) -> None:
+        async with self._pool.acquire() as conn:
+            for sym in syms:
+                await self._state.upsert(conn, sym, interval, "error", error_msg=error_msg)

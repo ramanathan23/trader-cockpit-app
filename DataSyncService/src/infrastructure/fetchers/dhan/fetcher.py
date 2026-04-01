@@ -83,9 +83,27 @@ class DhanFetcher:
         security_master_url: str = "https://images.dhan.co/api-data/api-scrip-master.csv",
         master_ttl_hours: int = 24,
     ) -> None:
-        self._dhan = DhanHQ(client_id=client_id, access_token=access_token)
+        self._client_id = (client_id or "").strip()
+        self._access_token = (access_token or "").strip()
+        self._dhan = (
+            DhanHQ(client_id=self._client_id, access_token=self._access_token)
+            if self.is_configured
+            else None
+        )
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._master = DhanSecurityMaster(url=security_master_url, ttl_hours=master_ttl_hours)
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self._client_id and self._access_token)
+
+    def require_credentials(self) -> None:
+        if self.is_configured:
+            return
+        raise RuntimeError(
+            "Dhan credentials are missing in DataSyncService. "
+            "Set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN, then recreate the data-sync container."
+        )
 
     async def refresh_security_master(self) -> int:
         return await self._master.refresh()
@@ -97,6 +115,7 @@ class DhanFetcher:
         end: date | None = None,
     ) -> pd.DataFrame:
         """Fetch `days` of 1-minute OHLCV for one symbol, split into chunks."""
+        self.require_credentials()
         sec_map = await self._master.get()
         security_id = sec_map.get(symbol)
         if not security_id:
@@ -135,6 +154,7 @@ class DhanFetcher:
         days: int = 90,
     ) -> dict[str, pd.DataFrame]:
         """Fetch 1-min data for multiple symbols concurrently (bounded by semaphore)."""
+        self.require_credentials()
         tasks = {sym: asyncio.create_task(self.fetch_1m(sym, days)) for sym in symbols}
         results: dict[str, pd.DataFrame] = {}
         for sym, task in tasks.items():
@@ -152,6 +172,7 @@ class DhanFetcher:
         since: datetime,
     ) -> pd.DataFrame:
         """Incremental fetch from `since` to today."""
+        self.require_credentials()
         today = date.today()
         start = since.date() if hasattr(since, "date") else since
         if start >= today:
