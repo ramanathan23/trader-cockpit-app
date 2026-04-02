@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -17,16 +18,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+_POOL_CONNECT_TIMEOUT = 30  # seconds to establish the initial DB connection pool
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    pool = await create_pool(
-        settings.database_url,
-        min_size=settings.db_pool_min_size,
-        max_size=settings.db_pool_max_size,
-        command_timeout=settings.db_command_timeout,
-    )
-    await run_migrations(pool)
+    try:
+        pool = await asyncio.wait_for(
+            create_pool(
+                settings.database_url,
+                min_size=settings.db_pool_min_size,
+                max_size=settings.db_pool_max_size,
+                command_timeout=settings.db_command_timeout,
+            ),
+            timeout=_POOL_CONNECT_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.critical(
+            "Could not connect to the database within %ds. "
+            "Is TimescaleDB running? Try: docker compose restart timescaledb",
+            _POOL_CONNECT_TIMEOUT,
+        )
+        raise
+    await run_migrations(pool, timeout=settings.db_migration_timeout)
     app.state.pool             = pool
     app.state.price_repo       = PriceRepository(pool)
     app.state.symbol_repo      = SymbolRepository(pool)

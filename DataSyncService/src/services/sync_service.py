@@ -1,14 +1,15 @@
 """
-SyncService — orchestrates full and incremental OHLCV sync for all NSE symbols.
+SyncService orchestrates full and incremental OHLCV sync for all NSE symbols.
 
 Data sources:
-  1d → YFinanceFetcher  (batched, configurable history depth)
-  1m → DhanFetcher      (concurrent per-symbol, configurable history depth via Dhan API)
+  1d -> YFinanceFetcher (batched, configurable history depth)
+  1m -> DhanFetcher     (concurrent per-symbol, configurable history depth)
 """
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -17,9 +18,15 @@ from ..infrastructure.fetchers.dhan.fetcher import DhanFetcher
 from ..infrastructure.fetchers.yfinance.fetcher import YFinanceFetcher
 from ..repositories.price_repository import PriceRepository
 from ..repositories.symbol_repository import SymbolRepository, load_from_csv
-from ..repositories.sync_state_repository import SyncStateRepository
+from ..repositories.sync_state_repository import SyncStateRepository, SyncStateSnapshot
 
 logger = logging.getLogger(__name__)
+
+_IST = ZoneInfo("Asia/Kolkata")
+_MARKET_CLOSE = time(hour=15, minute=30)
+_INTRADAY_SYNC_GRACE = timedelta(minutes=15)
+
+_ACQUIRE_TIMEOUT = 30  # seconds to wait for a pool connection
 
 
 def _batches(lst: list, size: int):
@@ -33,6 +40,54 @@ def _to_utc_datetime(ts) -> datetime:
     return ts.to_pydatetime()
 
 
+def _to_aware_utc(ts: datetime | None) -> datetime | None:
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
+
+def _is_after_market_close(now_ist: datetime) -> bool:
+    return now_ist.timetz().replace(tzinfo=None) > _MARKET_CLOSE
+
+
+def _daily_target_date(now_ist: datetime) -> date:
+    if _is_after_market_close(now_ist):
+        return now_ist.date()
+    return now_ist.date() - timedelta(days=1)
+
+
+def _needs_daily_sync(snapshot: SyncStateSnapshot, now_ist: datetime) -> bool:
+    last_data_ts = _to_aware_utc(snapshot.last_data_ts)
+    if last_data_ts is None:
+        return True
+    return last_data_ts.astimezone(_IST).date() < _daily_target_date(now_ist)
+
+
+def _needs_1m_sync(
+    snapshot: SyncStateSnapshot,
+    now_utc: datetime,
+    now_ist: datetime,
+) -> bool:
+    last_synced_at = _to_aware_utc(snapshot.last_synced_at)
+    if last_synced_at is not None and (now_utc - last_synced_at) < _INTRADAY_SYNC_GRACE:
+        return False
+
+    if not _is_after_market_close(now_ist):
+        return True
+
+    last_data_ts = _to_aware_utc(snapshot.last_data_ts)
+    if last_data_ts is None:
+        return True
+
+    last_data_ist = last_data_ts.astimezone(_IST)
+    return not (
+        last_data_ist.date() == now_ist.date()
+        and last_data_ist.timetz().replace(tzinfo=None) >= _MARKET_CLOSE
+    )
+
+
 class SyncService:
     """
     Coordinates symbol loading, price fetching, ingestion, and sync-state updates.
@@ -40,20 +95,18 @@ class SyncService:
     """
 
     def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool    = pool
+        self._pool = pool
         self._symbols = SymbolRepository(pool)
-        self._prices  = PriceRepository(pool)
-        self._state   = SyncStateRepository(pool)
-        self._yf      = YFinanceFetcher()
-        self._dhan    = DhanFetcher(
+        self._prices = PriceRepository(pool)
+        self._state = SyncStateRepository(pool)
+        self._yf = YFinanceFetcher()
+        self._dhan = DhanFetcher(
             client_id=settings.dhan_client_id,
             access_token=settings.dhan_access_token,
             max_concurrency=settings.dhan_max_concurrency,
             security_master_url=settings.dhan_security_master_url,
             master_ttl_hours=settings.dhan_master_ttl_hours,
         )
-
-    # ── Public API ────────────────────────────────────────────────────────────
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
@@ -79,7 +132,7 @@ class SyncService:
         return {"symbols_loaded": total, "intervals": ["1d", "1m"]}
 
     async def run_patch_sync(self) -> dict:
-        """Incremental sync: daily (yfinance) and 1-min (Dhan) run in parallel."""
+        """Incremental sync: daily and 1-min run in parallel."""
         all_symbols = [s.symbol for s in load_from_csv()]
         daily_result, intraday_result = await asyncio.gather(
             self._run_daily_patch(all_symbols),
@@ -93,8 +146,6 @@ class SyncService:
             logger.error("[1m] Patch failed: %s", intraday_result, exc_info=intraday_result)
             intraday_result = 0
         return {"daily_updated": daily_result, "intraday_updated": intraday_result}
-
-    # ── Initial sync helpers ──────────────────────────────────────────────────
 
     async def _sync_daily_initial(self, symbols: list[str]) -> None:
         for i, batch in enumerate(_batches(symbols, settings.sync_batch_size)):
@@ -114,33 +165,38 @@ class SyncService:
                 await self._mark_state_error(batch, "1m", str(exc))
                 continue
 
-            batch_persisted = await self._persist_intraday_results(batch, data)
+            batch_persisted = await self._persist_intraday_batch(batch, data)
             total_persisted += batch_persisted
             done = min((i + 1) * settings.dhan_symbol_batch_size, len(symbols))
             logger.info("[1m] Fetched data for %d symbols; processed %d / %d", total_persisted, done, len(symbols))
 
-    # ── Patch sync helpers ────────────────────────────────────────────────────
-
     async def _run_daily_patch(self, all_symbols: list[str]) -> int:
-        stale = await self._state.get_stale_daily(all_symbols)
+        now_ist = datetime.now(tz=_IST)
+        snapshots = await self._state.get_snapshots(all_symbols, "1d")
+        stale = [snapshot for snapshot in snapshots if _needs_daily_sync(snapshot, now_ist)]
         if not stale:
             logger.info("[1d] All symbols up to date")
             return 0
 
-        syms      = [s for s, _ in stale]
-        since_map = {s: ts for s, ts in stale if ts is not None}
+        syms = [snapshot.symbol for snapshot in stale]
+        since_map = {
+            snapshot.symbol: snapshot.last_data_ts
+            for snapshot in stale
+            if snapshot.last_data_ts is not None
+        }
         logger.info("[1d] Patching %d symbols", len(syms))
 
-        all_data: dict = {}
+        all_data: dict[str, object] = {}
         for batch in _batches(syms, settings.sync_batch_size):
-            batch_since = {s: since_map[s] for s in batch if s in since_map}
+            batch_since = {symbol: since_map[symbol] for symbol in batch if symbol in since_map}
+            full_fetch_symbols = [symbol for symbol in batch if symbol not in since_map]
             if batch_since:
-                for sym, since in batch_since.items():
-                    df = await self._yf.fetch_since(sym, "1d", since)
+                for symbol, since in batch_since.items():
+                    df = await self._yf.fetch_since(symbol, "1d", since)
                     if not df.empty:
-                        all_data[sym] = df
-            else:
-                data = await self._yf.fetch_batch(batch, "1d", settings.sync_1d_history_days)
+                        all_data[symbol] = df
+            if full_fetch_symbols:
+                data = await self._yf.fetch_batch(full_fetch_symbols, "1d", settings.sync_1d_history_days)
                 all_data.update(data)
             await asyncio.sleep(settings.sync_batch_delay_s)
 
@@ -150,7 +206,10 @@ class SyncService:
         return len(all_data)
 
     async def _run_1m_patch(self, all_symbols: list[str]) -> int:
-        stale = await self._state.get_stale_1m(all_symbols)
+        now_utc = datetime.now(tz=timezone.utc)
+        now_ist = now_utc.astimezone(_IST)
+        snapshots = await self._state.get_snapshots(all_symbols, "1m")
+        stale = [snapshot for snapshot in snapshots if _needs_1m_sync(snapshot, now_utc, now_ist)]
         if not stale:
             logger.info("[1m] All symbols up to date")
             return 0
@@ -159,7 +218,7 @@ class SyncService:
             self._dhan.require_credentials()
         except Exception as exc:
             logger.error("[1m] Patch blocked before fetch: %s", exc)
-            await self._mark_state_error([s for s, _ in stale], "1m", str(exc))
+            await self._mark_state_error([snapshot.symbol for snapshot in stale], "1m", str(exc))
             return 0
 
         logger.info("[1m] Patching %d symbols", len(stale))
@@ -167,30 +226,33 @@ class SyncService:
 
         for i, batch in enumerate(_batches(stale, settings.dhan_symbol_batch_size)):
             tasks = {
-                sym: asyncio.create_task(
-                    self._dhan.fetch_since(sym, last_time)
-                    if last_time is not None
-                    else self._dhan.fetch_1m(sym, days=settings.sync_1m_history_days)
+                snapshot.symbol: asyncio.create_task(
+                    self._dhan.fetch_since(snapshot.symbol, snapshot.last_data_ts)
+                    if snapshot.last_data_ts is not None
+                    else self._dhan.fetch_1m(snapshot.symbol, days=settings.sync_1m_history_days)
                 )
-                for sym, last_time in batch
+                for snapshot in batch
             }
 
-            batch_data: dict = {}
+            batch_data: dict[str, object] = {}
             results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-            for sym, result in zip(tasks.keys(), results):
+            for symbol, result in zip(tasks.keys(), results):
                 if isinstance(result, Exception):
-                    logger.warning("[1m] fetch failed for %s: %s", sym, result)
+                    logger.warning("[1m] fetch failed for %s: %s", symbol, result)
                 elif not result.empty:
-                    batch_data[sym] = result
+                    batch_data[symbol] = result
 
-            updated += await self._persist_intraday_results([s for s, _ in batch], batch_data)
+            updated += await self._persist_intraday_batch(
+                [snapshot.symbol for snapshot in batch],
+                batch_data,
+            )
 
             done = min((i + 1) * settings.dhan_symbol_batch_size, len(stale))
             logger.info("[1m] Processed %d / %d stale symbols", done, len(stale))
 
         return updated
 
-    # ── Shared state helpers ──────────────────────────────────────────────────
+    # ── Persistence helpers ───────────────────────────────────────────────────
 
     async def _persist_batch(
         self,
@@ -198,61 +260,84 @@ class SyncService:
         data: dict,
         interval: str,
     ) -> None:
+        """Bulk-ingest price data then update sync state for the whole batch in one shot."""
         try:
             if data:
                 await self._prices.bulk_ingest(data, interval)
-            async with self._pool.acquire() as conn:
-                for sym, df in data.items():
-                    await self._state.upsert(
-                        conn, sym, interval, "synced",
-                        last_data_ts=_to_utc_datetime(df.index.max()),
-                    )
-                for sym in batch:
-                    if sym not in data:
-                        await self._state.upsert(conn, sym, interval, "empty")
+            await self._update_state(batch, data, interval)
         except Exception as exc:
             logger.error("Batch persist failed (%s): %s", interval, exc, exc_info=True)
-            async with self._pool.acquire() as conn:
-                for sym in batch:
-                    await self._state.upsert(conn, sym, interval, "error", error_msg=str(exc))
+            await self._mark_state_error(batch, interval, str(exc))
 
-    async def _update_state(
-        self,
-        syms: list[str],
-        data: dict,
-        interval: str,
-    ) -> None:
-        async with self._pool.acquire() as conn:
-            for sym, df in data.items():
-                await self._state.upsert(
-                    conn, sym, interval, "synced",
-                    last_data_ts=_to_utc_datetime(df.index.max()),
-                )
-            for sym in syms:
-                if sym not in data:
-                    await self._state.upsert(conn, sym, interval, "empty")
-
-    async def _mark_state_error(
-        self,
-        syms: list[str],
-        interval: str,
-        error_msg: str,
-    ) -> None:
-        async with self._pool.acquire() as conn:
-            for sym in syms:
-                await self._state.upsert(conn, sym, interval, "error", error_msg=error_msg)
-
-    async def _persist_intraday_results(
+    async def _persist_intraday_batch(
         self,
         batch_symbols: list[str],
         data: dict[str, object],
     ) -> int:
-        persisted = 0
-        for sym in batch_symbols:
-            df = data.get(sym)
-            if df is None or df.empty:
-                await self._update_state([sym], {}, "1m")
-                continue
-            await self._persist_batch([sym], {sym: df}, "1m")
-            persisted += 1
-        return persisted
+        """
+        Persist all price data for the batch then update sync state for every
+        symbol in a single batch upsert — one DB round-trip instead of N.
+
+        Previously called _persist_intraday_results and issued one connection
+        acquire + two round-trips per symbol, causing pool exhaustion under load.
+        """
+        # Separate symbols with data from those without
+        symbols_with_data = {s: df for s, df in data.items() if df is not None and not df.empty}
+        symbols_without = [s for s in batch_symbols if s not in symbols_with_data]
+
+        if symbols_with_data:
+            try:
+                await self._prices.bulk_ingest(symbols_with_data, "1m")
+            except Exception as exc:
+                logger.error("[1m] bulk_ingest failed: %s", exc, exc_info=True)
+                await self._mark_state_error(batch_symbols, "1m", str(exc))
+                return 0
+
+        # Build all state records for one batch upsert
+        records: list[tuple] = []
+        for symbol, df in symbols_with_data.items():
+            records.append((
+                symbol, "1m",
+                _to_utc_datetime(df.index.max()),
+                "synced",
+                None,
+            ))
+        for symbol in symbols_without:
+            records.append((symbol, "1m", None, "empty", None))
+
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+            await self._state.upsert_many(conn, records)
+
+        return len(symbols_with_data)
+
+    async def _update_state(
+        self,
+        symbols: list[str],
+        data: dict,
+        interval: str,
+    ) -> None:
+        """Batch-update sync state for all symbols in a single round-trip."""
+        records: list[tuple] = []
+        for symbol, df in data.items():
+            records.append((
+                symbol, interval,
+                _to_utc_datetime(df.index.max()),
+                "synced",
+                None,
+            ))
+        for symbol in symbols:
+            if symbol not in data:
+                records.append((symbol, interval, None, "empty", None))
+
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+            await self._state.upsert_many(conn, records)
+
+    async def _mark_state_error(
+        self,
+        symbols: list[str],
+        interval: str,
+        error_msg: str,
+    ) -> None:
+        records = [(s, interval, None, "error", error_msg) for s in symbols]
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+            await self._state.upsert_many(conn, records)

@@ -13,6 +13,15 @@ class Settings(BaseSettings):
     db_pool_min_size: int = Field(default=5, description="asyncpg pool minimum connections")
     db_pool_max_size: int = Field(default=20, description="asyncpg pool maximum connections")
     db_command_timeout: int = Field(default=60, description="DB command timeout in seconds")
+    db_migration_timeout: int = Field(
+        default=0,
+        description=(
+            "Per-statement migration timeout in seconds. "
+            "0 (default) disables the timeout — migrations run statement-by-statement "
+            "so individual slow DDL (e.g. a data-copy migration) won't be killed mid-way. "
+            "Set to a positive value only if you want a hard cap per statement."
+        ),
+    )
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     redis_url: str = Field(

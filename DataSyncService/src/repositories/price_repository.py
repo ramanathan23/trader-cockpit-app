@@ -3,8 +3,8 @@ High-performance bulk ingestion into TimescaleDB via asyncpg COPY.
 
 Strategy:
   1. COPY all records into a temporary table (fastest write path).
-  2. INSERT INTO target … SELECT FROM temp ON CONFLICT DO NOTHING
-     → idempotent; re-running the same data is safe.
+  2. INSERT INTO target ... SELECT FROM temp ON CONFLICT DO NOTHING
+     -> idempotent; re-running the same data is safe.
 """
 
 import logging
@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 _TABLE_MAP: dict[str, str] = {
     "1m": "price_data_1m",
     "1d": "price_data_daily",
+}
+_CONFLICT_COLUMNS: dict[str, str] = {
+    "1m": "symbol, time",
+    "1d": "symbol, time",
 }
 
 _COLUMNS = ("time", "symbol", "open", "high", "low", "close", "volume")
@@ -34,11 +38,11 @@ def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
         records.append((
             ts.to_pydatetime(),
             symbol,
-            float(row["Open"])   if pd.notna(row["Open"])   else None,
-            float(row["High"])   if pd.notna(row["High"])   else None,
-            float(row["Low"])    if pd.notna(row["Low"])    else None,
-            float(row["Close"])  if pd.notna(row["Close"])  else None,
-            int(row["Volume"])   if pd.notna(row["Volume"]) else 0,
+            float(row["Open"]) if pd.notna(row["Open"]) else None,
+            float(row["High"]) if pd.notna(row["High"]) else None,
+            float(row["Low"]) if pd.notna(row["Low"]) else None,
+            float(row["Close"]) if pd.notna(row["Close"]) else None,
+            int(row["Volume"]) if pd.notna(row["Volume"]) else 0,
         ))
     return records
 
@@ -62,7 +66,7 @@ class PriceRepository:
         from_ts: str | None = None,
         to_ts: str | None = None,
     ) -> list[dict]:
-        """Query OHLCV rows for a symbol. Table is selected from a static whitelist — no injection risk."""
+        """Query OHLCV rows for a symbol from a static table whitelist."""
         table = _QUERY_TABLE.get(interval)
         if not table:
             raise ValueError(f"Unsupported interval: {interval!r}")
@@ -104,6 +108,7 @@ class PriceRepository:
         table = _TABLE_MAP.get(interval)
         if not table:
             raise ValueError(f"Unsupported interval: {interval!r}")
+        conflict_columns = _CONFLICT_COLUMNS[interval]
 
         all_records: list[tuple] = []
         for symbol, df in symbol_data.items():
@@ -132,7 +137,7 @@ class PriceRepository:
                     result = await conn.execute(f"""
                         INSERT INTO {table} ({", ".join(_COLUMNS)})
                         SELECT {", ".join(_COLUMNS)} FROM _ingest_tmp
-                        ON CONFLICT (time, symbol) DO NOTHING
+                        ON CONFLICT ({conflict_columns}) DO NOTHING
                     """)
                     inserted += int(result.split()[-1])
 

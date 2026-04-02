@@ -6,6 +6,25 @@ services:
       POSTGRES_USER: ${DB_USER:-trader}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-trader_secret}
       POSTGRES_DB: ${DB_NAME:-trader_cockpit}
+    # PostgreSQL tuning for bulk time-series ingestion.
+    # synchronous_commit=off: commits return immediately without waiting for
+    # WAL flush — acceptable for market data (losing last ~100ms on crash is fine)
+    # and gives a significant insert throughput boost.
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=128MB
+        -c effective_cache_size=1GB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c max_wal_size=2GB
+        -c synchronous_commit=off
+        -c max_connections=100
+        -c timescaledb.max_background_workers=4
+        -c tcp_keepalives_idle=60
+        -c tcp_keepalives_interval=10
+        -c tcp_keepalives_count=5
     volumes:
       - ${DOCKER_DATA_PATH:-d:/docker-data}/timescaledb:/var/lib/postgresql/data
       - ./infra/db/init.sql:/docker-entrypoint-initdb.d/00_init.sql
@@ -15,7 +34,10 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trader_cockpit}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      # Allow up to 10 minutes for WAL crash recovery + post-recovery checkpoint
+      # before Docker marks the container unhealthy and dependent services fail.
+      start_period: 600s
+      retries: 30
     restart: unless-stopped
 
   redis:

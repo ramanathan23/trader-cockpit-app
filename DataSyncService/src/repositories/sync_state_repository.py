@@ -3,13 +3,23 @@ Reads and writes the sync_state table: per-(symbol, timeframe) sync metadata.
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 
 import asyncpg
 
 logger = logging.getLogger(__name__)
 
-_IST = "Asia/Kolkata"
+_ACQUIRE_TIMEOUT = 30  # seconds to wait for a pool connection before giving up
+
+
+@dataclass(frozen=True)
+class SyncStateSnapshot:
+    symbol: str
+    timeframe: str
+    last_synced_at: datetime | None
+    last_data_ts: datetime | None
+    status: str | None
 
 
 class SyncStateRepository:
@@ -35,61 +45,86 @@ class SyncStateRepository:
                 error_msg      = $5
         """, symbol, timeframe, last_data_ts, status, error_msg)
 
-    async def get_stale_daily(
-        self, symbols: list[str]
-    ) -> list[tuple[str, datetime | None]]:
-        """Symbols whose last daily bar (IST date) is before today."""
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(f"""
-                WITH all_syms AS (SELECT unnest($1::text[]) AS symbol),
-                last_bars AS (
-                    SELECT symbol, MAX(time) AS last_time
-                    FROM   price_data_daily
-                    WHERE  symbol = ANY($1::text[])
-                    GROUP  BY symbol
-                )
-                SELECT a.symbol, lb.last_time
-                FROM   all_syms a
-                LEFT   JOIN last_bars lb ON lb.symbol = a.symbol
-                WHERE  lb.last_time IS NULL
-                   OR  (lb.last_time AT TIME ZONE '{_IST}')::date
-                           < (NOW() AT TIME ZONE '{_IST}')::date
-                ORDER  BY lb.last_time ASC NULLS FIRST
-            """, symbols)
-        return [(r["symbol"], r["last_time"]) for r in rows]
+    async def upsert_many(
+        self,
+        conn: asyncpg.Connection,
+        records: list[tuple],
+    ) -> None:
+        """
+        Batch-upsert sync state for multiple (symbol, timeframe) pairs in one
+        round-trip, replacing N sequential INSERTs with a single unnest query.
 
-    async def get_stale_1m(
-        self, symbols: list[str]
-    ) -> list[tuple[str, datetime | None]]:
-        """Symbols eligible for 1m patch (last bar > 15 min old, market not yet closed)."""
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(f"""
+        Each element of *records* is a 5-tuple:
+            (symbol, timeframe, last_data_ts | None, status, error_msg | None)
+        """
+        if not records:
+            return
+
+        symbols, timeframes, last_data_tss, statuses, error_msgs = zip(*records)
+        await conn.execute("""
+            INSERT INTO sync_state
+                (symbol, timeframe, last_synced_at, last_data_ts, status, error_msg)
+            SELECT
+                unnest($1::text[]),
+                unnest($2::text[]),
+                NOW(),
+                unnest($3::timestamptz[]),
+                unnest($4::text[]),
+                unnest($5::text[])
+            ON CONFLICT (symbol, timeframe) DO UPDATE SET
+                last_synced_at = NOW(),
+                last_data_ts   = COALESCE(EXCLUDED.last_data_ts, sync_state.last_data_ts),
+                status         = EXCLUDED.status,
+                error_msg      = EXCLUDED.error_msg
+        """,
+            list(symbols),
+            list(timeframes),
+            list(last_data_tss),
+            list(statuses),
+            list(error_msgs),
+        )
+
+    async def get_snapshots(
+        self,
+        symbols: list[str],
+        timeframe: str,
+    ) -> list[SyncStateSnapshot]:
+        if not symbols:
+            return []
+
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+            rows = await conn.fetch("""
                 WITH all_syms AS (SELECT unnest($1::text[]) AS symbol),
-                last_bars AS (
-                    SELECT symbol, MAX(time) AS last_time
-                    FROM   price_data_1m
-                    WHERE  symbol = ANY($1::text[])
-                    GROUP  BY symbol
+                states AS (
+                    SELECT symbol, timeframe, last_synced_at, last_data_ts, status
+                    FROM sync_state
+                    WHERE timeframe = $2
+                      AND symbol = ANY($1::text[])
                 )
-                SELECT a.symbol, lb.last_time
+                SELECT
+                    a.symbol,
+                    COALESCE(s.timeframe, $2::text) AS timeframe,
+                    s.last_synced_at,
+                    s.last_data_ts,
+                    s.status
                 FROM   all_syms a
-                LEFT   JOIN last_bars lb ON lb.symbol = a.symbol
-                WHERE  lb.last_time IS NULL
-                   OR  (
-                       lb.last_time < NOW() - INTERVAL '15 minutes'
-                       AND NOT (
-                           (lb.last_time AT TIME ZONE '{_IST}')::date
-                               = (NOW() AT TIME ZONE '{_IST}')::date
-                           AND (lb.last_time AT TIME ZONE '{_IST}')::time
-                               >= TIME '15:30:00'
-                       )
-                   )
-                ORDER  BY lb.last_time ASC NULLS FIRST
-            """, symbols)
-        return [(r["symbol"], r["last_time"]) for r in rows]
+                LEFT   JOIN states s ON s.symbol = a.symbol
+                ORDER  BY s.last_data_ts ASC NULLS FIRST, a.symbol
+            """, symbols, timeframe)
+
+        return [
+            SyncStateSnapshot(
+                symbol=row["symbol"],
+                timeframe=row["timeframe"],
+                last_synced_at=row["last_synced_at"],
+                last_data_ts=row["last_data_ts"],
+                status=row["status"],
+            )
+            for row in rows
+        ]
 
     async def get_summary(self) -> list[dict]:
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch("""
                 SELECT
                     timeframe,
@@ -98,7 +133,7 @@ class SyncStateRepository:
                     COUNT(*) FILTER (WHERE status = 'empty')   AS empty,
                     COUNT(*) FILTER (WHERE status = 'error')   AS errors,
                     COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-                    MAX(last_synced_at)                         AS last_synced_at
+                    MAX(last_synced_at)                        AS last_synced_at
                 FROM sync_state
                 GROUP BY timeframe
                 ORDER BY timeframe
@@ -106,7 +141,7 @@ class SyncStateRepository:
         return [dict(r) for r in rows]
 
     async def get_for_symbol(self, symbol: str) -> list[dict]:
-        async with self._pool.acquire() as conn:
+        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM sync_state WHERE symbol = $1 ORDER BY timeframe",
                 symbol.upper(),
