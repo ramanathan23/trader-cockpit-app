@@ -42,7 +42,7 @@ def _fetch_chunk_sync(
     """
     Synchronous single-chunk fetch via dhanhq SDK. Called via asyncio.to_thread.
 
-    SDK timestamps are Unix seconds in IST (UTC+5:30) — converted to UTC here.
+    SDK timestamps are standard UTC Unix seconds — parsed directly as UTC.
     """
     response = dhan.intraday_minute_data(
         security_id=security_id,
@@ -85,11 +85,7 @@ def _fetch_chunk_sync(
         )
         return pd.DataFrame()
 
-    index = (
-        pd.to_datetime(timestamps, unit="s", utc=False)
-        .tz_localize("Asia/Kolkata")
-        .tz_convert("UTC")
-    )
+    index = pd.to_datetime(timestamps, unit="s", utc=True)
 
     df = pd.DataFrame(
         {
