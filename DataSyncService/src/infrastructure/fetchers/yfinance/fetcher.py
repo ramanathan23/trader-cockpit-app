@@ -100,12 +100,16 @@ class YFinanceFetcher:
         start = start or (end - timedelta(days=effective_days))
         tickers = [self._ticker(s) for s in symbols]
 
+        # yfinance end is exclusive for daily intervals — add 1 day so today's
+        # completed bar is included when syncing after market close.
+        yf_end = end + timedelta(days=1) if interval == "1d" else end
+
         try:
             raw: pd.DataFrame = await asyncio.to_thread(
                 yf.download,
                 tickers=tickers,
                 start=start.strftime("%Y-%m-%d"),
-                end=end.strftime("%Y-%m-%d"),
+                end=yf_end.strftime("%Y-%m-%d"),
                 interval=interval,
                 auto_adjust=True,
                 progress=False,
