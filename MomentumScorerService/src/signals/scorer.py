@@ -131,11 +131,12 @@ def compute_score(
     # ── Quality multipliers ───────────────────────────────────────────────────
 
     # 1. Trend context: penalise dead-cat bounces (spike inside a long downtrend).
+    #    Steeper slope than before — at -15% ROC the mult is ~0.65 not ~0.8.
     trend_mult = 1.0
     if len(close) >= trend_lookback:
         roc_long = indicators.rate_of_change(close, period=trend_lookback).iloc[-1]
         if not pd.isna(roc_long) and roc_long < -5.0:
-            trend_mult = max(0.4, 1.0 + (roc_long + 5.0) / 50.0)
+            trend_mult = max(0.4, 1.0 + (roc_long + 5.0) / 35.0)
             logger.debug("Trend penalty: %.1f%% long ROC → mult=%.2f", roc_long, trend_mult)
 
     # 2. ATR% volatility: penalise choppy/illiquid stocks.
@@ -150,39 +151,38 @@ def compute_score(
                 atr_mult = max(0.5, atr_pct_max / atr_pct)
                 logger.debug("ATR penalty: ATR=%.1f%% → mult=%.2f", atr_pct, atr_mult)
 
-    # 3. 52-week high proximity: reward stocks near or breaking to new highs.
-    #    Research (George & Hwang 2004) shows proximity to 52w high is a strong
-    #    forward momentum predictor.  We only boost — the downside is covered by
-    #    trend_mult and the multi-ROC alignment score.
+    # 3. 52-week high proximity: stocks far below their 52-week high are structurally
+    #    weak — penalise them.  Stocks near or at new highs are not boosted here
+    #    because their component scores (multi-ROC, MACD) already reflect the strength.
+    #    All multipliers are capped at 1.0 (penalties only) to avoid score inflation.
     proximity_mult = 1.0
     lookback_bars  = min(len(close), _PROXIMITY_BARS)
-    if lookback_bars >= 60:                            # need meaningful history
+    if lookback_bars >= 60:
         high_52w  = close.iloc[-lookback_bars:].max()
         proximity = close.iloc[-1] / high_52w          # 1.0 = at 52-week high
-        if proximity >= 0.95:
-            proximity_mult = 1.15   # at / near 52-week high → strong boost
-        elif proximity >= 0.85:
-            proximity_mult = 1.05   # within 15% → mild boost
-        # else: neutral (no additional penalty; trend_mult handles persistent declines)
+        if proximity < 0.60:
+            proximity_mult = max(0.70, proximity)       # well below 52w high → notable penalty
+        elif proximity < 0.75:
+            proximity_mult = 0.85                       # moderately below → mild penalty
+        # above 75%: neutral — trend_mult already handles persistent declines
         logger.debug("52w proximity: %.1f%% of high → mult=%.2f", proximity * 100, proximity_mult)
 
-    # 4. Relative strength vs NIFTY500: reward stocks outperforming the broad market.
-    #    rs < 1 means the stock lagged the index — the move is mostly beta, not alpha.
-    #    Only computed when the index itself moved meaningfully (|roc| >= 1%).
+    # 4. Relative strength vs NIFTY500: penalise stocks underperforming the broad market.
+    #    Uses EXCESS RETURN (stock_roc - index_roc) so sign is correct in all market
+    #    directions — avoids the negative÷negative inversion bug.
+    #
+    #    A stock up +5% while market is +15% has excess=-10% → penalised (mostly beta).
+    #    A stock down -16% while market is -12% has excess=-4% → mild penalty.
+    #    A stock up +5% while market is -12% has excess=+17% → no penalty (neutral, 1.0).
+    #    Capped at 1.0 — outperformance is already captured in component scores.
     rs_mult = 1.0
     if nifty500_roc_60 is not None:
         stock_roc_60 = rocs.get(_ROC_LONG)
         if stock_roc_60 is not None:
-            if abs(nifty500_roc_60) >= 1.0:
-                rs = stock_roc_60 / nifty500_roc_60
-                # rs=2 → 1.2×  |  rs=1 → 1.0×  |  rs=0 → 0.6×  |  rs<0 → ≥0.4×
-                rs_mult = float(np.clip(0.4 + rs * 0.6, 0.4, 1.2))
-                logger.debug("RS vs NIFTY500: stock=%.1f%% index=%.1f%% rs=%.2f → mult=%.2f",
-                             stock_roc_60, nifty500_roc_60, rs, rs_mult)
-            elif nifty500_roc_60 < -5.0 and stock_roc_60 > 0:
-                # Market down, stock up → exceptional relative strength
-                rs_mult = 1.2
-                logger.debug("RS: stock held up in falling market → mult=1.2")
+            excess = stock_roc_60 - nifty500_roc_60
+            rs_mult = float(np.clip(1.0 + excess / 50.0, 0.4, 1.0))
+            logger.debug("RS vs NIFTY500: stock=%.1f%% index=%.1f%% excess=%.1f%% → mult=%.2f",
+                         stock_roc_60, nifty500_roc_60, excess, rs_mult)
 
     quality_mult = trend_mult * atr_mult * proximity_mult * rs_mult
     composite    = composite * quality_mult
