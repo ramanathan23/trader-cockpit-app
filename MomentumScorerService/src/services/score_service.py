@@ -6,11 +6,12 @@ import asyncio
 import logging
 
 import asyncpg
+import pandas as pd
 
 from ..config import settings
 from ..repositories.price_repository import PriceRepository
 from ..repositories.score_repository import ScoreRepository
-from ..signals import scorer
+from ..signals import indicators, scorer
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,41 @@ class ScoreService:
             symbols, timeframe, settings.score_lookback_bars
         )
 
+        # ── Extract NIFTY500 benchmark ROC (60-bar) ──────────────────────────
+        # Used by scorer to compute each stock's relative strength vs the index.
+        # NIFTY500 itself is not scored — pop it from the data dict.
+        nifty500_roc_60: float | None = None
+        benchmark = settings.nifty500_benchmark
+        if benchmark in price_data:
+            bdf   = price_data.pop(benchmark)
+            close = bdf["close"].astype(float)
+            if len(close) >= 60:
+                roc_series = indicators.rate_of_change(close, period=60)
+                val = roc_series.iloc[-1]
+                if not pd.isna(val):
+                    nifty500_roc_60 = float(val)
+                    logger.info("NIFTY500 60-bar ROC: %.2f%%", nifty500_roc_60)
+        else:
+            logger.warning("Benchmark %s not found in price data — RS mult disabled", benchmark)
+
+        # ── Liquidity filter — skip illiquid symbols before scoring ───────────
+        min_turnover = settings.min_avg_daily_turnover
+        filtered: dict = {}
+        skipped = 0
+        for sym, df in price_data.items():
+            avg_turnover = (df["close"].astype(float) * df["volume"].astype(float)).tail(20).mean()
+            if avg_turnover < min_turnover:
+                logger.debug(
+                    "Skipping %s — avg daily turnover ₹%.0f < threshold ₹%.0f",
+                    sym, avg_turnover, min_turnover,
+                )
+                skipped += 1
+            else:
+                filtered[sym] = df
+        if skipped:
+            logger.info("Liquidity filter removed %d / %d symbols", skipped, len(price_data))
+        price_data = filtered
+
         # Build scoring params once from config — avoids repeated attribute lookups
         score_kwargs = dict(
             rsi_period=settings.rsi_period,
@@ -54,6 +90,10 @@ class ScoreService:
             roc_period=settings.roc_period,
             vol_period=settings.vol_avg_period,
             min_bars=settings.score_min_bars,
+            trend_lookback=settings.trend_lookback_bars,
+            atr_period=settings.atr_period,
+            atr_pct_max=settings.atr_pct_max,
+            nifty500_roc_60=nifty500_roc_60,
             weights=(
                 settings.weight_rsi,
                 settings.weight_macd,

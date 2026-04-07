@@ -41,6 +41,27 @@ class Settings(BaseSettings):
     roc_period: int = Field(default=10, description="Rate-of-Change lookback window")
     vol_avg_period: int = Field(default=20, description="Volume ratio rolling average window")
 
+    # ── Benchmark ─────────────────────────────────────────────────────────────
+    nifty500_benchmark: str = Field(
+        default="NIFTY500",
+        description="Symbol used as market benchmark for relative-strength calculation",
+    )
+
+    # ── Quality filters ───────────────────────────────────────────────────────
+    trend_lookback_bars: int = Field(
+        default=60,
+        description="Long-term ROC lookback (bars) for trend-context multiplier",
+    )
+    atr_period: int = Field(default=14, description="ATR period for volatility penalty")
+    atr_pct_max: float = Field(
+        default=5.0,
+        description="Max ATR% of price before volatility penalty kicks in",
+    )
+    min_avg_daily_turnover: float = Field(
+        default=10_000_000,
+        description="Min 20-day avg daily turnover (INR) — symbols below this are skipped",
+    )
+
     # ── Score weights (must sum to 1.0) ───────────────────────────────────────
     weight_rsi: float = Field(default=0.30, description="RSI component weight")
     weight_macd: float = Field(default=0.30, description="MACD component weight")

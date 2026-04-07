@@ -19,6 +19,12 @@ import yfinance as yf
 logger = logging.getLogger(__name__)
 
 _NSE_SUFFIX = ".NS"
+
+# NSE index symbols that need a Yahoo Finance ^ ticker instead of the .NS suffix
+_INDEX_TICKERS: dict[str, str] = {
+    "NIFTY500": "^CRSLDX",
+}
+
 _INTERVAL_MAX_DAYS: dict[str, int] = {
     "1m":  7,
     "2m":  60,
@@ -35,7 +41,7 @@ class YFinanceFetcher:
 
     @staticmethod
     def _ticker(symbol: str) -> str:
-        return f"{symbol}{_NSE_SUFFIX}"
+        return _INDEX_TICKERS.get(symbol, f"{symbol}{_NSE_SUFFIX}")
 
     @staticmethod
     def _extract_single_symbol(raw: pd.DataFrame, symbol: str) -> pd.DataFrame:
@@ -59,7 +65,7 @@ class YFinanceFetcher:
     def _parse_multiindex(raw: pd.DataFrame, symbols: list[str]) -> dict[str, pd.DataFrame]:
         result: dict[str, pd.DataFrame] = {}
         for symbol in symbols:
-            ticker = f"{symbol}{_NSE_SUFFIX}"
+            ticker = YFinanceFetcher._ticker(symbol)
             try:
                 df = pd.DataFrame({
                     "Open":   raw["Open"][ticker],

@@ -169,8 +169,14 @@ class SyncService:
         starts) so they don't compete with pool connections held by ingest tasks.
         """
         await self.bootstrap_symbols()
-        all_symbols = [s.symbol for s in load_from_csv()]
-        logger.info("run_sync: %d symbols — loading sync state", len(all_symbols))
+        all_symbol_objs = load_from_csv()
+        all_symbols  = [s.symbol for s in all_symbol_objs]
+        # Indices (e.g. NIFTY500) are synced via yfinance for daily data only —
+        # Dhan 1m intraday uses a different exchange segment and is not needed
+        # for the benchmark use-case; exclude them from the 1m pipeline.
+        eq_symbols = [s.symbol for s in all_symbol_objs if s.series == "EQ"]
+        logger.info("run_sync: %d symbols (%d EQ + %d index) — loading sync state",
+                    len(all_symbols), len(eq_symbols), len(all_symbols) - len(eq_symbols))
 
         # Use sync_state (small plain table, ~4k rows) — fast.
         # Price-table MAX/DISTINCT scans span every hypertable chunk and are
@@ -179,7 +185,7 @@ class SyncService:
         # already-present rows, which bulk_ingest handles via ON CONFLICT DO NOTHING.
         daily_snapshots, intra_snapshots = await asyncio.gather(
             self._state.get_snapshots(all_symbols, "1d"),
-            self._state.get_snapshots(all_symbols, "1m"),
+            self._state.get_snapshots(eq_symbols, "1m"),
         )
         daily_ts_map: dict[str, datetime | None] = {s.symbol: s.last_data_ts for s in daily_snapshots}
         intra_ts_map: dict[str, datetime | None] = {s.symbol: s.last_data_ts for s in intra_snapshots}
@@ -187,7 +193,7 @@ class SyncService:
 
         daily_result, intra_result = await asyncio.gather(
             self._run_daily_sync(all_symbols, daily_ts_map),
-            self._run_1m_sync(all_symbols, intra_ts_map),
+            self._run_1m_sync(eq_symbols, intra_ts_map),
             return_exceptions=True,
         )
 
@@ -208,7 +214,7 @@ class SyncService:
         Useful for inspecting which symbols need work and why.
         Only symbols that are NOT fully up-to-date are included.
         """
-        all_symbols = [s.symbol for s in load_from_csv()]
+        all_symbols = [s.symbol for s in load_from_csv() if s.series == "EQ"]
         now_utc = datetime.now(tz=timezone.utc)
         now_ist = now_utc.astimezone(_IST)
 
