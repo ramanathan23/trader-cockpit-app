@@ -29,20 +29,21 @@ async def list_symbols(repo: SymbolRepoDep, series: str = "EQ"):
 
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
-@router.post("/sync/initial", summary="Trigger full historical load (background)")
-async def initial_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
-    background_tasks.add_task(svc.run_initial_sync)
+@router.post("/sync/run", summary="Unified sync: auto-classifies each symbol and fills gaps (background)")
+async def run_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
+    """
+    Single entry point for all sync work.  Per symbol per interval it will:
+    - Pull full history if no data exists  (5yr daily / 90d 1m)
+    - Fill the gap from last price timestamp if data is stale
+    - Skip if already up-to-date
+    Both intervals (1d / 1m) run in parallel.
+    """
+    background_tasks.add_task(svc.run_sync)
     return {
         "status": "started",
-        "message": "Initial sync running in background. "
-                   "Monitor progress at GET /api/v1/sync/status",
+        "message": "Sync running in background. Monitor progress at GET /api/v1/sync/status",
     }
 
-
-@router.post("/sync/patch", summary="Trigger incremental patch sync (background)")
-async def patch_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
-    background_tasks.add_task(svc.run_patch_sync)
-    return {"status": "started", "message": "Patch sync running in background"}
 
 
 @router.get("/sync/status", summary="Overall sync status per interval")
@@ -56,6 +57,17 @@ async def symbol_sync_status(symbol: str, repo: SyncStateRepoDep):
     if not rows:
         raise HTTPException(404, f"No sync state found for symbol '{symbol}'")
     return rows
+
+
+@router.get("/sync/gaps", summary="Per-symbol gap classification report (no data fetched)")
+async def gap_report(svc: SyncServiceDep):
+    """
+    Dry-run: shows which symbols need work and why.
+    Fields per symbol:
+      1d.action → INITIAL | FETCH_TODAY | FETCH_GAP | SKIP
+      1m.action → INITIAL | FETCH_GAP   | SKIP
+    """
+    return await svc.get_gap_report()
 
 
 # ── Prices ────────────────────────────────────────────────────────────────────

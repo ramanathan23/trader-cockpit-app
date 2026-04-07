@@ -28,7 +28,7 @@ def load_from_csv(csv_path: Path = _SYMBOLS_CSV) -> list[Symbol]:
 
     eq = df[df["SERIES"].str.strip() == "EQ"].copy()
     eq["DATE OF LISTING"] = pd.to_datetime(
-        eq["DATE OF LISTING"], dayfirst=True, errors="coerce"
+        eq["DATE OF LISTING"], format="mixed", dayfirst=True, errors="coerce"
     ).dt.date
 
     symbols: list[Symbol] = []

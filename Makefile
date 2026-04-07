@@ -16,13 +16,13 @@ logs:
 shell-db:
 	docker compose exec timescaledb psql -U trader -d trader_cockpit
 
-# Trigger full historical sync (runs in background)
-sync-initial:
-	curl -s -X POST http://localhost:8001/api/v1/sync/initial | python -m json.tool
+# Unified sync — auto-classifies every symbol (initial pull / gap fill / skip)
+sync:
+	curl -s -X POST http://localhost:8001/api/v1/sync/run | python -m json.tool
 
-# Trigger incremental patch sync
-sync-patch:
-	curl -s -X POST http://localhost:8001/api/v1/sync/patch | python -m json.tool
+# Show which symbols have data gaps (dry-run, no fetching)
+sync-gaps:
+	curl -s http://localhost:8001/api/v1/sync/gaps | python -m json.tool
 
 # Check sync status
 sync-status:

@@ -8,6 +8,7 @@ Strategy:
 """
 
 import logging
+from datetime import datetime
 
 import asyncpg
 import pandas as pd
@@ -56,6 +57,42 @@ _QUERY_TABLE: dict[str, str] = {
 class PriceRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
+
+    async def get_last_data_ts_bulk(
+        self,
+        symbols: list[str],
+        interval: str,
+        *,
+        query_timeout: float = 300.0,
+    ) -> dict[str, datetime | None]:
+        """
+        Single query: returns {symbol: MAX(time)} from the actual price table.
+
+        This is the source of truth for gap detection — not sync_state, which
+        can lag if a previous run crashed after ingest but before state update.
+        Symbols with no rows at all get None.
+
+        query_timeout overrides the pool-level command_timeout (default 60 s)
+        because a full-table MAX(time) GROUP BY on a TimescaleDB hypertable can
+        be slow right after startup when background workers restart and hold
+        chunk locks.
+        """
+        table = _TABLE_MAP.get(interval)
+        if not table:
+            raise ValueError(f"Unsupported interval: {interval!r}")
+        if not symbols:
+            return {}
+        async with self._pool.acquire(timeout=30) as conn:
+            rows = await conn.fetch(
+                f"SELECT DISTINCT ON (symbol) symbol, time AS last_ts "
+                f"FROM {table} "
+                f"WHERE symbol = ANY($1::text[]) "
+                f"ORDER BY symbol, time DESC",
+                symbols,
+                timeout=query_timeout,
+            )
+        result = {row["symbol"]: row["last_ts"] for row in rows}
+        return {s: result.get(s) for s in symbols}
 
     async def get_ohlcv(
         self,

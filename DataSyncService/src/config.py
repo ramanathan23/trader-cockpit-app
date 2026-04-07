@@ -59,8 +59,8 @@ class Settings(BaseSettings):
         default=1825, description="Daily bar lookback depth in days (~5 years)"
     )
     sync_1m_history_days: int = Field(
-        default=365,
-        description="1-minute bar lookback depth in days (project default: 1 year; Dhan supports more)",
+        default=90,
+        description="1-minute bar lookback depth in days (Dhan max per-call chunk is 90 days)",
     )
 
     log_level: str = Field(default="INFO", description="Python root logging level")
