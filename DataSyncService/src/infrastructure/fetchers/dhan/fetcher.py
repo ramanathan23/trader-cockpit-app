@@ -236,7 +236,7 @@ class DhanFetcher:
         self.require_credentials()
         today = date.today()
         start = since.date() if hasattr(since, "date") else since
-        if start >= today:
+        if start > today:
             return pd.DataFrame()
         days = (today - start).days + 1
         return await self.fetch_1m(symbol, days=days, end=today)

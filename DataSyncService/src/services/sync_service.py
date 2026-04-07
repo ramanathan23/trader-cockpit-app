@@ -351,6 +351,9 @@ class SyncService:
                              [s for s in batch if s not in data])
             await self._persist_batch(batch, data, "1d")
             updated += got
+            done = min((i + 1) * settings.sync_batch_size, len(symbols))
+            logger.info("[1d/today] %d / %d symbols processed (%d with data)",
+                        done, len(symbols), updated)
             await asyncio.sleep(settings.sync_batch_delay_s)
         logger.info("[1d/today] done — %d / %d symbols had new data", updated, len(symbols))
         return updated
