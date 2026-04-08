@@ -2,42 +2,6 @@
 --
 -- All statements are idempotent (IF NOT EXISTS / existence checks).
 
--- ── 1m hypertable ─────────────────────────────────────────────────────────────
-
-DO $$
-BEGIN
-    IF to_regclass('public.price_data_1m') IS NULL THEN
-        CREATE TABLE price_data_1m (
-            time    TIMESTAMPTZ   NOT NULL,
-            symbol  VARCHAR(30)   NOT NULL,
-            open    NUMERIC(14,4),
-            high    NUMERIC(14,4),
-            low     NUMERIC(14,4),
-            close   NUMERIC(14,4),
-            volume  BIGINT,
-            CONSTRAINT pk_price_1m PRIMARY KEY (symbol, time)
-        );
-
-        PERFORM create_hypertable(
-            'price_data_1m', 'time',
-            chunk_time_interval    => INTERVAL '1 day',
-            create_default_indexes => FALSE,
-            if_not_exists          => TRUE
-        );
-    END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_price_1m_symbol_time_desc
-    ON price_data_1m (symbol, time DESC);
-
-ALTER TABLE price_data_1m SET (
-    timescaledb.compress,
-    timescaledb.compress_orderby   = 'time DESC',
-    timescaledb.compress_segmentby = 'symbol'
-);
-
-SELECT add_compression_policy('price_data_1m', INTERVAL '7 days', if_not_exists => TRUE);
-
 -- ── daily hypertable ──────────────────────────────────────────────────────────
 
 DO $$
@@ -75,28 +39,6 @@ ALTER TABLE price_data_daily SET (
 SELECT add_compression_policy('price_data_daily', INTERVAL '30 days', if_not_exists => TRUE);
 
 -- ── continuous aggregates ─────────────────────────────────────────────────────
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS price_1m_hourly
-WITH (timescaledb.continuous) AS
-SELECT
-    time_bucket('1 hour', time) AS bucket,
-    symbol,
-    FIRST(open, time)           AS open,
-    MAX(high)                   AS high,
-    MIN(low)                    AS low,
-    LAST(close, time)           AS close,
-    SUM(volume)                 AS volume
-FROM price_data_1m
-GROUP BY bucket, symbol
-WITH NO DATA;
-
-SELECT add_continuous_aggregate_policy(
-    'price_1m_hourly',
-    start_offset      => INTERVAL '3 days',
-    end_offset        => INTERVAL '1 hour',
-    schedule_interval => INTERVAL '1 hour',
-    if_not_exists     => TRUE
-);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_weekly
 WITH (timescaledb.continuous) AS

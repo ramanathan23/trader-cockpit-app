@@ -21,40 +21,6 @@ CREATE INDEX IF NOT EXISTS idx_symbols_series ON symbols(series);
 -- One hash partition dimension on symbol keeps recent chunks more balanced while
 -- preserving the existing symbol/time query pattern.
 
-CREATE TABLE IF NOT EXISTS price_data_1m (
-    time    TIMESTAMPTZ   NOT NULL,
-    symbol  VARCHAR(30)   NOT NULL,
-    open    NUMERIC(14,4),
-    high    NUMERIC(14,4),
-    low     NUMERIC(14,4),
-    close   NUMERIC(14,4),
-    volume  BIGINT,
-    CONSTRAINT pk_price_1m PRIMARY KEY (symbol, time)
-);
-
-SELECT create_hypertable(
-    'price_data_1m', 'time',
-    partitioning_column    => 'symbol',
-    number_partitions      => 8,
-    chunk_time_interval    => INTERVAL '1 day',
-    create_default_indexes => FALSE,
-    if_not_exists          => TRUE
-);
-
-CREATE INDEX IF NOT EXISTS idx_price_1m_time_desc
-    ON price_data_1m (time DESC);
-
-CREATE INDEX IF NOT EXISTS idx_price_1m_symbol_time_desc
-    ON price_data_1m (symbol, time DESC);
-
-ALTER TABLE price_data_1m SET (
-    timescaledb.compress,
-    timescaledb.compress_orderby   = 'time DESC',
-    timescaledb.compress_segmentby = 'symbol'
-);
-
-SELECT add_compression_policy('price_data_1m', INTERVAL '7 days', if_not_exists => TRUE);
-
 CREATE TABLE IF NOT EXISTS price_data_daily (
     time    TIMESTAMPTZ   NOT NULL,
     symbol  VARCHAR(30)   NOT NULL,
@@ -94,7 +60,7 @@ SELECT add_compression_policy('price_data_daily', INTERVAL '30 days', if_not_exi
 
 CREATE TABLE IF NOT EXISTS sync_state (
     symbol         VARCHAR(30) NOT NULL,
-    timeframe      VARCHAR(10) NOT NULL,   -- '1m' | '1d'
+    timeframe      VARCHAR(10) NOT NULL,   -- '1d'
     last_synced_at TIMESTAMPTZ,
     last_data_ts   TIMESTAMPTZ,
     status         VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -116,30 +82,6 @@ CREATE INDEX IF NOT EXISTS idx_sync_state_timeframe_last_data
 
 CREATE INDEX IF NOT EXISTS idx_sync_state_timeframe_last_synced
     ON sync_state(timeframe, last_synced_at ASC NULLS FIRST);
-
--- Hourly continuous aggregate from 1m data
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS price_1m_hourly
-WITH (timescaledb.continuous) AS
-SELECT
-    time_bucket('1 hour', time) AS bucket,
-    symbol,
-    FIRST(open, time)           AS open,
-    MAX(high)                   AS high,
-    MIN(low)                    AS low,
-    LAST(close, time)           AS close,
-    SUM(volume)                 AS volume
-FROM price_data_1m
-GROUP BY bucket, symbol
-WITH NO DATA;
-
-SELECT add_continuous_aggregate_policy(
-    'price_1m_hourly',
-    start_offset => INTERVAL '3 days',
-    end_offset => INTERVAL '1 hour',
-    schedule_interval => INTERVAL '1 hour',
-    if_not_exists => TRUE
-);
 
 -- Weekly continuous aggregate from daily data
 
