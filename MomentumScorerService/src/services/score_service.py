@@ -4,6 +4,7 @@ ScoreService — orchestrates batch momentum score computation and persistence.
 
 import asyncio
 import logging
+from datetime import date, timezone
 
 import asyncpg
 import pandas as pd
@@ -28,13 +29,30 @@ class ScoreService:
         Compute and persist momentum scores for all synced symbols.
 
         Steps:
-          1. Load all synced symbol names (single query).
-          2. Batch-fetch all OHLCV data in one windowed query (no N+1).
-          3. Run CPU-bound scoring concurrently in threads, bounded by semaphore.
-          4. Bulk-upsert results via a single connection.
+          1. Guard: if existing scores are from a previous day, skip (preserve them).
+             If existing scores are from today, delete them first then reinsert fresh.
+          2. Load all synced symbol names (single query).
+          3. Batch-fetch all OHLCV data in one windowed query (no N+1).
+          4. Run CPU-bound scoring concurrently in threads, bounded by semaphore.
+          5. Delete existing same-day scores, then bulk-insert results via a single connection.
 
         Returns the number of symbols successfully scored.
         """
+        latest = await self._scores.get_latest_computed_at(timeframe)
+        today = date.today()
+        is_same_day_recalc = False
+
+        if latest is not None:
+            computed_day = latest.astimezone(timezone.utc).date()
+            if computed_day != today:
+                logger.info(
+                    "Skipping %s scoring — existing scores from %s (not today). "
+                    "Previous day scores preserved.",
+                    timeframe, computed_day,
+                )
+                return 0
+            is_same_day_recalc = True
+
         symbols = await self._prices.fetch_synced_symbols()
         if not symbols:
             logger.warning("No synced symbols found — run initial sync first")
@@ -109,20 +127,28 @@ class ScoreService:
         tasks = [_score_one(sym, df) for sym, df in price_data.items()]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Collect valid results before touching the DB
+        valid_results = []
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning("Scoring task failed: %s", result)
+                continue
+            symbol, breakdown = result
+            if breakdown is not None:
+                valid_results.append((symbol, breakdown))
+
         scored = 0
         async with self._pool.acquire() as conn:
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.warning("Scoring task failed: %s", result)
-                    continue
-                symbol, breakdown = result
-                if breakdown is None:
-                    continue
-                try:
-                    await self._scores.upsert(conn, symbol, timeframe, breakdown)
-                    scored += 1
-                except Exception:
-                    logger.warning("Score persist failed for %s", symbol, exc_info=True)
+            async with conn.transaction():
+                if is_same_day_recalc:
+                    deleted = await self._scores.delete_by_timeframe(conn, timeframe)
+                    logger.info("Same-day recalc: deleted %d existing %s scores", deleted, timeframe)
+                for symbol, breakdown in valid_results:
+                    try:
+                        await self._scores.insert(conn, symbol, timeframe, breakdown)
+                        scored += 1
+                    except Exception:
+                        logger.warning("Score persist failed for %s", symbol, exc_info=True)
 
         logger.info("Scored %d / %d symbols (%s)", scored, len(symbols), timeframe)
         return scored
