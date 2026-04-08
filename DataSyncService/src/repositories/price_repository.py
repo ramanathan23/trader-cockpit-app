@@ -16,17 +16,14 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 _TABLE_MAP: dict[str, str] = {
-    "1m": "price_data_1m",
     "1d": "price_data_daily",
 }
 _CONFLICT_COLUMNS: dict[str, str] = {
-    "1m": "symbol, time",
     "1d": "symbol, time",
 }
 
 _COLUMNS = ("time", "symbol", "open", "high", "low", "close", "volume")
 _INGEST_CHUNK_SIZE: dict[str, int] = {
-    "1m": 10_000,
     "1d": 50_000,
 }
 
@@ -49,7 +46,6 @@ def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
 
 
 _QUERY_TABLE: dict[str, str] = {
-    "1m": "price_data_1m",
     "1d": "price_data_daily",
 }
 
@@ -116,23 +112,6 @@ class PriceRepository:
                 f"  AND ($3::timestamptz IS NULL OR time <= $3::timestamptz) "
                 f"ORDER BY time DESC LIMIT $4",
                 symbol, from_ts, to_ts, limit,
-            )
-        return [dict(r) for r in rows]
-
-    async def get_ohlcv_hourly(
-        self,
-        symbol: str,
-        *,
-        limit: int = 168,
-    ) -> list[dict]:
-        """Query from the pre-built hourly continuous aggregate view."""
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT bucket AS time, open, high, low, close, volume "
-                "FROM price_1m_hourly "
-                "WHERE symbol = $1 "
-                "ORDER BY bucket DESC LIMIT $2",
-                symbol, limit,
             )
         return [dict(r) for r in rows]
 

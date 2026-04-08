@@ -2,7 +2,6 @@
 yfinance-based OHLCV fetcher for NSE (National Stock Exchange India) symbols.
 
 Hard limits imposed by yfinance:
-  1m  → max 7 days lookback
   1d  → no practical limit
 
 Symbols use the `.NS` suffix (e.g. RELIANCE → RELIANCE.NS).
@@ -26,7 +25,6 @@ _INDEX_TICKERS: dict[str, str] = {
 }
 
 _INTERVAL_MAX_DAYS: dict[str, int] = {
-    "1m":  7,
     "2m":  60,
     "5m":  60,
     "15m": 60,
@@ -100,9 +98,8 @@ class YFinanceFetcher:
         start = start or (end - timedelta(days=effective_days))
         tickers = [self._ticker(s) for s in symbols]
 
-        # yfinance end is exclusive for daily intervals — add 1 day so today's
-        # completed bar is included when syncing after market close.
-        yf_end = end + timedelta(days=1) if interval == "1d" else end
+        # yfinance end is exclusive — add 1 day so today's completed bar is included.
+        yf_end = end + timedelta(days=1)
 
         try:
             raw: pd.DataFrame = await asyncio.to_thread(

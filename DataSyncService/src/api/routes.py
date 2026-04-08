@@ -32,11 +32,10 @@ async def list_symbols(repo: SymbolRepoDep, series: str = "EQ"):
 @router.post("/sync/run", summary="Unified sync: auto-classifies each symbol and fills gaps (background)")
 async def run_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     """
-    Single entry point for all sync work.  Per symbol per interval it will:
-    - Pull full history if no data exists  (5yr daily / 90d 1m)
+    Single entry point for all sync work.  Per symbol it will:
+    - Pull full history if no data exists  (5yr daily)
     - Fill the gap from last price timestamp if data is stale
     - Skip if already up-to-date
-    Both intervals (1d / 1m) run in parallel.
     """
     background_tasks.add_task(svc.run_sync)
     return {
@@ -65,23 +64,11 @@ async def gap_report(svc: SyncServiceDep):
     Dry-run: shows which symbols need work and why.
     Fields per symbol:
       1d.action → INITIAL | FETCH_TODAY | FETCH_GAP | SKIP
-      1m.action → INITIAL | FETCH_GAP   | SKIP
     """
     return await svc.get_gap_report()
 
 
 # ── Prices ────────────────────────────────────────────────────────────────────
-
-@router.get("/prices/{symbol}/1m", summary="Query 1-minute OHLCV")
-async def get_1m_prices(
-    symbol: str,
-    repo: PriceRepoDep,
-    limit:   int      = Query(default=500, le=5000),
-    from_ts: str | None = Query(default=None, description="ISO-8601 start timestamp"),
-    to_ts:   str | None = Query(default=None, description="ISO-8601 end timestamp"),
-):
-    return await repo.get_ohlcv(symbol.upper(), "1m", limit=limit, from_ts=from_ts, to_ts=to_ts)
-
 
 @router.get("/prices/{symbol}/daily", summary="Query daily OHLCV")
 async def get_daily_prices(
@@ -94,10 +81,3 @@ async def get_daily_prices(
     return await repo.get_ohlcv(symbol.upper(), "1d", limit=limit, from_ts=from_ts, to_ts=to_ts)
 
 
-@router.get("/prices/{symbol}/hourly", summary="Query hourly aggregate")
-async def get_hourly_prices(
-    symbol: str,
-    repo: PriceRepoDep,
-    limit: int = Query(default=168, le=2000),
-):
-    return await repo.get_ohlcv_hourly(symbol.upper(), limit=limit)

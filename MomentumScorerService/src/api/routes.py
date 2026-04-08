@@ -12,7 +12,7 @@ router = APIRouter()
 async def trigger_compute(
     background_tasks: BackgroundTasks,
     svc: ScoreServiceDep,
-    timeframe: str = Query(default="1d", pattern="^(1d|1m)$"),
+    timeframe: str = Query(default="1d", pattern="^1d$"),
 ):
     background_tasks.add_task(svc.compute_all, timeframe)
     return {"status": "started", "timeframe": timeframe}
@@ -21,7 +21,7 @@ async def trigger_compute(
 @router.get("/scores", summary="Top-N symbols by momentum score")
 async def get_scores(
     repo: ScoreRepoDep,
-    timeframe:  str   = Query(default="1d", pattern="^(1d|1m)$"),
+    timeframe:  str   = Query(default="1d", pattern="^1d$"),
     limit:      int   = Query(default=50, ge=1, le=500),
     min_score:  float = Query(default=0.0, ge=0.0, le=100.0),
 ):
@@ -33,7 +33,7 @@ async def get_scores(
 @router.get("/scores/summary/distribution", summary="Score distribution histogram")
 async def score_distribution(
     repo: ScoreRepoDep,
-    timeframe: str = Query(default="1d", pattern="^(1d|1m)$"),
+    timeframe: str = Query(default="1d", pattern="^1d$"),
     buckets:   int = Query(default=10, ge=2, le=20),
 ):
     return await repo.get_distribution(timeframe, buckets)
