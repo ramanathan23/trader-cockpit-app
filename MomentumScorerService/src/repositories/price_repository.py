@@ -28,6 +28,17 @@ class PriceRepository:
             )
         return [r["symbol"] for r in rows]
 
+    async def fetch_synced_symbol_details(self) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT DISTINCT ss.symbol, s.company_name
+                FROM   sync_state ss
+                JOIN   symbols s ON s.symbol = ss.symbol
+                WHERE  ss.status = 'synced'
+                ORDER  BY ss.symbol
+            """)
+        return [dict(r) for r in rows]
+
     async def fetch_ohlcv_batch(
         self,
         symbols: list[str],

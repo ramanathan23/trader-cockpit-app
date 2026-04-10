@@ -12,6 +12,7 @@ from ..config import settings
 from ..repositories.price_repository import PriceRepository
 from ..repositories.score_repository import ScoreRepository
 from ..signals import indicators, scorer
+from ..signals.watchlist import detect_run_and_tight_base
 
 logger = logging.getLogger(__name__)
 
@@ -135,3 +136,51 @@ class ScoreService:
 
         logger.info("Scored %d / %d symbols (%s)", scored, len(symbols), timeframe)
         return scored
+
+    async def build_watchlist(
+        self,
+        *,
+        side: str = "both",
+        limit: int = 50,
+        run_window: int = 5,
+        base_window: int = 3,
+        min_run_move_pct: float = 8.0,
+        max_base_range_pct: float = 3.0,
+        max_retracement_pct: float = 0.35,
+    ) -> list[dict]:
+        symbol_rows = await self._prices.fetch_synced_symbol_details()
+        if not symbol_rows:
+            return []
+
+        symbols = [row["symbol"] for row in symbol_rows]
+        price_data = await self._prices.fetch_ohlcv_batch(
+            symbols,
+            "1d",
+            lookback=max(settings.score_lookback_bars, run_window + base_window + 5),
+        )
+        symbol_meta = {row["symbol"]: row.get("company_name") for row in symbol_rows}
+        requested_sides = [side] if side in {"bull", "bear"} else ["bull", "bear"]
+
+        candidates: list[dict] = []
+        for symbol, df in price_data.items():
+            avg_turnover = (df["close"].astype(float) * df["volume"].astype(float)).tail(20).mean()
+            if avg_turnover < settings.min_avg_daily_turnover:
+                continue
+
+            for current_side in requested_sides:
+                candidate = detect_run_and_tight_base(
+                    symbol,
+                    symbol_meta.get(symbol),
+                    df,
+                    side=current_side,
+                    run_window=run_window,
+                    base_window=base_window,
+                    min_run_move_pct=min_run_move_pct,
+                    max_base_range_pct=max_base_range_pct,
+                    max_retracement_pct=max_retracement_pct,
+                )
+                if candidate is not None:
+                    candidates.append(candidate)
+
+        candidates.sort(key=lambda row: (row["pattern_score"], row["run_move_pct"]), reverse=True)
+        return candidates[:limit]

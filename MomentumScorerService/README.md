@@ -65,8 +65,26 @@ rows from prior days.
 |---|---|---|
 | `POST` | `/api/v1/scores/compute` | Trigger batch scoring (background). Param: `timeframe=1d\|1m` |
 | `GET` | `/api/v1/scores` | Top-N symbols ranked by score. Params: `timeframe`, `limit`, `min_score` |
+| `GET` | `/api/v1/watchlist/run-tight-base` | Daily watchlist for 4-5 bar directional runs followed by tight consolidation. Params: `side`, `run_window`, `base_window`, `min_run_move_pct`, `max_base_range_pct`, `max_retracement_pct` |
 | `GET` | `/api/v1/scores/{symbol}` | Full breakdown (RSI, MACD, ROC, volume) for one symbol |
 | `GET` | `/api/v1/scores/summary/distribution` | Histogram of score distribution. Params: `timeframe`, `buckets` |
+
+### Watchlist screen
+
+`GET /api/v1/watchlist/run-tight-base?side=both`
+
+Screens daily candles for two setups:
+
+- `bull`: 4-5 day run-up, then a tight base near the highs.
+- `bear`: 4-5 day sell-off, then a tight base near the lows.
+
+The default filter keeps names with:
+
+- directional move of at least 8%
+- consolidation range no wider than 3%
+- giveback no deeper than 35% of the impulse move
+
+The response includes `pattern_score`, `run_move_pct`, `base_range_pct`, `retracement_pct`, and `trigger_price` so you can sort or tune the screen further.
 
 ### Example responses
 
