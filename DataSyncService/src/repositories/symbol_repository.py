@@ -75,3 +75,27 @@ class SymbolRepository:
                 series.upper(),
             )
         return [dict(r) for r in rows]
+
+    async def list_mapped(self) -> list[dict]:
+        """Return all symbols that have a Dhan security ID (ready for live feed)."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT symbol, dhan_security_id, exchange_segment
+                FROM   symbols
+                WHERE  dhan_security_id IS NOT NULL
+                ORDER  BY symbol
+            """)
+        return [dict(r) for r in rows]
+
+    async def get_dhan_mapping_stats(self) -> dict:
+        """Summary of Dhan ID mapping coverage."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT
+                    COUNT(*)                                             AS total,
+                    COUNT(dhan_security_id)                             AS mapped,
+                    COUNT(*) - COUNT(dhan_security_id)                  AS unmapped
+                FROM symbols
+                WHERE series = 'EQ'
+            """)
+        return dict(row)

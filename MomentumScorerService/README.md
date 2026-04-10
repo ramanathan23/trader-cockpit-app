@@ -52,8 +52,12 @@ fetch_synced_symbols()           → symbols with price data in DB
 fetch_ohlcv_batch(symbols, tf)   → single batched query, no N+1
   ↓ for each symbol
   asyncio.to_thread(compute_score, df)   → RSI, MACD, ROC, volume
-  score_repository.upsert()      → insert or update momentum_scores
+  replace timeframe snapshot     → delete old rows, insert latest momentum_scores
 ```
+
+Each compute run refreshes the full snapshot for the requested timeframe. The
+service keeps one current row per `(symbol, timeframe)` and overwrites stale
+rows from prior days.
 
 ## REST API
 

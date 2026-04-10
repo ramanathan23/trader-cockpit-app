@@ -1,7 +1,7 @@
-.PHONY: up down build logs shell-db sync-initial sync-patch scores-compute
+.PHONY: up down build logs shell-db sync scores-top scores-compute feed-status dhan-map dhan-status ui
 
 up:
-	docker compose up -d
+	docker compose up -d --build
 
 down:
 	docker compose down
@@ -39,3 +39,21 @@ scores-compute:
 # Top 20 momentum scores
 scores-top:
 	curl -s "http://localhost:8002/api/v1/scores?limit=20" | python -m json.tool
+
+# ── Live Feed ─────────────────────────────────────────────────────────────────
+
+# Download Dhan instrument master and sync security IDs into DB
+dhan-map:
+	curl -s -X POST http://localhost:8001/api/v1/symbols/refresh-master | python -m json.tool
+
+# Check Dhan mapping coverage (how many of 2000+ stocks have a security ID)
+dhan-status:
+	curl -s http://localhost:8001/api/v1/symbols/dhan-status | python -m json.tool
+
+# Live feed health: instrument count, WebSocket connections, index bias
+feed-status:
+	curl -s http://localhost:8003/api/v1/status | python -m json.tool
+
+# Open trading dashboard in default browser (Windows)
+ui:
+	start http://localhost:8003/api/v1/ui

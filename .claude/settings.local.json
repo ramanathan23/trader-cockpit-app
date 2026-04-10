@@ -9,7 +9,13 @@
       "Bash(xargs wc:*)",
       "Bash(find . -name \"*.py\" -type f -exec wc -l {} +)",
       "Bash(docker volume:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\" -X POST http://localhost:8001/api/v1/symbols/refresh-master)",
+      "Bash(pip show:*)",
+      "Bash(docker exec:*)",
+      "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; print\\(inspect.getsource\\(mf.DhanFeed.__init__\\)\\)\")",
+      "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; print\\(inspect.getsource\\(mf.DhanFeed.connect\\)\\)\")",
+      "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; src = inspect.getsource\\(mf\\); print\\(src\\)\")"
     ]
   }
 }

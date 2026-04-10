@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trader Cockpit</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, monospace;
+    font-size: 13px;
+  }
+
+  /* ── Header ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  #header h1 { font-size: 14px; font-weight: 600; letter-spacing: 1px; color: #58a6ff; }
+  #clock      { font-size: 13px; color: #8b949e; }
+  #phase-badge {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Index bias bar ── */
+  #bias-bar {
+    display: flex;
+    gap: 12px;
+    padding: 8px 16px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+  }
+  .bias-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .bias-bull { color: #3fb950; }
+  .bias-bear { color: #f85149; }
+  .bias-neut { color: #8b949e; }
+
+  /* ── Signal feed ── */
+  #feed {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .card {
+    border-radius: 6px;
+    padding: 10px 14px;
+    border-left: 4px solid;
+    background: #161b22;
+    animation: slide-in 0.2s ease;
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card.OPEN_DRIVE_ENTRY  { border-color: #3fb950; }
+  .card.SPIKE_BREAKOUT    { border-color: #d29922; }
+  .card.ABSORPTION        { border-color: #58a6ff; }
+  .card.TRAIL_UPDATE      { border-color: #8b949e; }
+  .card.DRIVE_FAILED      { border-color: #f85149; }
+  .card.EXIT              { border-color: #f85149; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .signal-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-BULLISH { background: #3fb950; }
+  .dot-BEARISH { background: #f85149; }
+  .dot-NEUTRAL { background: #8b949e; }
+
+  .card-time { font-size: 11px; color: #8b949e; }
+
+  .card-type {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #21262d;
+    color: #8b949e;
+  }
+
+  .levels {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #8b949e;
+  }
+  .lv { display: flex; gap: 4px; }
+  .lv span:first-child { color: #6e7681; }
+  .lv .val { color: #e6edf3; font-weight: 600; }
+  .lv .val.stop  { color: #f85149; }
+  .lv .val.t1    { color: #3fb950; }
+  .lv .val.t2    { color: #2ea043; }
+  .lv .val.trail { color: #58a6ff; }
+  .lv .val.entry { color: #d29922; }
+
+  .card-msg {
+    margin-top: 5px;
+    font-size: 11px;
+    color: #8b949e;
+    font-style: italic;
+  }
+
+  /* ── Connection status ── */
+  #conn-status {
+    position: fixed;
+    bottom: 12px;
+    right: 14px;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #21262d;
+  }
+  #conn-status.connected    { color: #3fb950; }
+  #conn-status.disconnected { color: #f85149; }
+  #conn-status.connecting   { color: #d29922; }
+
+  /* ── Empty state ── */
+  #empty {
+    text-align: center;
+    color: #6e7681;
+    padding: 60px 16px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>TRADER COCKPIT</h1>
+  <span id="clock">--:--:--</span>
+  <span id="phase-badge" style="background:#21262d;color:#8b949e;">--</span>
+</div>
+
+<div id="bias-bar">
+  <div class="bias-item"><span style="color:#6e7681">NIFTY</span>     <span id="bias-nifty"     class="bias-neut">--</span></div>
+  <div class="bias-item"><span style="color:#6e7681">BANKNIFTY</span> <span id="bias-banknifty" class="bias-neut">--</span></div>
+  <div class="bias-item"><span style="color:#6e7681">SENSEX</span>    <span id="bias-sensex"    class="bias-neut">--</span></div>
+</div>
+
+<div id="feed">
+  <div id="empty">Waiting for signals…<br>Market opens at 9:15 IST</div>
+</div>
+
+<div id="conn-status" class="connecting">Connecting…</div>
+
+<script>
+// ── Audio beep (native WebAudio, no file required) ───────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function beep(freq = 880, type = 'sine', dur = 0.15) {
+  try {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type      = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + dur);
+  } catch (_) {}
+}
+
+function alertSound(signalType) {
+  if (signalType === 'OPEN_DRIVE_ENTRY')  { beep(880, 'sine',   0.12); setTimeout(() => beep(1100, 'sine', 0.12), 140); }
+  else if (signalType === 'SPIKE_BREAKOUT'){ beep(660, 'square', 0.10); }
+  else if (signalType === 'ABSORPTION')    { beep(440, 'sine',   0.15); }
+  else if (signalType === 'DRIVE_FAILED')  { beep(330, 'sawtooth', 0.2); }
+  else if (signalType === 'EXIT')          { beep(220, 'sine',   0.25); }
+}
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  document.getElementById('clock').textContent =
+    ist.toTimeString().slice(0, 8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Phase badge ───────────────────────────────────────────────────────────────
+const PHASE_COLORS = {
+  PRE_MARKET:     '#21262d',
+  PRE_SIGNAL:     '#21262d',
+  DRIVE_WINDOW:   '#1f2d1f',
+  EXECUTION:      '#1a2d1a',
+  TRANSITION:     '#1e2a1e',
+  MID_SESSION:    '#21262d',
+  DEAD_ZONE:      '#2d2118',
+  CLOSE_MOMENTUM: '#1e2840',
+  SESSION_END:    '#2d1818',
+  POST_MARKET:    '#21262d',
+};
+const PHASE_TEXT_COLORS = {
+  DRIVE_WINDOW:   '#3fb950',
+  EXECUTION:      '#2ea043',
+  CLOSE_MOMENTUM: '#58a6ff',
+  SESSION_END:    '#f85149',
+  DEAD_ZONE:      '#d29922',
+};
+
+function setPhase(phase) {
+  const badge = document.getElementById('phase-badge');
+  badge.textContent = phase.replace(/_/g, ' ');
+  badge.style.background = PHASE_COLORS[phase] || '#21262d';
+  badge.style.color      = PHASE_TEXT_COLORS[phase] || '#8b949e';
+}
+
+// ── Index bias ────────────────────────────────────────────────────────────────
+function setBias(id, direction) {
+  const el = document.getElementById(id);
+  el.textContent  = direction === 'NEUTRAL' ? '—' : (direction === 'BULLISH' ? '↑' : '↓') + ' ' + direction;
+  el.className    = direction === 'BULLISH' ? 'bias-bull' : direction === 'BEARISH' ? 'bias-bear' : 'bias-neut';
+}
+
+// ── Status polling (index bias + phase) ───────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/v1/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    setPhase(d.session_phase || 'PRE_MARKET');
+    if (d.index_bias) {
+      setBias('bias-nifty',     d.index_bias.nifty);
+      setBias('bias-banknifty', d.index_bias.banknifty);
+      setBias('bias-sensex',    d.index_bias.sensex);
+    }
+  } catch (_) {}
+}
+setInterval(pollStatus, 10_000);
+pollStatus();
+
+// ── Signal card rendering ─────────────────────────────────────────────────────
+const MAX_CARDS = 30;
+let cardCount   = 0;
+
+function fmt(v) { return v != null ? Number(v).toFixed(2) : null; }
+
+function timeStr(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
+}
+
+function renderCard(s) {
+  const feed  = document.getElementById('feed');
+  const empty = document.getElementById('empty');
+  if (empty) empty.remove();
+
+  const card = document.createElement('div');
+  card.className = `card ${s.signal_type}`;
+  card.id = `card-${s.id}`;
+
+  const dotClass = `dot-${s.direction}`;
+  const typeLabel = s.signal_type.replace(/_/g, ' ');
+
+  let levelsHtml = '';
+  const lvs = [];
+
+  if (s.entry_low != null && s.entry_high != null)
+    lvs.push(`<div class="lv"><span>Entry</span><span class="val entry">${fmt(s.entry_low)}–${fmt(s.entry_high)}</span></div>`);
+  if (s.stop != null)
+    lvs.push(`<div class="lv"><span>Stop</span><span class="val stop">${fmt(s.stop)}</span></div>`);
+  if (s.target_1 != null)
+    lvs.push(`<div class="lv"><span>T1</span><span class="val t1">${fmt(s.target_1)}</span></div>`);
+  if (s.target_2 != null)
+    lvs.push(`<div class="lv"><span>T2</span><span class="val t2">${fmt(s.target_2)}</span></div>`);
+  if (s.trail_stop != null)
+    lvs.push(`<div class="lv"><span>Trail</span><span class="val trail">${fmt(s.trail_stop)}</span></div>`);
+
+  if (lvs.length) levelsHtml = `<div class="levels">${lvs.join('')}</div>`;
+
+  const msgHtml = s.message ? `<div class="card-msg">${s.message}</div>` : '';
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">
+        <div class="signal-dot ${dotClass}"></div>
+        <strong>${s.symbol}</strong>
+        <span class="card-type">${typeLabel}</span>
+      </div>
+      <span class="card-time">${timeStr(s.timestamp)}</span>
+    </div>
+    ${levelsHtml}
+    ${msgHtml}
+  `;
+
+  feed.insertBefore(card, feed.firstChild);
+  cardCount++;
+
+  // Trim old cards.
+  if (cardCount > MAX_CARDS) {
+    const cards = feed.querySelectorAll('.card');
+    if (cards.length > MAX_CARDS) {
+      cards[cards.length - 1].remove();
+      cardCount--;
+    }
+  }
+}
+
+function handleSignal(s) {
+  // Update existing trail card if one exists for this symbol, else create new.
+  if (s.signal_type === 'TRAIL_UPDATE') {
+    const existing = document.getElementById(`trail-${s.symbol}`);
+    if (existing) {
+      existing.querySelector('.val.trail').textContent = fmt(s.trail_stop);
+      existing.querySelector('.card-time').textContent = timeStr(s.timestamp);
+      return;
+    }
+    const card = renderCard(s);
+    // Mark for in-place update next time.
+    const el = document.getElementById(`card-${s.id}`);
+    if (el) el.id = `trail-${s.symbol}`;
+    return;
+  }
+
+  renderCard(s);
+  alertSound(s.signal_type);
+
+  // Browser tab notification.
+  if (document.hidden) {
+    const orig = document.title;
+    let blink  = 0;
+    const iv = setInterval(() => {
+      document.title = blink++ % 2 === 0 ? `⚡ ${s.symbol}` : orig;
+      if (blink > 8) { clearInterval(iv); document.title = orig; }
+    }, 600);
+  }
+}
+
+// ── SSE connection ────────────────────────────────────────────────────────────
+const connEl = document.getElementById('conn-status');
+let source   = null;
+
+function connect() {
+  if (source) source.close();
+  connEl.textContent = 'Connecting…';
+  connEl.className   = 'connecting';
+
+  source = new EventSource('/api/v1/signals/stream');
+
+  source.onopen = () => {
+    connEl.textContent = 'Connected';
+    connEl.className   = 'conn-status connected';
+  };
+
+  source.onmessage = (e) => {
+    try {
+      const sig = JSON.parse(e.data);
+      handleSignal(sig);
+    } catch (_) {}
+  };
+
+  source.onerror = () => {
+    connEl.textContent = 'Reconnecting…';
+    connEl.className   = 'conn-status disconnected';
+    source.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+// Unlock audio on first user interaction (browser autoplay policy).
+document.addEventListener('click', () => {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  audioCtx.resume();
+}, { once: true });
+
+connect();
+</script>
+</body>
+</html>

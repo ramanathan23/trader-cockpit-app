@@ -28,6 +28,12 @@ import asyncpg
 
 from ..config import settings
 from ..infrastructure.fetchers.yfinance.fetcher import YFinanceFetcher
+from ..infrastructure.dhan.instrument_master import download_and_parse
+from ..infrastructure.dhan.instrument_mapper import (
+    apply_equity_mapping,
+    apply_index_future_mapping,
+    MappingResult,
+)
 from ..repositories.price_repository import PriceRepository
 from ..repositories.symbol_repository import SymbolRepository, load_from_csv
 from ..repositories.sync_state_repository import SyncStateRepository
@@ -103,6 +109,30 @@ class SyncService:
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
+
+    async def refresh_security_master(self) -> MappingResult:
+        """
+        Download the Dhan instrument master CSV and sync security IDs into the DB.
+
+        Steps:
+          1. Download + parse the master CSV.
+          2. Bulk-update symbols.dhan_security_id for all matched equities.
+          3. Upsert index_futures and activate the nearest expiry per underlying.
+        """
+        master = await download_and_parse(
+            settings.dhan_master_url,
+            timeout_s=settings.dhan_master_timeout_s,
+        )
+        matched, unmatched = await apply_equity_mapping(self._pool, master.equities)
+        upserted, activated = await apply_index_future_mapping(
+            self._pool, master.index_futures
+        )
+        return MappingResult(
+            equities_matched        = matched,
+            equities_unmatched      = unmatched,
+            index_futures_upserted  = upserted,
+            index_futures_activated = activated,
+        )
 
     # ── Public entry points ───────────────────────────────────────────────────
 

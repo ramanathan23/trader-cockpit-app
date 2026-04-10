@@ -4,7 +4,6 @@ ScoreService — orchestrates batch momentum score computation and persistence.
 
 import asyncio
 import logging
-from datetime import date, timezone
 
 import asyncpg
 import pandas as pd
@@ -29,30 +28,14 @@ class ScoreService:
         Compute and persist momentum scores for all synced symbols.
 
         Steps:
-          1. Guard: if existing scores are from a previous day, skip (preserve them).
-             If existing scores are from today, delete them first then reinsert fresh.
-          2. Load all synced symbol names (single query).
-          3. Batch-fetch all OHLCV data in one windowed query (no N+1).
-          4. Run CPU-bound scoring concurrently in threads, bounded by semaphore.
-          5. Delete existing same-day scores, then bulk-insert results via a single connection.
+          1. Load all synced symbol names (single query).
+          2. Batch-fetch all OHLCV data in one windowed query (no N+1).
+          3. Run CPU-bound scoring concurrently in threads, bounded by semaphore.
+          4. Replace the existing timeframe snapshot atomically.
+             This keeps one current row per symbol/timeframe, matching the table PK.
 
         Returns the number of symbols successfully scored.
         """
-        latest = await self._scores.get_latest_computed_at(timeframe)
-        today = date.today()
-        is_same_day_recalc = False
-
-        if latest is not None:
-            computed_day = latest.astimezone(timezone.utc).date()
-            if computed_day != today:
-                logger.info(
-                    "Skipping %s scoring — existing scores from %s (not today). "
-                    "Previous day scores preserved.",
-                    timeframe, computed_day,
-                )
-                return 0
-            is_same_day_recalc = True
-
         symbols = await self._prices.fetch_synced_symbols()
         if not symbols:
             logger.warning("No synced symbols found — run initial sync first")
@@ -140,9 +123,9 @@ class ScoreService:
         scored = 0
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                if is_same_day_recalc:
-                    deleted = await self._scores.delete_by_timeframe(conn, timeframe)
-                    logger.info("Same-day recalc: deleted %d existing %s scores", deleted, timeframe)
+                deleted = await self._scores.delete_by_timeframe(conn, timeframe)
+                if deleted:
+                    logger.info("Replacing %d existing %s scores", deleted, timeframe)
                 for symbol, breakdown in valid_results:
                     try:
                         await self._scores.insert(conn, symbol, timeframe, breakdown)

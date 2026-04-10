@@ -40,6 +40,18 @@ class Settings(BaseSettings):
         default=1825, description="Daily bar lookback depth in days (~5 years)"
     )
 
+    # ── Dhan ──────────────────────────────────────────────────────────────────
+    dhan_client_id:    str = Field(default="", description="Dhan client ID")
+    dhan_access_token: str = Field(default="", description="Dhan access token")
+    dhan_master_url:   str = Field(
+        default="https://images.dhan.co/api-data/api-scrip-master.csv",
+        description="URL of the Dhan instrument master CSV (published daily)",
+    )
+    dhan_master_timeout_s: float = Field(
+        default=30.0,
+        description="HTTP timeout in seconds for the Dhan master CSV download",
+    )
+
     log_level: str = Field(default="INFO", description="Python root logging level")
 
 

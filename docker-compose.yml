@@ -82,6 +82,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  live-feed:
+    build:
+      context: ./LiveFeedService
+      dockerfile: Dockerfile
+    container_name: trader_live_feed
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@host.docker.internal:5432/${DB_NAME:-trader_cockpit}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
+      DHAN_WS_BATCH_SIZE: ${DHAN_WS_BATCH_SIZE:-1000}
+      DHAN_RECONNECT_DELAY_S: ${DHAN_RECONNECT_DELAY_S:-5.0}
+      CANDLE_WRITE_BATCH_SIZE: ${CANDLE_WRITE_BATCH_SIZE:-100}
+      CANDLE_WRITE_FLUSH_S: ${CANDLE_WRITE_FLUSH_S:-5.0}
+    ports:
+      - "8003:8000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./LiveFeedService/src:/app/src:ro
+    restart: unless-stopped
+
   notebooks:
     build:
       context: ./notebooks

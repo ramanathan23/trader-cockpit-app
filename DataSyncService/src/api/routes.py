@@ -16,10 +16,20 @@ async def load_symbols(svc: SyncServiceDep):
     return {"symbols_loaded": count}
 
 
-@router.post("/symbols/refresh-master", summary="Re-download Dhan security master CSV")
+@router.post("/symbols/refresh-master", summary="Re-download Dhan security master CSV and sync security IDs")
 async def refresh_security_master(svc: SyncServiceDep):
-    count = await svc.refresh_security_master()
-    return {"symbols_mapped": count}
+    result = await svc.refresh_security_master()
+    return {
+        "equities_matched":        result.equities_matched,
+        "equities_unmatched":      result.equities_unmatched,
+        "index_futures_upserted":  result.index_futures_upserted,
+        "index_futures_activated": result.index_futures_activated,
+    }
+
+
+@router.get("/symbols/dhan-status", summary="Dhan security ID mapping coverage")
+async def dhan_mapping_status(repo: SymbolRepoDep):
+    return await repo.get_dhan_mapping_stats()
 
 
 @router.get("/symbols", summary="List symbols")
