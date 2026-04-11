@@ -1,3 +1,5 @@
+import pytest
+import pandas as pd
 from unittest.mock import AsyncMock
 
 from src.domain.models import ScoreBreakdown
@@ -36,6 +38,7 @@ class _Pool:
         return _AcquireContext(self.conn)
 
 
+@pytest.mark.asyncio
 async def test_compute_all_replaces_previous_day_scores(monkeypatch):
     service = ScoreService(_Pool())
 
@@ -43,7 +46,16 @@ async def test_compute_all_replaces_previous_day_scores(monkeypatch):
     service._scores = AsyncMock()
 
     service._prices.fetch_synced_symbols.return_value = ["ABC"]
-    service._prices.fetch_ohlcv_batch.return_value = {"ABC": {"close": [100], "volume": [200000]}}
+    service._prices.fetch_ohlcv_batch.return_value = {
+        "ABC": pd.DataFrame(
+            {
+                "close": [100.0] * 30,
+                "volume": [200000.0] * 30,
+                "high": [101.0] * 30,
+                "low": [99.0] * 30,
+            }
+        )
+    }
     service._scores.delete_by_timeframe.return_value = 1
 
     breakdown = ScoreBreakdown(81.5, 72.0, 80.0, 79.0, 85.0)

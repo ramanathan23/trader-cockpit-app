@@ -15,7 +15,18 @@
       "Bash(docker exec:*)",
       "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; print\\(inspect.getsource\\(mf.DhanFeed.__init__\\)\\)\")",
       "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; print\\(inspect.getsource\\(mf.DhanFeed.connect\\)\\)\")",
-      "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; src = inspect.getsource\\(mf\\); print\\(src\\)\")"
+      "Bash(python -c \"import dhanhq.marketfeed as mf; import inspect; src = inspect.getsource\\(mf\\); print\\(src\\)\")",
+      "Bash(find . -type f -name \"*.py\" -exec wc -l {} +)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pip show pytest)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest \"d:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/\" -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest \"d:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_scorer.py\" \"d:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_watchlist.py\" -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest \"d:/Apps Workspace/trader-cockpit-app/DataSyncService/tests/test_classify_daily.py\" -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest \"d:/Apps Workspace/trader-cockpit-app/LiveFeedService/tests/test_candle_builder.py\" -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest \"d:/Apps Workspace/trader-cockpit-app/DataSyncService/tests/test_classify_daily.py\" \"d:/Apps Workspace/trader-cockpit-app/LiveFeedService/tests/test_candle_builder.py\" \"d:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_scorer.py\" \"d:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_watchlist.py\" -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest 'd:/Apps Workspace/trader-cockpit-app/DataSyncService/tests/test_classify_daily.py' '--rootdir=d:/Apps Workspace/trader-cockpit-app/DataSyncService' -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest 'd:/Apps Workspace/trader-cockpit-app/LiveFeedService/tests/test_candle_builder.py' '--rootdir=d:/Apps Workspace/trader-cockpit-app/LiveFeedService' -v)",
+      "Bash(C:/Users/RAM/AppData/Local/Programs/Python/Python311/python.exe -m pytest 'd:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_scorer.py' 'd:/Apps Workspace/trader-cockpit-app/MomentumScorerService/tests/test_watchlist.py' '--rootdir=d:/Apps Workspace/trader-cockpit-app/MomentumScorerService' -v)"
     ]
   }
 }
