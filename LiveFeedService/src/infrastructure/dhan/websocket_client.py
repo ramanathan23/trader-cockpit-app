@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Sequence
+from typing import Awaitable, Callable, Sequence
 
 from dhanhq import marketfeed as mf
 
@@ -45,7 +45,9 @@ class DhanWebSocketClient:
     Parameters
     ----------
     client_id         : Dhan client ID
-    access_token      : Dhan access token
+    token_getter      : async callable that returns the current Dhan access token;
+                        called on every (re)connect so a token update takes effect
+                        without restarting the service
     instruments       : list of (exchange_segment_str, security_id_str, sub_type)
                         e.g. [("NSE_EQ", "1333", mf.Ticker), ...]
     reconnect_delay_s : initial reconnect wait (doubles on each failure, capped)
@@ -54,12 +56,12 @@ class DhanWebSocketClient:
     def __init__(
         self,
         client_id:         str,
-        access_token:      str,
+        token_getter:      Callable[[], Awaitable[str]],
         instruments:       list[tuple[str, str, int]],
         reconnect_delay_s: float = 5.0,
     ) -> None:
         self._client_id         = client_id
-        self._access_token      = access_token
+        self._token_getter      = token_getter
         self._instruments       = instruments
         self._reconnect_delay_s = reconnect_delay_s
         self._queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -81,13 +83,14 @@ class DhanWebSocketClient:
 
         while self._running:
             try:
+                access_token = await self._token_getter()
                 logger.info(
                     "Connecting to Dhan feed (%d instruments)…",
                     len(self._instruments),
                 )
                 feed = mf.DhanFeed(
                     client_id    = self._client_id,
-                    access_token = self._access_token,
+                    access_token = access_token,
                     instruments  = self._instruments,
                     version      = "v2",
                 )

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from .config import settings
 from .db.connection import create_pool, run_migrations
 from .infrastructure.redis.publisher import SignalPublisher
+from .infrastructure.redis.token_store import TokenStore
 from .repositories.candle_repository import CandleRepository
 from .repositories.symbol_repository import SymbolRepository
 from .services.feed_service import FeedService
@@ -48,6 +49,13 @@ async def lifespan(app: FastAPI):
     publisher = SignalPublisher(settings.redis_url)
     await publisher.connect()
 
+    # ── Token store (Redis-backed; seeds from env var on first run) ───────────
+    token_store = TokenStore(
+        redis_url    = settings.redis_url,
+        env_fallback = settings.dhan_access_token,
+    )
+    await token_store.seed_if_missing()
+
     # ── Repositories ─────────────────────────────────────────────────────────
     symbol_repo = SymbolRepository(pool)
     candle_repo = CandleRepository(pool)
@@ -57,11 +65,13 @@ async def lifespan(app: FastAPI):
         symbol_repo = symbol_repo,
         candle_repo = candle_repo,
         publisher   = publisher,
+        token_store = token_store,
         settings    = settings,
     )
 
     app.state.pool         = pool
     app.state.publisher    = publisher
+    app.state.token_store  = token_store
     app.state.feed_service = feed_service
 
     feed_task = asyncio.create_task(feed_service.run(), name="feed-service")
@@ -76,6 +86,7 @@ async def lifespan(app: FastAPI):
         pass
 
     await publisher.close()
+    await token_store.close()
     await pool.close()
     logger.info("LiveFeedService shut down")
 

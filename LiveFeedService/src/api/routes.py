@@ -1,9 +1,10 @@
 """
 LiveFeedService API routes.
 
-GET /api/v1/status          — feed health, instrument count, index bias
-GET /api/v1/signals/stream  — SSE stream of Signal events
-GET /api/v1/ui              — serve index.html (trading dashboard)
+GET  /api/v1/status          — feed health, instrument count, index bias
+POST /api/v1/token           — update Dhan access token + reconnect feeds
+GET  /api/v1/signals/stream  — SSE stream of Signal events
+GET  /api/v1/ui              — serve index.html (trading dashboard)
 """
 
 import asyncio
@@ -14,6 +15,7 @@ from pathlib import Path
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import BaseModel
 
 from .deps import FeedServiceDep, PublisherDep
 
@@ -29,6 +31,24 @@ _KEEPALIVE_S = 25   # send a SSE comment every N seconds to keep connection aliv
 @router.get("/status", summary="Feed health and index bias")
 async def status(svc: FeedServiceDep):
     return svc.status()
+
+
+# ── Token hot-reload ──────────────────────────────────────────────────────────
+
+class TokenUpdate(BaseModel):
+    access_token: str
+
+
+@router.post("/token", summary="Update Dhan access token and reconnect WebSocket feeds")
+async def update_token(body: TokenUpdate, svc: FeedServiceDep):
+    """
+    Persist a new Dhan access token to Redis and immediately reconnect all
+    WebSocket feeds so the new token is used without restarting the service.
+
+    Call this every morning after generating a fresh Dhan token.
+    """
+    await svc.update_token(body.access_token)
+    return {"status": "ok", "message": "Token updated and WebSocket feeds reconnecting"}
 
 
 # ── SSE Signal Stream ─────────────────────────────────────────────────────────

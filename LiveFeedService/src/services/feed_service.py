@@ -30,6 +30,7 @@ from ..core.tick_router import TickRouter
 from ..domain.models import Candle, Direction, IndexBias, InstrumentMeta, Signal, SessionPhase
 from ..infrastructure.dhan.subscription_manager import SubscriptionManager
 from ..infrastructure.redis.publisher import SignalPublisher
+from ..infrastructure.redis.token_store import TokenStore
 from ..repositories.candle_repository import BufferedCandleWriter, CandleRepository
 from ..repositories.symbol_repository import SymbolRepository
 from ..signals.engine import SignalEngine
@@ -45,12 +46,14 @@ class FeedService:
 
     def __init__(
         self,
-        symbol_repo: SymbolRepository,
-        candle_repo: CandleRepository,
-        publisher:   SignalPublisher,
-        settings:    Settings,
+        symbol_repo:  SymbolRepository,
+        candle_repo:  CandleRepository,
+        publisher:    SignalPublisher,
+        token_store:  TokenStore,
+        settings:     Settings,
     ) -> None:
         self._publisher   = publisher
+        self._token_store = token_store
         self._settings    = settings
         self._session_mgr = SessionManager()
         self._loader      = InstrumentLoader(
@@ -120,6 +123,18 @@ class FeedService:
             },
         }
 
+    async def update_token(self, new_token: str) -> None:
+        """
+        Persist a new Dhan access token and reconnect all WebSocket feeds.
+
+        The token is written to Redis first so that it survives service restarts.
+        All active WebSocket connections are then cancelled and restarted; each
+        picks up the new token at the start of its reconnect loop.
+        """
+        await self._token_store.set(new_token)
+        if self._sub_mgr:
+            await self._sub_mgr.reconnect_all()
+
     # ── Private ───────────────────────────────────────────────────────────────
 
     async def _initialise(self) -> None:
@@ -142,7 +157,7 @@ class FeedService:
             equities          = equities,
             index_futures     = index_futures,
             client_id         = s.dhan_client_id,
-            access_token      = s.dhan_access_token,
+            token_getter      = self._token_store.get,
             reconnect_delay_s = s.dhan_reconnect_delay_s,
             batch_size        = s.dhan_ws_batch_size,
         )

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Sequence
+from typing import Awaitable, Callable, Sequence
 
 from dhanhq import marketfeed as mf
 
@@ -80,12 +80,12 @@ class SubscriptionManager:
         equities:          list[InstrumentMeta],
         index_futures:     list[InstrumentMeta],
         client_id:         str,
-        access_token:      str,
+        token_getter:      Callable[[], Awaitable[str]],
         reconnect_delay_s: float = 5.0,
         batch_size:        int   = WS_BATCH_SIZE,
     ) -> None:
         self._client_id         = client_id
-        self._access_token      = access_token
+        self._token_getter      = token_getter
         self._reconnect_delay_s = reconnect_delay_s
         self._batch_size        = batch_size
 
@@ -120,6 +120,31 @@ class SubscriptionManager:
         self._tasks.clear()
         logger.info("SubscriptionManager: all connections stopped")
 
+    async def reconnect_all(self) -> None:
+        """
+        Cancel all active WebSocket tasks and immediately restart them.
+
+        The drain tasks are left running — they keep consuming from the per-client
+        queues and will receive ticks again once the new connections are up.
+        The fresh token is fetched by each client at the start of its run() loop,
+        so this is how a token update takes effect without a service restart.
+        """
+        ws_tasks = [t for t in self._tasks if t.get_name().startswith("dhan-ws-")]
+        for t in ws_tasks:
+            t.cancel()
+        await asyncio.gather(*ws_tasks, return_exceptions=True)
+
+        self._tasks = [t for t in self._tasks if not t.get_name().startswith("dhan-ws-")]
+
+        for idx, client in enumerate(self._clients):
+            ws_task = asyncio.create_task(client.run(), name=f"dhan-ws-{idx}")
+            self._tasks.append(ws_task)
+
+        logger.info(
+            "SubscriptionManager: %d WebSocket connection(s) reconnecting with fresh token",
+            len(self._clients),
+        )
+
     def connection_count(self) -> int:
         return len(self._clients)
 
@@ -150,7 +175,7 @@ class SubscriptionManager:
             instruments = [_to_dhan_instrument(m) for m in batch]
             client = DhanWebSocketClient(
                 client_id         = self._client_id,
-                access_token      = self._access_token,
+                token_getter      = self._token_getter,
                 instruments       = instruments,
                 reconnect_delay_s = self._reconnect_delay_s,
             )
