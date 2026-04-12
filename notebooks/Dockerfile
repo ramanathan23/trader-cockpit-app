@@ -2,18 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir \
-    jupyterlab \
-    pandas \
-    numpy \
-    sqlalchemy \
-    psycopg2-binary \
-    asyncpg \
-    plotly \
-    matplotlib \
-    vectorbt \
-    ipywidgets \
-    python-dotenv
+COPY requirements.txt ./requirements.txt
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8888
 
