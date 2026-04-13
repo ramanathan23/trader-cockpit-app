@@ -69,6 +69,11 @@ function cockpit() {
     historyDates:   [],
     historyLoading: false,
 
+    // ── Notes (persisted in localStorage, keyed by signal.id) ────────────────
+    notes:       {},   // id → saved text
+    noteDrafts:  {},   // id → in-progress edit
+    noteEditing: {},   // id → bool
+
     valueTiers: [
       { label: 'All',    cr: 0   },
       { label: '5Cr+',   cr: 5   },
@@ -139,6 +144,7 @@ function cockpit() {
       setInterval(() => this.pollStatus(), 10_000);
       this.connect();
       this.loadHistoryDates();
+      this._loadNotes();
     },
 
     startClock() {
@@ -282,6 +288,41 @@ function cockpit() {
     },
 
     setFilter(f) { this.filter = f; },
+
+    // ── Notes ────────────────────────────────────────────────────────────────
+
+    _loadNotes() {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cockpit:note:')) {
+          const id = k.slice('cockpit:note:'.length);
+          this.notes = { ...this.notes, [id]: localStorage.getItem(k) };
+        }
+      }
+    },
+
+    startEditNote(id) {
+      this.noteDrafts  = { ...this.noteDrafts,  [id]: this.notes[id] || '' };
+      this.noteEditing = { ...this.noteEditing, [id]: true };
+    },
+
+    commitNote(id) {
+      const text = (this.noteDrafts[id] || '').trim();
+      if (text) {
+        this.notes = { ...this.notes, [id]: text };
+        localStorage.setItem(`cockpit:note:${id}`, text);
+      } else {
+        const n = { ...this.notes };
+        delete n[id];
+        this.notes = n;
+        localStorage.removeItem(`cockpit:note:${id}`);
+      }
+      this.noteEditing = { ...this.noteEditing, [id]: false };
+    },
+
+    cancelNote(id) {
+      this.noteEditing = { ...this.noteEditing, [id]: false };
+    },
 
     blinkTab(symbol) {
       const orig = document.title;

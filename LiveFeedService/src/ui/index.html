@@ -271,6 +271,38 @@
             <span class="text-[10px] tabular-nums" style="color:#8b949e" x-text="timeStr(s.timestamp)"></span>
           </div>
 
+          <!-- Note -->
+          <div class="border-t px-3 py-1.5" style="border-color:#21262d">
+            <div x-show="!noteEditing[s.id]" class="flex items-start gap-1.5 min-h-[18px]">
+              <span
+                x-show="!!notes[s.id]"
+                class="text-[10px] leading-snug flex-1 break-words"
+                style="color:#8b949e"
+                x-text="notes[s.id]"
+              ></span>
+              <button
+                @click="startEditNote(s.id)"
+                class="text-[9px] shrink-0 ml-auto hover:opacity-100 transition-opacity"
+                :style="notes[s.id] ? 'color:#484f58;opacity:0.6' : 'color:#484f58'"
+                x-text="notes[s.id] ? '✎' : '+ note'"
+              ></button>
+            </div>
+            <div x-show="noteEditing[s.id]" class="flex flex-col gap-1">
+              <textarea
+                x-model="noteDrafts[s.id]"
+                @keydown.enter.prevent="commitNote(s.id)"
+                @keydown.escape="cancelNote(s.id)"
+                rows="2"
+                class="w-full bg-[#0d1117] border border-[#30363d] rounded text-[10px] text-[#e6edf3] px-1.5 py-1 resize-none focus:outline-none focus:border-[#58a6ff]"
+                placeholder="Add a note…"
+              ></textarea>
+              <div class="flex gap-1.5 justify-end">
+                <button @click="cancelNote(s.id)" class="text-[9px] text-muted hover:text-[#e6edf3]">cancel</button>
+                <button @click="commitNote(s.id)" class="text-[9px] font-bold" style="color:#58a6ff">save</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </template>
@@ -387,6 +419,39 @@
             <div class="flex items-center justify-between px-3 py-1.5 border-t" style="border-color:#21262d">
               <span class="text-[10px] font-bold" style="color:#58a6ff" x-text="timeStr(s.timestamp)"></span>
             </div>
+
+            <!-- Note -->
+            <div class="border-t px-3 py-1.5" style="border-color:#21262d">
+              <div x-show="!noteEditing[s.id]" class="flex items-start gap-1.5 min-h-[18px]">
+                <span
+                  x-show="!!notes[s.id]"
+                  class="text-[10px] leading-snug flex-1 break-words"
+                  style="color:#8b949e"
+                  x-text="notes[s.id]"
+                ></span>
+                <button
+                  @click="startEditNote(s.id)"
+                  class="text-[9px] shrink-0 ml-auto hover:opacity-100 transition-opacity"
+                  :style="notes[s.id] ? 'color:#484f58;opacity:0.6' : 'color:#484f58'"
+                  x-text="notes[s.id] ? '✎' : '+ note'"
+                ></button>
+              </div>
+              <div x-show="noteEditing[s.id]" class="flex flex-col gap-1">
+                <textarea
+                  x-model="noteDrafts[s.id]"
+                  @keydown.enter.prevent="commitNote(s.id)"
+                  @keydown.escape="cancelNote(s.id)"
+                  rows="2"
+                  class="w-full bg-[#0d1117] border border-[#30363d] rounded text-[10px] text-[#e6edf3] px-1.5 py-1 resize-none focus:outline-none focus:border-[#58a6ff]"
+                  placeholder="Add a note…"
+                ></textarea>
+                <div class="flex gap-1.5 justify-end">
+                  <button @click="cancelNote(s.id)" class="text-[9px] text-muted hover:text-[#e6edf3]">cancel</button>
+                  <button @click="commitNote(s.id)" class="text-[9px] font-bold" style="color:#58a6ff">save</button>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </template>
