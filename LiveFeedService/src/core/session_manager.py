@@ -2,7 +2,7 @@
 SessionManager: encapsulates market-hour logic and session-phase classification.
 
 All time comparisons are performed in IST.  Phase boundaries are aligned to
-the 3-minute candle grid so callers can rely on phase not changing mid-candle.
+the 5-minute candle grid so callers can rely on phase not changing mid-candle.
 """
 
 from datetime import datetime, time
@@ -16,9 +16,9 @@ _IST = ZoneInfo("Asia/Kolkata")
 # Expressed as (hour, minute) for fast comparison.
 
 _PHASES: list[tuple[tuple[int, int], SessionPhase]] = [
-    ((9,  15), SessionPhase.PRE_SIGNAL),       # market open
-    ((9,  18), SessionPhase.DRIVE_WINDOW),      # first complete candle ready
-    ((9,  33), SessionPhase.EXECUTION),         # 5 drive candles evaluated
+    ((9,  15), SessionPhase.PRE_SIGNAL),       # market open — first 5-min candle building
+    ((9,  20), SessionPhase.DRIVE_WINDOW),      # first complete 5-min candle ready
+    ((9,  45), SessionPhase.EXECUTION),         # 5 drive candles evaluated (5×5 = 25 min)
     ((11,  0), SessionPhase.TRANSITION),
     ((11, 30), SessionPhase.MID_SESSION),
     ((14,  0), SessionPhase.DEAD_ZONE),

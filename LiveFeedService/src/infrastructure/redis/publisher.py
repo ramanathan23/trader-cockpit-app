@@ -42,16 +42,20 @@ class SignalPublisher:
 
     Usage
     -----
-    publisher = SignalPublisher(redis_url)
+    publisher = SignalPublisher(redis_url, cluster_max=5)
     await publisher.connect()
     await publisher.publish(signal)
     signals = await publisher.recent_signals()          # SSE catch-up
     signals = await publisher.signals_for_date("2026-04-13")  # review
     """
 
-    def __init__(self, redis_url: str) -> None:
-        self._url    = redis_url
+    def __init__(self, redis_url: str, *, cluster_max: int = 5) -> None:
+        self._url         = redis_url
+        self._cluster_max = cluster_max
         self._redis: aioredis.Redis | None = None
+        # Cluster suppression: (signal_type_value, boundary_iso) → count this boundary
+        self._cluster_counts: dict[tuple[str, str], int] = {}
+        self._cluster_boundary: str = ""   # reset when boundary changes
 
     async def connect(self) -> None:
         self._redis = aioredis.from_url(
@@ -66,13 +70,45 @@ class SignalPublisher:
         if self._redis:
             await self._redis.aclose()
 
-    async def publish(self, signal: Signal) -> None:
+    def _cluster_check(self, signal: Signal) -> bool:
+        """
+        Returns True if the signal should be published.
+        Returns False if this signal_type has already exceeded cluster_max
+        for the current 3-min candle boundary.
+
+        Drive-family signals (OPEN_DRIVE_ENTRY, TRAIL_UPDATE, EXIT) are
+        never cluster-suppressed — they are stock-specific, not market-wide.
+        """
+        from ...domain.enums import SignalType as _ST
+        _EXEMPT = {
+            _ST.OPEN_DRIVE_ENTRY, _ST.DRIVE_FAILED, _ST.TRAIL_UPDATE,
+            _ST.EXIT, _ST.EXHAUSTION_REVERSAL,
+        }
+        if signal.signal_type in _EXEMPT:
+            return True
+
+        boundary = signal.timestamp.strftime("%Y-%m-%dT%H:%M")
+        key      = (signal.signal_type.value, boundary)
+        self._cluster_counts[key] = self._cluster_counts.get(key, 0) + 1
+
+        # Prune stale boundaries (keep only the current minute)
+        if boundary != self._cluster_boundary:
+            self._cluster_counts = {k: v for k, v in self._cluster_counts.items() if k[1] == boundary}
+            self._cluster_boundary = boundary
+
+        return self._cluster_counts[key] <= self._cluster_max
+
+    async def publish(self, signal: Signal) -> bool:
         """
         Persist signal to rolling + daily history, then broadcast via pub/sub.
-        All four operations run in a single pipeline round-trip.
+        Returns True if published, False if cluster-suppressed.
         """
         if self._redis is None:
             raise RuntimeError("SignalPublisher not connected — call connect() first")
+
+        if not self._cluster_check(signal):
+            logger.debug("[CLUSTER-SUPPRESS] %s %s", signal.signal_type.value, signal.symbol)
+            return False
 
         payload   = json.dumps(signal.to_dict())
         daily_key = f"{_DAILY_PREFIX}{_ist_date()}"
@@ -88,6 +124,7 @@ class SignalPublisher:
         pipe.publish(_CHANNEL_ALL, payload)
         pipe.publish(f"{_CHANNEL_PREFIX}{signal.symbol}", payload)
         await pipe.execute()
+        return True
 
     async def recent_signals(self) -> list[dict]:
         """

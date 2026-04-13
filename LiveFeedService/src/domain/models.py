@@ -129,6 +129,8 @@ class Signal:
 
     drive_confidence: Optional[float] = None
     volume_ratio:     Optional[float] = None
+    bias_15m:         Direction       = Direction.NEUTRAL
+    bias_1h:          Direction       = Direction.NEUTRAL
     message:          str = ""
 
     def to_dict(self) -> dict:
@@ -151,6 +153,8 @@ class Signal:
             "trail_stop":       self.trail_stop,
             "drive_confidence": self.drive_confidence,
             "volume_ratio":     self.volume_ratio,
+            "bias_15m":         self.bias_15m.value,
+            "bias_1h":          self.bias_1h.value,
             "message":          self.message,
         }
 

@@ -198,13 +198,49 @@
           <!-- Signal description (small subtitle) -->
           <p class="px-3 pb-1 text-[10px] leading-tight" :style="'color:' + signalColor(s.signal_type) + ';opacity:0.75'" x-text="signalDesc(s.signal_type)"></p>
 
+          <!-- MTF confluence badges (only shown when directional) -->
+          <div class="flex gap-1 px-3 pb-1.5">
+            <span x-show="s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH'"
+                  class="text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums"
+                  :style="'background:' + dirColor(s.bias_15m) + '22;color:' + dirColor(s.bias_15m)"
+                  x-text="'15m ' + (s.bias_15m === 'BULLISH' ? '▲' : '▼')"></span>
+            <span x-show="s.bias_1h === 'BULLISH' || s.bias_1h === 'BEARISH'"
+                  class="text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums"
+                  :style="'background:' + dirColor(s.bias_1h) + '22;color:' + dirColor(s.bias_1h)"
+                  x-text="'1h ' + (s.bias_1h === 'BULLISH' ? '▲' : '▼')"></span>
+          </div>
+
           <!-- Price + Vol -->
-          <div class="flex items-baseline justify-between px-3 pb-2">
+          <div class="flex items-baseline justify-between px-3 pb-1">
             <span class="font-mono font-bold text-[16px] text-[#e6edf3] tabular-nums" x-text="s.price ? Number(s.price).toFixed(2) : '—'"></span>
             <span x-show="s.volume_ratio != null" class="text-[10px]" style="color:#8b949e">
               Vol <span style="color:#e6edf3;font-weight:600" x-text="s.volume_ratio ? Number(s.volume_ratio).toFixed(1)+'×' : ''"></span>
             </span>
           </div>
+
+          <!-- Structural level context badges -->
+          <template x-if="metricsCache[s.symbol] && s.price">
+            <div class="flex flex-wrap gap-1 px-3 pb-1.5">
+              <span x-show="metricsCache[s.symbol].prev_day_high && s.price > metricsCache[s.symbol].prev_day_high"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#3fb95022;color:#3fb950"
+                    x-text="'PDH +' + ((s.price - metricsCache[s.symbol].prev_day_high) / metricsCache[s.symbol].prev_day_high * 100).toFixed(1) + '% ▲'"></span>
+              <span x-show="metricsCache[s.symbol].prev_day_low && s.price < metricsCache[s.symbol].prev_day_low"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                    x-text="'PDL ' + ((s.price - metricsCache[s.symbol].prev_day_low) / metricsCache[s.symbol].prev_day_low * 100).toFixed(1) + '% ▼'"></span>
+              <span x-show="metricsCache[s.symbol].prev_week_high && s.price > metricsCache[s.symbol].prev_week_high"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#3fb95022;color:#3fb950"
+                    x-text="'PWH +' + ((s.price - metricsCache[s.symbol].prev_week_high) / metricsCache[s.symbol].prev_week_high * 100).toFixed(1) + '% ▲'"></span>
+              <span x-show="metricsCache[s.symbol].prev_week_low && s.price < metricsCache[s.symbol].prev_week_low"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                    x-text="'PWL ' + ((s.price - metricsCache[s.symbol].prev_week_low) / metricsCache[s.symbol].prev_week_low * 100).toFixed(1) + '% ▼'"></span>
+              <span x-show="metricsCache[s.symbol].prev_month_high && s.price > metricsCache[s.symbol].prev_month_high"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#58a6ff22;color:#58a6ff"
+                    x-text="'PMH +' + ((s.price - metricsCache[s.symbol].prev_month_high) / metricsCache[s.symbol].prev_month_high * 100).toFixed(1) + '% ▲'"></span>
+              <span x-show="metricsCache[s.symbol].prev_month_low && s.price < metricsCache[s.symbol].prev_month_low"
+                    class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                    x-text="'PML ' + ((s.price - metricsCache[s.symbol].prev_month_low) / metricsCache[s.symbol].prev_month_low * 100).toFixed(1) + '% ▼'"></span>
+            </div>
+          </template>
 
           <!-- Entry / SL / T1 levels -->
           <template x-if="s.entry_low != null || s.stop != null">
@@ -223,26 +259,26 @@
 
               <span x-show="metricsCache[s.symbol].day_high && s.price">DH
                 <span class="font-semibold tabular-nums"
-                      :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_high) / metricsCache[s.symbol].day_high * 100) < 1 ? '#3fb950' : '#e6edf3')"
-                      x-text="pct(s.price, metricsCache[s.symbol].day_high)"></span>
+                      :style="'color:' + pctColor(s.price, metricsCache[s.symbol].day_high)"
+                      x-text="spct(s.price, metricsCache[s.symbol].day_high)"></span>
               </span>
 
               <span x-show="metricsCache[s.symbol].day_low && s.price">DL
                 <span class="font-semibold tabular-nums"
-                      :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_low) / metricsCache[s.symbol].day_low * 100) < 1 ? '#f85149' : '#e6edf3')"
-                      x-text="pct(s.price, metricsCache[s.symbol].day_low)"></span>
+                      :style="'color:' + pctColor(s.price, metricsCache[s.symbol].day_low)"
+                      x-text="spct(s.price, metricsCache[s.symbol].day_low)"></span>
               </span>
 
               <span x-show="metricsCache[s.symbol].week52_high && s.price">52H
                 <span class="font-semibold tabular-nums"
-                      :style="'color:' + (s.price / metricsCache[s.symbol].week52_high >= 0.95 ? '#3fb950' : s.price / metricsCache[s.symbol].week52_high < 0.6 ? '#f85149' : '#e6edf3')"
-                      x-text="pct(s.price, metricsCache[s.symbol].week52_high)"></span>
+                      :style="'color:' + pctColor(s.price, metricsCache[s.symbol].week52_high)"
+                      x-text="spct(s.price, metricsCache[s.symbol].week52_high)"></span>
               </span>
 
               <span x-show="metricsCache[s.symbol].week52_low && s.price">52L
                 <span class="font-semibold tabular-nums"
-                      :style="'color:' + (s.price / metricsCache[s.symbol].week52_low < 1.05 ? '#f85149' : '#3fb950')"
-                      x-text="'+' + pct(s.price, metricsCache[s.symbol].week52_low)"></span>
+                      :style="'color:' + pctColor(s.price, metricsCache[s.symbol].week52_low)"
+                      x-text="spct(s.price, metricsCache[s.symbol].week52_low)"></span>
               </span>
 
               <span x-show="metricsCache[s.symbol].atr_14">ATR
@@ -253,6 +289,12 @@
                 <span class="font-semibold tabular-nums"
                       :style="'color:' + (metricsCache[s.symbol].adv_20_cr >= 500 ? '#3fb950' : metricsCache[s.symbol].adv_20_cr >= 100 ? '#d29922' : metricsCache[s.symbol].adv_20_cr >= 25 ? '#e6edf3' : '#8b949e')"
                       x-text="metricsCache[s.symbol].adv_20_cr >= 100 ? Math.round(metricsCache[s.symbol].adv_20_cr)+'Cr' : metricsCache[s.symbol].adv_20_cr.toFixed(1)+'Cr'"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].day_chg_pct != null">
+                <span class="font-bold tabular-nums"
+                      :style="'color:' + (metricsCache[s.symbol].day_chg_pct >= 0 ? '#3fb950' : '#f85149')"
+                      x-text="(metricsCache[s.symbol].day_chg_pct >= 0 ? '+' : '') + metricsCache[s.symbol].day_chg_pct.toFixed(2) + '%'"></span>
               </span>
 
             </div>
@@ -369,12 +411,46 @@
                     x-text="shortType(s.signal_type)"></span>
             </div>
             <p class="px-3 pb-1 text-[10px] leading-tight" :style="'color:' + signalColor(s.signal_type) + ';opacity:0.75'" x-text="signalDesc(s.signal_type)"></p>
-            <div class="flex items-baseline justify-between px-3 pb-2">
+            <!-- MTF confluence badges (only shown when directional) -->
+            <div class="flex gap-1 px-3 pb-1.5">
+              <span x-show="s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH'"
+                    class="text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums"
+                    :style="'background:' + dirColor(s.bias_15m) + '22;color:' + dirColor(s.bias_15m)"
+                    x-text="'15m ' + (s.bias_15m === 'BULLISH' ? '▲' : '▼')"></span>
+              <span x-show="s.bias_1h === 'BULLISH' || s.bias_1h === 'BEARISH'"
+                    class="text-[9px] font-bold px-1.5 py-0.5 rounded tabular-nums"
+                    :style="'background:' + dirColor(s.bias_1h) + '22;color:' + dirColor(s.bias_1h)"
+                    x-text="'1h ' + (s.bias_1h === 'BULLISH' ? '▲' : '▼')"></span>
+            </div>
+            <div class="flex items-baseline justify-between px-3 pb-1">
               <span class="font-mono font-bold text-[16px] text-[#e6edf3] tabular-nums" x-text="s.price ? Number(s.price).toFixed(2) : '—'"></span>
               <span x-show="s.volume_ratio != null" class="text-[10px]" style="color:#8b949e">
                 Vol <span style="color:#e6edf3;font-weight:600" x-text="s.volume_ratio ? Number(s.volume_ratio).toFixed(1)+'×' : ''"></span>
               </span>
             </div>
+            <!-- Structural level context badges -->
+            <template x-if="metricsCache[s.symbol] && s.price">
+              <div class="flex flex-wrap gap-1 px-3 pb-1.5">
+                <span x-show="metricsCache[s.symbol].prev_day_high && s.price > metricsCache[s.symbol].prev_day_high"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#3fb95022;color:#3fb950"
+                      x-text="'PDH +' + ((s.price - metricsCache[s.symbol].prev_day_high) / metricsCache[s.symbol].prev_day_high * 100).toFixed(1) + '% ▲'"></span>
+                <span x-show="metricsCache[s.symbol].prev_day_low && s.price < metricsCache[s.symbol].prev_day_low"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                      x-text="'PDL ' + ((s.price - metricsCache[s.symbol].prev_day_low) / metricsCache[s.symbol].prev_day_low * 100).toFixed(1) + '% ▼'"></span>
+                <span x-show="metricsCache[s.symbol].prev_week_high && s.price > metricsCache[s.symbol].prev_week_high"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#3fb95022;color:#3fb950"
+                      x-text="'PWH +' + ((s.price - metricsCache[s.symbol].prev_week_high) / metricsCache[s.symbol].prev_week_high * 100).toFixed(1) + '% ▲'"></span>
+                <span x-show="metricsCache[s.symbol].prev_week_low && s.price < metricsCache[s.symbol].prev_week_low"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                      x-text="'PWL ' + ((s.price - metricsCache[s.symbol].prev_week_low) / metricsCache[s.symbol].prev_week_low * 100).toFixed(1) + '% ▼'"></span>
+                <span x-show="metricsCache[s.symbol].prev_month_high && s.price > metricsCache[s.symbol].prev_month_high"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#58a6ff22;color:#58a6ff"
+                      x-text="'PMH +' + ((s.price - metricsCache[s.symbol].prev_month_high) / metricsCache[s.symbol].prev_month_high * 100).toFixed(1) + '% ▲'"></span>
+                <span x-show="metricsCache[s.symbol].prev_month_low && s.price < metricsCache[s.symbol].prev_month_low"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded" style="background:#f8514922;color:#f85149"
+                      x-text="'PML ' + ((s.price - metricsCache[s.symbol].prev_month_low) / metricsCache[s.symbol].prev_month_low * 100).toFixed(1) + '% ▼'"></span>
+              </div>
+            </template>
             <template x-if="s.entry_low != null || s.stop != null">
               <div class="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-[10px]" style="color:#8b949e">
                 <span x-show="s.entry_low != null">E <span style="color:#d29922;font-weight:600" x-text="fmt(s.entry_low)+'–'+fmt(s.entry_high)"></span></span>
@@ -388,23 +464,23 @@
                    style="border-color:#21262d;color:#8b949e">
                 <span x-show="metricsCache[s.symbol].day_high && s.price">DH
                   <span class="font-semibold tabular-nums"
-                        :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_high) / metricsCache[s.symbol].day_high * 100) < 1 ? '#3fb950' : '#e6edf3')"
-                        x-text="pct(s.price, metricsCache[s.symbol].day_high)"></span>
+                        :style="'color:' + pctColor(s.price, metricsCache[s.symbol].day_high)"
+                        x-text="spct(s.price, metricsCache[s.symbol].day_high)"></span>
                 </span>
                 <span x-show="metricsCache[s.symbol].day_low && s.price">DL
                   <span class="font-semibold tabular-nums"
-                        :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_low) / metricsCache[s.symbol].day_low * 100) < 1 ? '#f85149' : '#e6edf3')"
-                        x-text="pct(s.price, metricsCache[s.symbol].day_low)"></span>
+                        :style="'color:' + pctColor(s.price, metricsCache[s.symbol].day_low)"
+                        x-text="spct(s.price, metricsCache[s.symbol].day_low)"></span>
                 </span>
                 <span x-show="metricsCache[s.symbol].week52_high && s.price">52H
                   <span class="font-semibold tabular-nums"
-                        :style="'color:' + (s.price / metricsCache[s.symbol].week52_high >= 0.95 ? '#3fb950' : s.price / metricsCache[s.symbol].week52_high < 0.6 ? '#f85149' : '#e6edf3')"
-                        x-text="pct(s.price, metricsCache[s.symbol].week52_high)"></span>
+                        :style="'color:' + pctColor(s.price, metricsCache[s.symbol].week52_high)"
+                        x-text="spct(s.price, metricsCache[s.symbol].week52_high)"></span>
                 </span>
                 <span x-show="metricsCache[s.symbol].week52_low && s.price">52L
                   <span class="font-semibold tabular-nums"
-                        :style="'color:' + (s.price / metricsCache[s.symbol].week52_low < 1.05 ? '#f85149' : '#3fb950')"
-                        x-text="'+' + pct(s.price, metricsCache[s.symbol].week52_low)"></span>
+                        :style="'color:' + pctColor(s.price, metricsCache[s.symbol].week52_low)"
+                        x-text="spct(s.price, metricsCache[s.symbol].week52_low)"></span>
                 </span>
                 <span x-show="metricsCache[s.symbol].atr_14">ATR
                   <span class="font-semibold" style="color:#d29922" x-text="fmt(metricsCache[s.symbol].atr_14)"></span>
@@ -413,6 +489,12 @@
                   <span class="font-semibold tabular-nums"
                         :style="'color:' + (metricsCache[s.symbol].adv_20_cr >= 500 ? '#3fb950' : metricsCache[s.symbol].adv_20_cr >= 100 ? '#d29922' : metricsCache[s.symbol].adv_20_cr >= 25 ? '#e6edf3' : '#8b949e')"
                         x-text="metricsCache[s.symbol].adv_20_cr >= 100 ? Math.round(metricsCache[s.symbol].adv_20_cr)+'Cr' : metricsCache[s.symbol].adv_20_cr.toFixed(1)+'Cr'"></span>
+                </span>
+
+                <span x-show="metricsCache[s.symbol].day_chg_pct != null">
+                  <span class="font-bold tabular-nums"
+                        :style="'color:' + (metricsCache[s.symbol].day_chg_pct >= 0 ? '#3fb950' : '#f85149')"
+                        x-text="(metricsCache[s.symbol].day_chg_pct >= 0 ? '+' : '') + metricsCache[s.symbol].day_chg_pct.toFixed(2) + '%'"></span>
                 </span>
               </div>
             </template>

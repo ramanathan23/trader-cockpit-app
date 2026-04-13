@@ -35,6 +35,7 @@ from ..repositories.candle_repository import BufferedCandleWriter, CandleReposit
 from ..repositories.symbol_repository import SymbolRepository
 from ..signals.engine import SignalEngine
 from .instrument_loader import InstrumentLoader
+from .metrics_service import MetricsService
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +47,22 @@ class FeedService:
 
     def __init__(
         self,
-        symbol_repo:  SymbolRepository,
-        candle_repo:  CandleRepository,
-        publisher:    SignalPublisher,
-        token_store:  TokenStore,
-        settings:     Settings,
+        symbol_repo:     SymbolRepository,
+        candle_repo:     CandleRepository,
+        publisher:       SignalPublisher,
+        token_store:     TokenStore,
+        settings:        Settings,
+        metrics_service: MetricsService,
     ) -> None:
-        self._publisher   = publisher
-        self._token_store = token_store
-        self._settings    = settings
-        self._session_mgr = SessionManager()
-        self._loader      = InstrumentLoader(
+        self._publisher       = publisher
+        self._token_store     = token_store
+        self._settings        = settings
+        self._metrics_service = metrics_service
+        self._session_mgr     = SessionManager()
+        self._loader          = InstrumentLoader(
             symbol_repo,
             candle_repo,
-            warm_limit=max(settings.spike_window, settings.drive_candles),
+            warm_limit=max(settings.spike_window, settings.drive_candles, settings.confluence_1h_candles),
         )
         self._writer = BufferedCandleWriter(
             candle_repo,
@@ -141,6 +144,8 @@ class FeedService:
         self._session_date = datetime.now(tz=_IST).date()
         s = self._settings
 
+        await self._metrics_service.precompute_daily()
+
         equities, index_futures = await self._loader.load()
 
         self._tick_router = TickRouter(
@@ -217,15 +222,20 @@ class FeedService:
 
     def _get_or_create_engine(self, meta: InstrumentMeta) -> SignalEngine:
         if meta.symbol not in self._engines:
-            s = self._settings
+            s       = self._settings
+            metrics = self._metrics_service.get_daily(meta.symbol) or {}
             self._engines[meta.symbol] = SignalEngine(
-                symbol          = meta.symbol,
-                builder         = self._tick_router.get_builder(meta.dhan_security_id),
-                session_manager = self._session_mgr,
-                drive_candles   = s.drive_candles,
-                min_body_ratio  = s.drive_min_body_ratio,
+                symbol           = meta.symbol,
+                builder          = self._tick_router.get_builder(meta.dhan_security_id),
+                session_manager  = self._session_mgr,
+                drive_candles    = s.drive_candles,
+                min_body_ratio   = s.drive_min_body_ratio,
                 confirmed_thresh = s.drive_confirmed_thresh,
-                weak_thresh     = s.drive_weak_thresh,
-                spike_window    = s.spike_window,
+                weak_thresh      = s.drive_weak_thresh,
+                spike_window     = s.spike_window,
+                min_adv_cr       = s.min_adv_cr,
+                confluence_15m   = s.confluence_15m_candles,
+                confluence_1h    = s.confluence_1h_candles,
+                daily_metrics    = metrics,
             )
         return self._engines[meta.symbol]

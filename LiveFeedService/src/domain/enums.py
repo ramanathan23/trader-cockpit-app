@@ -45,6 +45,21 @@ class SignalType(str, Enum):
     TRAIL_UPDATE        = "TRAIL_UPDATE"        # trailing stop moved
     EXIT                = "EXIT"                # exit triggered
     FADE_ALERT          = "FADE_ALERT"          # large price move with no volume — likely to fade
+    # ── Breakout / breakdown family ───────────────────────────────────────────
+    ORB_BREAKOUT        = "ORB_BREAKOUT"        # price closes above opening range high on volume
+    ORB_BREAKDOWN       = "ORB_BREAKDOWN"       # price closes below opening range low on volume
+    RANGE_BREAKOUT      = "RANGE_BREAKOUT"      # 5×3min consolidation broken upward on volume
+    RANGE_BREAKDOWN     = "RANGE_BREAKDOWN"     # 5×3min consolidation broken downward on volume
+    WEEK52_BREAKOUT     = "WEEK52_BREAKOUT"     # price closes above 52-week high
+    WEEK52_BREAKDOWN    = "WEEK52_BREAKDOWN"    # price closes below 52-week low
+    VWAP_BREAKOUT       = "VWAP_BREAKOUT"       # price crosses above VWAP on volume
+    VWAP_BREAKDOWN      = "VWAP_BREAKDOWN"      # price crosses below VWAP on volume
+    PDH_BREAKOUT        = "PDH_BREAKOUT"        # price closes above previous day high
+    PDL_BREAKDOWN       = "PDL_BREAKDOWN"       # price closes below previous day low
+    CAM_H3_REVERSAL     = "CAM_H3_REVERSAL"     # price rejected at Camarilla H3 (fade short)
+    CAM_H4_BREAKOUT     = "CAM_H4_BREAKOUT"     # price breaks above Camarilla H4 (momentum long)
+    CAM_L3_REVERSAL     = "CAM_L3_REVERSAL"     # price bounces off Camarilla L3 (fade long)
+    CAM_L4_BREAKDOWN    = "CAM_L4_BREAKDOWN"    # price breaks below Camarilla L4 (momentum short)
 
 
 class Direction(str, Enum):

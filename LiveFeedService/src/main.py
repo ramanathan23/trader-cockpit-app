@@ -47,7 +47,10 @@ async def lifespan(app: FastAPI):
     await run_migrations(pool, timeout=settings.db_migration_timeout)
 
     # ── Redis publisher ───────────────────────────────────────────────────────
-    publisher = SignalPublisher(settings.redis_url)
+    publisher = SignalPublisher(
+        settings.redis_url,
+        cluster_max=settings.cluster_max_per_candle,
+    )
     await publisher.connect()
 
     # ── Token store (Redis-backed; seeds from env var on first run) ───────────
@@ -61,17 +64,17 @@ async def lifespan(app: FastAPI):
     symbol_repo = SymbolRepository(pool)
     candle_repo = CandleRepository(pool)
 
+    metrics_service = MetricsService(pool)
+
     # ── Feed service (starts WebSocket connections + signal engine) ───────────
     feed_service = FeedService(
-        symbol_repo = symbol_repo,
-        candle_repo = candle_repo,
-        publisher   = publisher,
-        token_store = token_store,
-        settings    = settings,
+        symbol_repo     = symbol_repo,
+        candle_repo     = candle_repo,
+        publisher       = publisher,
+        token_store     = token_store,
+        settings        = settings,
+        metrics_service = metrics_service,
     )
-
-    metrics_service = MetricsService(pool)
-    await metrics_service.precompute_daily()
 
     app.state.pool           = pool
     app.state.publisher      = publisher

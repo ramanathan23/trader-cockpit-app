@@ -91,3 +91,16 @@ async def get_daily_prices(
     return await repo.get_ohlcv(symbol.upper(), "1d", limit=limit, from_ts=from_ts, to_ts=to_ts)
 
 
+# ── Metrics ───────────────────────────────────────────────────────────────────
+
+@router.post("/metrics/recompute", summary="Recompute symbol_metrics from price_data_daily")
+async def recompute_metrics(background_tasks: BackgroundTasks, svc: SyncServiceDep):
+    """
+    Triggers a full recompute of the symbol_metrics table from price_data_daily.
+    Normally this runs automatically after each EOD sync; use this endpoint to
+    force a refresh (e.g. after a manual data backfill).
+    """
+    background_tasks.add_task(svc.recompute_metrics)
+    return {"status": "started", "message": "Metrics recompute running in background."}
+
+

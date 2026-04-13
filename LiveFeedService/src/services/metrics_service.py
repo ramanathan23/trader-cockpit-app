@@ -1,12 +1,10 @@
 """
-MetricsService: bulk-precomputes per-symbol daily metrics at startup.
-
-Daily metrics (52-week H/L, ATR-14, ADV-20) are computed once from
-price_data_daily in a single query and cached in memory for the full
-trading session — they don't change intraday.
+MetricsService: loads per-symbol daily metrics at startup from the
+symbol_metrics table, which is precomputed by DataSyncService after each
+EOD sync.  No heavy aggregation runs at LiveFeedService startup.
 
 Intraday metrics (day_high, day_low, day_open) are queried per-symbol
-from candles_3min with a short TTL so they stay fresh during the session.
+from candles_5min with a short TTL so they stay fresh during the session.
 
 Usage
 -----
@@ -20,9 +18,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import date, timezone, timedelta
 from typing import Optional
 
 import asyncpg
+
+_IST = timezone(timedelta(hours=5, minutes=30))
 
 logger = logging.getLogger(__name__)
 
@@ -32,73 +33,68 @@ _INTRADAY_TTL = 60   # seconds — refresh day range every minute
 class MetricsService:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
-        # symbol → {week52_high, week52_low, atr_14, adv_20_cr, trading_days}
+        # symbol → {week52_high, week52_low, atr_14, adv_20_cr, trading_days, …}
         self._daily: dict[str, dict] = {}
+        # IST date on which _daily was last populated — None = never loaded
+        self._daily_date: date | None = None
         # symbol → {data: {...}, ts: monotonic}
         self._intraday_cache: dict[str, dict] = {}
 
     # ── Startup precompute ────────────────────────────────────────────────────
 
-    async def precompute_daily(self) -> int:
+    async def precompute_daily(self, force: bool = False) -> int:
         """
-        Single bulk query over price_data_daily — computes metrics for every
-        symbol with at least 5 days of history. Runs in a few seconds.
+        Reads precomputed daily metrics from the symbol_metrics table.
+        DataSyncService writes this table after each EOD sync, so no heavy
+        aggregation runs at startup.
+
+        Results are cached for the calendar day (IST).  Subsequent calls on
+        the same day are no-ops and return the cached count immediately.
+        Pass force=True to bypass the cache (e.g. after a manual recompute).
         """
-        logger.info("MetricsService: precomputing daily metrics for all symbols…")
-        rows = await self._pool.fetch("""
-            WITH base AS (
-                SELECT
-                    symbol,
-                    high::float,
-                    low::float,
-                    close::float,
-                    volume::float,
-                    LAG(close::float) OVER (
-                        PARTITION BY symbol ORDER BY time ASC
-                    ) AS prev_close,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY symbol ORDER BY time ASC
-                    ) AS rn,
-                    COUNT(*) OVER (PARTITION BY symbol) AS total
-                FROM price_data_daily
-                WHERE time >= NOW() - INTERVAL '366 days'
-            ),
-            with_tr AS (
-                SELECT
-                    symbol,
-                    high, low, close, volume,
-                    GREATEST(
-                        high - low,
-                        ABS(high - COALESCE(prev_close, close)),
-                        ABS(low  - COALESCE(prev_close, close))
-                    ) AS tr,
-                    rn, total
-                FROM base
+        today_ist: date = date.today()  # server is assumed IST, or use:
+        # today_ist = datetime.now(_IST).date()
+        if not force and self._daily_date == today_ist and self._daily:
+            logger.debug(
+                "MetricsService: daily cache is current (%s, %d symbols) — skipping reload",
+                today_ist, len(self._daily),
             )
+            return len(self._daily)
+
+        logger.info("MetricsService: loading precomputed daily metrics from symbol_metrics…")
+        rows = await self._pool.fetch("""
             SELECT
                 symbol,
-                MAX(high)                                        AS week52_high,
-                MIN(low)                                         AS week52_low,
-                AVG(tr)   FILTER (WHERE rn > total - 14)        AS atr_14,
-                AVG(close * volume / 1e7)
-                          FILTER (WHERE rn > total - 20)        AS adv_20_cr,
-                COUNT(*)                                         AS trading_days
-            FROM with_tr
-            GROUP BY symbol
-            HAVING COUNT(*) >= 5
+                week52_high, week52_low,
+                atr_14, adv_20_cr, trading_days,
+                prev_day_high, prev_day_low, prev_day_close,
+                prev_week_high, prev_week_low,
+                prev_month_high, prev_month_low
+            FROM symbol_metrics
         """)
 
         self._daily = {
             row["symbol"]: {
-                "week52_high":  round(float(row["week52_high"]), 2),
-                "week52_low":   round(float(row["week52_low"]),  2),
-                "atr_14":       round(float(row["atr_14"] or 0), 2),
-                "adv_20_cr":    round(float(row["adv_20_cr"] or 0), 1),
-                "trading_days": int(row["trading_days"]),
+                "week52_high":    round(float(row["week52_high"]), 2)   if row["week52_high"]   else None,
+                "week52_low":     round(float(row["week52_low"]),  2)   if row["week52_low"]    else None,
+                "atr_14":         round(float(row["atr_14"] or 0), 2),
+                "adv_20_cr":      round(float(row["adv_20_cr"] or 0), 1),
+                "trading_days":   int(row["trading_days"]),
+                "prev_day_high":  round(float(row["prev_day_high"]), 2)  if row["prev_day_high"]  else None,
+                "prev_day_low":   round(float(row["prev_day_low"]),  2)  if row["prev_day_low"]   else None,
+                "prev_day_close": round(float(row["prev_day_close"]),2)  if row["prev_day_close"] else None,
+                "prev_week_high": round(float(row["prev_week_high"]),2)  if row["prev_week_high"] else None,
+                "prev_week_low":  round(float(row["prev_week_low"]), 2)  if row["prev_week_low"]  else None,
+                "prev_month_high":round(float(row["prev_month_high"]),2) if row["prev_month_high"] else None,
+                "prev_month_low": round(float(row["prev_month_low"]), 2) if row["prev_month_low"]  else None,
             }
             for row in rows
         }
-        logger.info("MetricsService: loaded daily metrics for %d symbols", len(self._daily))
+        self._daily_date = today_ist
+        logger.info(
+            "MetricsService: loaded daily metrics for %d symbols (date=%s)",
+            len(self._daily), today_ist,
+        )
         return len(self._daily)
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -130,18 +126,27 @@ class MetricsService:
             SELECT
                 MIN(low)::float          AS day_low,
                 MAX(high)::float         AS day_high,
-                FIRST(open, time)::float AS day_open
-            FROM candles_3min
+                FIRST(open, time)::float AS day_open,
+                LAST(close, time)::float AS day_close
+            FROM candles_5min
             WHERE symbol = $1
               AND time >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date
         """, symbol)
 
         data: dict = {}
         if row and row["day_high"] is not None:
+            day_close   = round(float(row["day_close"]), 2)
+            prev_close  = (self._daily.get(symbol) or {}).get("prev_day_close")
+            day_chg_pct = (
+                round((day_close - prev_close) / prev_close * 100, 2)
+                if prev_close else None
+            )
             data = {
-                "day_high": round(float(row["day_high"]), 2),
-                "day_low":  round(float(row["day_low"]),  2),
-                "day_open": round(float(row["day_open"]), 2),
+                "day_high":    round(float(row["day_high"]), 2),
+                "day_low":     round(float(row["day_low"]),  2),
+                "day_open":    round(float(row["day_open"]), 2),
+                "day_close":   day_close,
+                "day_chg_pct": day_chg_pct,
             }
 
         self._intraday_cache[symbol] = {"data": data, "ts": time.monotonic()}

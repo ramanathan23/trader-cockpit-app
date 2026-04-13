@@ -25,6 +25,7 @@ from ..repositories.symbol_repository import SymbolRepository, load_from_csv
 from ..repositories.sync_state_repository import SyncStateRepository
 from .daily_fetcher import DailyFetcher, _ensure_utc
 from .sync_state_writer import SyncStateWriter
+from .metrics_compute_service import MetricsComputeService
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class SyncService:
         self._state   = SyncStateRepository(pool)
         writer        = SyncStateWriter(pool, self._prices, self._state)
         self._fetcher = DailyFetcher(YFinanceFetcher(), writer)
+        self._metrics = MetricsComputeService(pool)
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
@@ -77,6 +79,11 @@ class SyncService:
         logger.info("run_sync: sync state loaded — starting sync")
 
         return {"1d": await self._run_daily_sync(all_symbols, daily_ts_map)}
+
+    async def recompute_metrics(self) -> dict:
+        """Recompute symbol_metrics table from price_data_daily."""
+        count = await self._metrics.recompute()
+        return {"rows_written": count}
 
     async def get_gap_report(self) -> dict:
         """Return per-symbol classification without fetching data (diagnostics)."""
@@ -143,10 +150,14 @@ class SyncService:
         if fetch_gap:
             updated += await self._fetcher.fetch_gap(fetch_gap, last_ts_map)
 
+        # Recompute precomputed metrics after price data is updated.
+        metrics_rows = await self._metrics.recompute()
+
         return {
-            "initial":     len(initial),
-            "fetch_today": len(fetch_today),
-            "fetch_gap":   len(fetch_gap),
-            "skip":        skip_count,
-            "updated":     updated,
+            "initial":       len(initial),
+            "fetch_today":   len(fetch_today),
+            "fetch_gap":     len(fetch_gap),
+            "skip":          skip_count,
+            "updated":       updated,
+            "metrics_rows":  metrics_rows,
         }

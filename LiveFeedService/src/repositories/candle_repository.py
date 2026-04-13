@@ -1,9 +1,9 @@
 """
-CandleRepository: batch-writes completed 3-min candles to TimescaleDB.
+CandleRepository: batch-writes completed 5-min candles to TimescaleDB.
 
 Uses the same COPY → INSERT pattern as DataSyncService for high throughput.
-Equity candles → candles_3min
-Index future candles → index_future_candles_3min
+Equity candles → candles_5min
+Index future candles → index_future_candles_5min
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from ..domain.models import Candle
 
 logger = logging.getLogger(__name__)
 
-_EQUITY_TABLE  = "candles_3min"
-_FUTURE_TABLE  = "index_future_candles_3min"
+_EQUITY_TABLE  = "candles_5min"
+_FUTURE_TABLE  = "index_future_candles_5min"
 _COLUMNS       = ("time", "symbol", "open", "high", "low", "close", "volume", "tick_count")
 _ACQUIRE_TIMEOUT = 30
 
