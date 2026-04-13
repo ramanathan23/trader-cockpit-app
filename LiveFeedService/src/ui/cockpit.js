@@ -229,11 +229,33 @@ function cockpit() {
 
       const isCatchup = !!s._catchup;
 
-      // Catch-up signals: historical context — no dedup, no sound, no blink.
-      // Server sends oldest-first; unshift each so newest ends at index 0.
+      // Catch-up signals: historical context — no sound, no blink.
+      // Use the same _dedupKey logic as live so that:
+      //   a) multiple catch-up events for the same symbol:type collapse into one card,
+      //   b) the first live signal for that type correctly finds and updates it.
       if (isCatchup) {
+        const ALWAYS_NEW_CU = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
+
+        if (!ALWAYS_NEW_CU.has(s.signal_type)) {
+          const key = `${s.symbol}:${s.signal_type}`;
+          const idx = this.signals.findIndex(x => x._dedupKey === key);
+          if (idx !== -1) {
+            // Update existing card with fresher data; do not increment count.
+            const existing = this.signals[idx];
+            existing.timestamp    = s.timestamp;
+            existing.price        = s.price;
+            existing.message      = s.message;
+            existing.volume_ratio = s.volume_ratio;
+            existing.trail_stop   = s.trail_stop;
+            this.signals = [existing, ...this.signals.filter((_, i) => i !== idx)];
+            return;
+          }
+          s._dedupKey = key;
+        }
+
         if (!this.signals.some(x => x.id === s.id)) {
-          s._count = 1;
+          s._count       = 1;
+          s._fromCatchup = true;   // first live dedup will promote without incrementing
           this.signals.unshift(s);
           if (this.signals.length > 200) this.signals.pop();
           if (!this.metricsCache[s.symbol]) this.fetchMetrics(s.symbol);
@@ -254,7 +276,12 @@ function cockpit() {
           existing.message      = s.message;
           existing.volume_ratio = s.volume_ratio;
           existing.trail_stop   = s.trail_stop;
-          existing._count       = (existing._count || 1) + 1;
+          if (existing._fromCatchup) {
+            // First live signal for this type — promote the catch-up card, don't count yet.
+            existing._fromCatchup = false;
+          } else {
+            existing._count = existing._count + 1;
+          }
           this.signals = [existing, ...this.signals.filter((_, i) => i !== idx)];
           alertSound(s.signal_type);
           if (document.hidden) this.blinkTab(s.symbol);
