@@ -145,13 +145,29 @@ def make_exhaustion_reversal(
 ) -> Signal:
     """
     Build a Signal for a confirmed exhaustion reversal.
-    Entry is at the confirmation candle's close; stop below the climax low.
+    Entry is at the confirmation candle's close.
+    Stop is just outside the climax extreme (below low for bullish, above high for bearish).
     """
-    entry  = candle.close
-    stop   = round(state.climax.low * 0.999, 2)   # just below climax low
-    rng    = entry - stop
-    t1     = round(entry + rng,       2)
-    t2     = round(entry + rng * 2.5, 2)
+    entry = candle.close
+
+    if state.direction == Direction.BULLISH:
+        stop       = round(state.climax.low  * 0.999, 2)  # just below climax low
+        rng        = entry - stop
+        t1         = round(entry + rng,       2)
+        t2         = round(entry + rng * 2.5, 2)
+        entry_low  = entry
+        entry_high = round(entry * 1.002, 2)
+        trend_desc = f"{state.downtrend_len} lower-lows"
+        arrow      = "↑"
+    else:  # BEARISH
+        stop       = round(state.climax.high * 1.001, 2)  # just above climax high
+        rng        = stop - entry
+        t1         = round(entry - rng,       2)
+        t2         = round(entry - rng * 2.5, 2)
+        entry_low  = round(entry * 0.998, 2)
+        entry_high = entry
+        trend_desc = f"{state.downtrend_len} rising-highs"
+        arrow      = "↓"
 
     return Signal(
         symbol        = symbol,
@@ -162,18 +178,51 @@ def make_exhaustion_reversal(
         session_phase = phase,
         index_bias    = bias.majority(),
         price         = entry,
-        entry_low     = entry,
-        entry_high    = round(entry * 1.002, 2),   # within 0.2% of confirmation close
+        entry_low     = entry_low,
+        entry_high    = entry_high,
         stop          = stop,
         target_1      = t1,
         target_2      = t2,
         volume_ratio  = state.volume_ratio,
         message       = (
-            f"Exhaustion reversal | {state.downtrend_len} lower-lows → "
+            f"Exhaustion reversal {arrow} | {trend_desc} → "
             f"climax {state.volume_ratio:.1f}× vol → held | "
             f"Stop {stop:.2f}"
         ),
     )
+
+
+def make_fade_alert(
+    symbol:   str,
+    candle:   Candle,
+    spike:    SpikeState,
+    phase:    SessionPhase,
+    bias:     IndexBias,
+) -> Signal:
+    """WEAK_SHOCK: large price move with no volume backing — likely to fade."""
+    return Signal(
+        symbol        = symbol,
+        signal_type   = SignalType.FADE_ALERT,
+        direction     = _flip_direction(spike.direction),  # fade = trade against the move
+        strength      = Strength.LOW,
+        score         = round(spike.price_pct_move * 0.3, 2),
+        session_phase = phase,
+        index_bias    = bias.majority(),
+        price         = candle.close,
+        volume_ratio  = spike.volume_ratio,
+        message       = (
+            f"Fade alert | Move {spike.price_pct_move:.1f}% without volume "
+            f"({spike.volume_ratio:.1f}×) — likely to reverse"
+        ),
+    )
+
+
+def _flip_direction(d: Direction) -> Direction:
+    if d == Direction.BULLISH:
+        return Direction.BEARISH
+    if d == Direction.BEARISH:
+        return Direction.BULLISH
+    return Direction.NEUTRAL
 
 
 def composite_score(

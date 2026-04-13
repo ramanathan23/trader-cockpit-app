@@ -70,7 +70,11 @@ def detect_candidate(
     window:            int   = WINDOW,
 ) -> Optional[ExhaustionCandidate]:
     """
-    Evaluate whether *candle* is a volume-climax candidate at the end of a downtrend.
+    Evaluate whether *candle* is a volume-climax candidate at the end of a trend.
+
+    Detects both directions:
+      BULLISH — sell-off climax (price below day_open, falling lows, close in upper half)
+      BEARISH — rally climax   (price above day_open, rising highs,  close in lower half)
 
     Returns an ExhaustionCandidate if all conditions pass, else None.
     """
@@ -83,31 +87,40 @@ def detect_candidate(
     if volume_ratio < vol_ratio_min:
         return None
 
-    # ── Price was below day open (intraday downtrend context) ─────────────────
-    if day_open and candle.close >= day_open:
-        return None   # price still at/above open — not a downtrend exhaustion
-
-    # ── Downtrend: count consecutive lower lows in prior candles ──────────────
-    prior = history[-downtrend_candles:]
-    lower_low_count = sum(
-        1 for i in range(1, len(prior))
-        if prior[i].low < prior[i - 1].low
-    )
-    if lower_low_count < lower_lows_needed:
-        return None
-
-    # ── Climax candle body check: close in UPPER half of range ───────────────
-    # Buyers absorbed supply within this very candle.
     candle_mid = (candle.high + candle.low) / 2
-    if candle.close < candle_mid:
-        return None   # price closed in bottom half — sellers still in control
+    prior      = history[-downtrend_candles:]
 
-    return ExhaustionCandidate(
-        climax        = candle,
-        direction     = Direction.BULLISH,   # anticipate bounce
-        volume_ratio  = round(volume_ratio, 2),
-        downtrend_len = lower_low_count,
-    )
+    # ── Bullish exhaustion: sell-off climax → expect bounce ───────────────────
+    if day_open and candle.close < day_open:
+        lower_low_count = sum(
+            1 for i in range(1, len(prior))
+            if prior[i].low < prior[i - 1].low
+        )
+        if lower_low_count >= lower_lows_needed and candle.close >= candle_mid:
+            # Close in upper half: buyers absorbed the sellers within this candle.
+            return ExhaustionCandidate(
+                climax        = candle,
+                direction     = Direction.BULLISH,
+                volume_ratio  = round(volume_ratio, 2),
+                downtrend_len = lower_low_count,
+            )
+
+    # ── Bearish exhaustion: rally climax → expect selloff ─────────────────────
+    if day_open and candle.close > day_open:
+        rising_high_count = sum(
+            1 for i in range(1, len(prior))
+            if prior[i].high > prior[i - 1].high
+        )
+        if rising_high_count >= lower_lows_needed and candle.close < candle_mid:
+            # Close in lower half: sellers stepped in before the candle even closed.
+            return ExhaustionCandidate(
+                climax        = candle,
+                direction     = Direction.BEARISH,
+                volume_ratio  = round(volume_ratio, 2),
+                downtrend_len = rising_high_count,
+            )
+
+    return None
 
 
 def confirm(
@@ -117,17 +130,21 @@ def confirm(
     """
     Confirm the exhaustion reversal on the candle AFTER the climax.
 
-    Passes if:
-      - Low held (no new low vs climax)
-      - Close recovered above climax close
+    Bullish: low held (no new low) AND close recovered above climax close.
+    Bearish: high held (no new high) AND close dropped below climax close.
     """
     climax = candidate.climax
 
-    if candle.low < climax.low:
-        return None   # printed a new low — not held
-
-    if candle.close <= climax.close:
-        return None   # still weak, no recovery
+    if candidate.direction == Direction.BULLISH:
+        if candle.low < climax.low:
+            return None   # printed a new low — sellers still in control
+        if candle.close <= climax.close:
+            return None   # no recovery
+    else:  # BEARISH
+        if candle.high > climax.high:
+            return None   # printed a new high — buyers still in control
+        if candle.close >= climax.close:
+            return None   # no decline
 
     return ExhaustionState(
         climax        = climax,

@@ -18,7 +18,7 @@ Stateless — pure function: (candle, history, thresholds) → SpikeState | None
 
 from __future__ import annotations
 
-from statistics import mean
+from statistics import median
 
 from ..domain.models import Candle, Direction, SpikeState, SpikeType, SessionPhase
 
@@ -50,7 +50,7 @@ def evaluate(
 
     # ── Baselines ──────────────────────────────────────────────────────────────
     recent = history[-window:]
-    avg_volume = mean(c.volume for c in recent) or 1  # guard div/0
+    avg_volume = median(c.volume for c in recent) or 1  # guard div/0; median resists outliers
 
     prev_close = history[-1].close
     if prev_close == 0:
@@ -102,7 +102,7 @@ def is_volume_dry_up(candle: Candle, history: list[Candle], window: int = WINDOW
     if len(history) < 5:
         return False
     recent     = history[-window:]
-    avg_volume = mean(c.volume for c in recent) or 1
+    avg_volume = median(c.volume for c in recent) or 1
     return (candle.volume / avg_volume) <= DRY_UP_RATIO
 
 

@@ -25,30 +25,19 @@ function chirp(startHz, endHz, dur = 0.08, vol = 0.28) {
 
 function alertSound(t) {
   if (t === 'OPEN_DRIVE_ENTRY') {
-    // Robin-style ascending triple chirp — confident breakout
-    chirp(900, 1700, 0.07);
-    setTimeout(() => chirp(1100, 1900, 0.07), 110);
-    setTimeout(() => chirp(1300, 2100, 0.07), 220);
+    chirp(1100, 2000, 0.09);          // ascending — bullish drive entry
   } else if (t === 'SPIKE_BREAKOUT') {
-    // Sharp single ascending tweet
-    chirp(700, 1500, 0.09);
-    setTimeout(() => chirp(1000, 1700, 0.06), 130);
+    chirp(750, 1600, 0.09);           // sharp ascending tweet
   } else if (t === 'ABSORPTION') {
-    // Gentle warble — descending then settling
-    chirp(1300, 900, 0.10);
-    setTimeout(() => chirp(950, 1100, 0.08), 140);
+    chirp(1300, 800, 0.10);           // descending — watch for reversal
   } else if (t === 'EXHAUSTION_REVERSAL') {
-    // Rising double chirp — reversal alert
-    chirp(650, 1250, 0.09);
-    setTimeout(() => chirp(850, 1500, 0.09), 140);
-    setTimeout(() => chirp(1050, 1700, 0.07), 280);
+    chirp(650, 1450, 0.10);           // low-to-high sweep — reversal alert
   } else if (t === 'DRIVE_FAILED') {
-    // Descending drooping chirp — warning
-    chirp(1400, 600, 0.14);
-    setTimeout(() => chirp(1000, 500, 0.10), 180);
+    chirp(1400, 500, 0.14);           // hard fall — abort
   } else if (t === 'EXIT') {
-    // Single falling note
-    chirp(1100, 650, 0.12);
+    chirp(1000, 600, 0.12);           // falling — position closed
+  } else if (t === 'FADE_ALERT') {
+    chirp(1100, 750, 0.09);           // soft fade-down — caution
   }
 }
 
@@ -94,6 +83,7 @@ function cockpit() {
       { key: 'SPIKE',   label: 'SPIKE',      activeClass: 'bg-[#2d2118] border-[#d29922] text-[#d29922]' },
       { key: 'ABS',     label: 'ABSORPTION', activeClass: 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]' },
       { key: 'EXHAUST', label: 'EXHAUST',    activeClass: 'bg-[#211a2d] border-[#a371f7] text-[#a371f7]' },
+      { key: 'FADE',    label: 'FADE',       activeClass: 'bg-[#2d2800] border-[#e3b341] text-[#e3b341]' },
     ],
 
     PHASE_COLORS: {
@@ -110,6 +100,7 @@ function cockpit() {
         SPIKE:   ['SPIKE_BREAKOUT'],
         ABS:     ['ABSORPTION'],
         EXHAUST: ['EXHAUSTION_REVERSAL'],
+        FADE:    ['FADE_ALERT'],
       };
       return this.signals.filter(s => {
         if (this.filter !== 'ALL' && !(typeMap[this.filter] || []).includes(s.signal_type)) return false;
@@ -127,6 +118,7 @@ function cockpit() {
         SPIKE:   ['SPIKE_BREAKOUT'],
         ABS:     ['ABSORPTION'],
         EXHAUST: ['EXHAUSTION_REVERSAL'],
+        FADE:    ['FADE_ALERT'],
       };
       // History is chronological (oldest first); reverse for newest-first display.
       return [...this.historySignals].reverse().filter(s => {
@@ -321,6 +313,7 @@ function cockpit() {
         TRAIL_UPDATE:        'TRAIL',
         DRIVE_FAILED:        'FAILED',
         EXIT:                'EXIT',
+        FADE_ALERT:          'FADE',
       }[t] || t;
     },
 
@@ -340,6 +333,7 @@ function cockpit() {
         TRAIL_UPDATE:        '#8b949e',
         DRIVE_FAILED:        '#f85149',
         EXIT:                '#f85149',
+        FADE_ALERT:          '#e3b341',
       }[t] || '#30363d';
     },
 
@@ -355,6 +349,7 @@ function cockpit() {
         EXHAUSTION_REVERSAL: 'rgba(163,113,247,0.06)',
         DRIVE_FAILED:        'rgba(248,81,73,0.06)',
         EXIT:                'rgba(248,81,73,0.06)',
+        FADE_ALERT:          'rgba(227,179,65,0.06)',
       }[t] || 'transparent';
       return `background:${tint}`;
     },
@@ -373,6 +368,7 @@ function cockpit() {
         TRAIL_UPDATE:        'Trailing stop moved up',
         DRIVE_FAILED:        'Drive failed — price back through open',
         EXIT:                'Position exited',
+        FADE_ALERT:          'Big move, no volume — likely to fade/reverse',
       }[t] || '';
     },
 

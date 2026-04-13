@@ -15,7 +15,7 @@ in dedicated modules — this class orchestrates but does not implement them.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -31,6 +31,11 @@ from ..signals.trail_tracker import update_trail
 logger = logging.getLogger(__name__)
 
 
+# Candles to wait before the same spike type can fire again (prevents repeat alerts
+# when volume stays elevated over multiple bars).
+_SPIKE_COOLDOWN = 5
+
+
 @dataclass
 class _SessionState:
     """Mutable session-scoped state per symbol — reset at day start."""
@@ -43,6 +48,8 @@ class _SessionState:
     in_trade:             bool                = False
     mid_session_start:    bool                = False
     exhaustion_candidate: Optional[exhaustion_reversal.ExhaustionCandidate] = None
+    # Maps SpikeType → candles remaining in cooldown (0 = ready to fire again).
+    spike_cooldown:       dict                = field(default_factory=dict)
 
 
 class SignalEngine:
@@ -195,6 +202,12 @@ class SignalEngine:
         out:   list[Signal] = []
         state: _SessionState = self._state
 
+        # ── Tick down per-type spike cooldowns ────────────────────────────────
+        for k in list(state.spike_cooldown):
+            state.spike_cooldown[k] -= 1
+            if state.spike_cooldown[k] <= 0:
+                del state.spike_cooldown[k]
+
         # ── Standard single-candle spike signals ──────────────────────────────
         spike = spike_detector.evaluate(
             candle, prior,
@@ -206,13 +219,23 @@ class SignalEngine:
             strength      = Strength.HIGH if index_aligned else Strength.MEDIUM
 
             if spike.spike_type == SpikeType.BREAKOUT_SHOCK:
-                out.append(signal_factory.make_spike_signal(
-                    self.symbol, candle, spike, SignalType.SPIKE_BREAKOUT, strength, phase, bias
-                ))
+                if SpikeType.BREAKOUT_SHOCK not in state.spike_cooldown:
+                    out.append(signal_factory.make_spike_signal(
+                        self.symbol, candle, spike, SignalType.SPIKE_BREAKOUT, strength, phase, bias
+                    ))
+                    state.spike_cooldown[SpikeType.BREAKOUT_SHOCK] = _SPIKE_COOLDOWN
             elif spike.spike_type == SpikeType.ABSORPTION:
-                out.append(signal_factory.make_spike_signal(
-                    self.symbol, candle, spike, SignalType.ABSORPTION, Strength.MEDIUM, phase, bias
-                ))
+                if SpikeType.ABSORPTION not in state.spike_cooldown:
+                    out.append(signal_factory.make_spike_signal(
+                        self.symbol, candle, spike, SignalType.ABSORPTION, Strength.MEDIUM, phase, bias
+                    ))
+                    state.spike_cooldown[SpikeType.ABSORPTION] = _SPIKE_COOLDOWN
+            elif spike.spike_type == SpikeType.WEAK_SHOCK:
+                if SpikeType.WEAK_SHOCK not in state.spike_cooldown:
+                    out.append(signal_factory.make_fade_alert(
+                        self.symbol, candle, spike, phase, bias
+                    ))
+                    state.spike_cooldown[SpikeType.WEAK_SHOCK] = _SPIKE_COOLDOWN
 
         # ── Exhaustion reversal (multi-candle sequence) ────────────────────────
         # Step 1: if holding a climax candidate, try to confirm on this candle.

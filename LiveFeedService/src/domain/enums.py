@@ -44,6 +44,7 @@ class SignalType(str, Enum):
     EXHAUSTION_REVERSAL = "EXHAUSTION_REVERSAL" # downtrend → volume climax → price held → reversal
     TRAIL_UPDATE        = "TRAIL_UPDATE"        # trailing stop moved
     EXIT                = "EXIT"                # exit triggered
+    FADE_ALERT          = "FADE_ALERT"          # large price move with no volume — likely to fade
 
 
 class Direction(str, Enum):
