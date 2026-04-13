@@ -25,7 +25,7 @@ from ..domain.models import (
     Candle, Direction, DriveState, DriveStatus,
     IndexBias, Signal, SignalType, SessionPhase, SpikeType, Strength,
 )
-from ..signals import open_drive, spike_detector, signal_factory
+from ..signals import open_drive, spike_detector, signal_factory, exhaustion_reversal
 from ..signals.trail_tracker import update_trail
 
 logger = logging.getLogger(__name__)
@@ -34,14 +34,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class _SessionState:
     """Mutable session-scoped state per symbol — reset at day start."""
-    day_open:          Optional[float]     = None
-    orb_high:          Optional[float]     = None
-    orb_low:           Optional[float]     = None
-    drive:             Optional[DriveState] = None
-    drive_signalled:   bool                = False
-    trailing_stop:     Optional[float]     = None
-    in_trade:          bool                = False
-    mid_session_start: bool                = False
+    day_open:             Optional[float]     = None
+    orb_high:             Optional[float]     = None
+    orb_low:              Optional[float]     = None
+    drive:                Optional[DriveState] = None
+    drive_signalled:      bool                = False
+    trailing_stop:        Optional[float]     = None
+    in_trade:             bool                = False
+    mid_session_start:    bool                = False
+    exhaustion_candidate: Optional[exhaustion_reversal.ExhaustionCandidate] = None
 
 
 class SignalEngine:
@@ -191,23 +192,44 @@ class SignalEngine:
         vol_thresh   = self._session.spike_vol_threshold(phase)
         price_thresh = self._session.spike_price_threshold(phase)
 
+        out:   list[Signal] = []
+        state: _SessionState = self._state
+
+        # ── Standard single-candle spike signals ──────────────────────────────
         spike = spike_detector.evaluate(
             candle, prior,
             vol_spike_ratio = vol_thresh,
             price_shock_pct = price_thresh,
         )
-        if spike is None:
-            return []
+        if spike is not None:
+            index_aligned = bias.majority() in (spike.direction, Direction.NEUTRAL)
+            strength      = Strength.HIGH if index_aligned else Strength.MEDIUM
 
-        index_aligned = bias.majority() in (spike.direction, Direction.NEUTRAL)
-        strength      = Strength.HIGH if index_aligned else Strength.MEDIUM
+            if spike.spike_type == SpikeType.BREAKOUT_SHOCK:
+                out.append(signal_factory.make_spike_signal(
+                    self.symbol, candle, spike, SignalType.SPIKE_BREAKOUT, strength, phase, bias
+                ))
+            elif spike.spike_type == SpikeType.ABSORPTION:
+                out.append(signal_factory.make_spike_signal(
+                    self.symbol, candle, spike, SignalType.ABSORPTION, Strength.MEDIUM, phase, bias
+                ))
 
-        if spike.spike_type == SpikeType.BREAKOUT_SHOCK:
-            return [signal_factory.make_spike_signal(
-                self.symbol, candle, spike, SignalType.SPIKE_BREAKOUT, strength, phase, bias
-            )]
-        if spike.spike_type == SpikeType.ABSORPTION:
-            return [signal_factory.make_spike_signal(
-                self.symbol, candle, spike, SignalType.ABSORPTION, Strength.MEDIUM, phase, bias
-            )]
-        return []
+        # ── Exhaustion reversal (multi-candle sequence) ────────────────────────
+        # Step 1: if holding a climax candidate, try to confirm on this candle.
+        # Runs unconditionally — the confirmation candle is NOT a spike.
+        if state.exhaustion_candidate is not None:
+            confirmed = exhaustion_reversal.confirm(candle, state.exhaustion_candidate)
+            state.exhaustion_candidate = None   # always clear after one attempt
+            if confirmed is not None:
+                out.append(signal_factory.make_exhaustion_reversal(
+                    self.symbol, candle, confirmed, phase, bias
+                ))
+
+        # Step 2: check if this candle is a new climax candidate.
+        candidate = exhaustion_reversal.detect_candidate(
+            candle, prior, state.day_open,
+        )
+        if candidate is not None:
+            state.exhaustion_candidate = candidate
+
+        return out

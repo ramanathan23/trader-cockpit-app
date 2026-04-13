@@ -11,6 +11,7 @@ from .infrastructure.redis.token_store import TokenStore
 from .repositories.candle_repository import CandleRepository
 from .repositories.symbol_repository import SymbolRepository
 from .services.feed_service import FeedService
+from .services.metrics_service import MetricsService
 from .api.routes import router
 
 logging.basicConfig(
@@ -69,10 +70,14 @@ async def lifespan(app: FastAPI):
         settings    = settings,
     )
 
-    app.state.pool         = pool
-    app.state.publisher    = publisher
-    app.state.token_store  = token_store
-    app.state.feed_service = feed_service
+    metrics_service = MetricsService(pool)
+    await metrics_service.precompute_daily()
+
+    app.state.pool           = pool
+    app.state.publisher      = publisher
+    app.state.token_store    = token_store
+    app.state.feed_service   = feed_service
+    app.state.metrics        = metrics_service
 
     feed_task = asyncio.create_task(feed_service.run(), name="feed-service")
     logger.info("LiveFeedService ready")

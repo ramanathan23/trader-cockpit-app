@@ -11,6 +11,7 @@ from ..domain.models import (
     Candle, Direction, DriveState, IndexBias, Signal,
     SessionPhase, SignalType, SpikeState, Strength,
 )
+from ..signals import exhaustion_reversal as _er
 
 
 def make_drive_entry(
@@ -132,6 +133,46 @@ def make_spike_signal(
         price         = candle.close,
         volume_ratio  = spike.volume_ratio,
         message       = msg_map.get(signal_type, ""),
+    )
+
+
+def make_exhaustion_reversal(
+    symbol:    str,
+    candle:    Candle,
+    state:     _er.ExhaustionState,
+    phase:     SessionPhase,
+    bias:      IndexBias,
+) -> Signal:
+    """
+    Build a Signal for a confirmed exhaustion reversal.
+    Entry is at the confirmation candle's close; stop below the climax low.
+    """
+    entry  = candle.close
+    stop   = round(state.climax.low * 0.999, 2)   # just below climax low
+    rng    = entry - stop
+    t1     = round(entry + rng,       2)
+    t2     = round(entry + rng * 2.5, 2)
+
+    return Signal(
+        symbol        = symbol,
+        signal_type   = SignalType.EXHAUSTION_REVERSAL,
+        direction     = state.direction,
+        strength      = Strength.HIGH if state.volume_ratio >= 8 else Strength.MEDIUM,
+        score         = round(state.volume_ratio * 0.4, 2),
+        session_phase = phase,
+        index_bias    = bias.majority(),
+        price         = entry,
+        entry_low     = entry,
+        entry_high    = round(entry * 1.002, 2),   # within 0.2% of confirmation close
+        stop          = stop,
+        target_1      = t1,
+        target_2      = t2,
+        volume_ratio  = state.volume_ratio,
+        message       = (
+            f"Exhaustion reversal | {state.downtrend_len} lower-lows → "
+            f"climax {state.volume_ratio:.1f}× vol → held | "
+            f"Stop {stop:.2f}"
+        ),
     )
 
 

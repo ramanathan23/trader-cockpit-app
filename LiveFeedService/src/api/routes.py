@@ -13,8 +13,8 @@ import logging
 from pathlib import Path
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .deps import FeedServiceDep, PublisherDep
@@ -22,6 +22,7 @@ from .deps import FeedServiceDep, PublisherDep
 logger    = logging.getLogger(__name__)
 router    = APIRouter()
 _UI_FILE  = Path(__file__).parent.parent / "ui" / "index.html"
+_JS_FILE  = Path(__file__).parent.parent / "ui" / "cockpit.js"
 _CHANNEL  = "signals"
 _KEEPALIVE_S = 25   # send a SSE comment every N seconds to keep connection alive
 
@@ -69,8 +70,8 @@ async def signal_stream(request: Request, publisher: PublisherDep):
     # We create a fresh pub/sub connection per SSE client so they are independent.
 
     async def event_generator():
-        # 1. Catch-up: replay recent signals.
-        for sig_dict in publisher.recent_signals():
+        # 1. Catch-up: replay recent signals from Redis history.
+        for sig_dict in await publisher.recent_signals():
             yield f"data: {json.dumps(sig_dict)}\n\n"
 
         # 2. Subscribe to live signals.
@@ -112,11 +113,59 @@ async def signal_stream(request: Request, publisher: PublisherDep):
     )
 
 
+# ── Instrument metrics ────────────────────────────────────────────────────────
+
+@router.get("/instrument/{symbol}/metrics", summary="52-week stats, ATR-14, today's range")
+async def instrument_metrics(symbol: str, request: Request):
+    """
+    Daily metrics (52wk H/L, ATR-14, ADV-20) come from MetricsService which
+    precomputes them at startup — zero DB cost per call.
+    Intraday range (day_high/low/open) is fetched from candles_3min with a
+    60-second TTL cache inside MetricsService.
+    """
+    data = await request.app.state.metrics.get_with_intraday(symbol)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"No daily data for {symbol}")
+    return data
+
+
+# ── Signal history (daily review) ────────────────────────────────────────────
+
+import re as _re
+
+@router.get("/signals/history", summary="All signals for a given IST date")
+async def signal_history(date: str, publisher: PublisherDep):
+    """
+    Returns signals recorded on a given IST date (format: YYYY-MM-DD).
+    Data is kept for 7 days. Signals are in chronological order (oldest first).
+    Also returns the list of dates that have data available.
+    """
+    if not _re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    signals = await publisher.signals_for_date(date)
+    dates   = await publisher.available_dates()
+    return {"date": date, "count": len(signals), "signals": signals, "available_dates": dates}
+
+
+@router.get("/signals/history/dates", summary="IST dates with saved signal history")
+async def signal_history_dates(publisher: PublisherDep):
+    dates = await publisher.available_dates()
+    return {"dates": dates}
+
+
 # ── UI ────────────────────────────────────────────────────────────────────────
 
 @router.get("/ui", response_class=HTMLResponse, include_in_schema=False)
 async def serve_ui():
     return HTMLResponse(_UI_FILE.read_text(encoding="utf-8"))
+
+
+@router.get("/ui/cockpit.js", include_in_schema=False)
+async def serve_cockpit_js():
+    return PlainTextResponse(
+        _JS_FILE.read_text(encoding="utf-8"),
+        media_type="application/javascript",
+    )
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────

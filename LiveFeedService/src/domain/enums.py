@@ -37,12 +37,13 @@ class SpikeType(str, Enum):
 
 
 class SignalType(str, Enum):
-    OPEN_DRIVE_ENTRY = "OPEN_DRIVE_ENTRY"   # open drive confirmed, entry setup
-    DRIVE_FAILED     = "DRIVE_FAILED"       # drive invalidated
-    SPIKE_BREAKOUT   = "SPIKE_BREAKOUT"     # mid-session breakout shock
-    ABSORPTION       = "ABSORPTION"         # absorption detected, reversal watch
-    TRAIL_UPDATE     = "TRAIL_UPDATE"       # trailing stop moved
-    EXIT             = "EXIT"               # exit triggered
+    OPEN_DRIVE_ENTRY    = "OPEN_DRIVE_ENTRY"    # open drive confirmed, entry setup
+    DRIVE_FAILED        = "DRIVE_FAILED"        # drive invalidated
+    SPIKE_BREAKOUT      = "SPIKE_BREAKOUT"      # mid-session breakout shock
+    ABSORPTION          = "ABSORPTION"          # absorption detected, reversal watch
+    EXHAUSTION_REVERSAL = "EXHAUSTION_REVERSAL" # downtrend → volume climax → price held → reversal
+    TRAIL_UPDATE        = "TRAIL_UPDATE"        # trailing stop moved
+    EXIT                = "EXIT"                # exit triggered
 
 
 class Direction(str, Enum):

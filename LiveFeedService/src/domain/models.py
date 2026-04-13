@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 # Re-export all enums — canonical source is domain/enums.py.
@@ -109,7 +109,7 @@ class Signal:
     Serialised to JSON and published to Redis / streamed via SSE.
     """
     id:            str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp:     datetime = field(default_factory=datetime.now)
+    timestamp:     datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     symbol:        str = ""
     signal_type:   SignalType   = SignalType.OPEN_DRIVE_ENTRY
     direction:     Direction    = Direction.NEUTRAL

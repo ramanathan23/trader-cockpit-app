@@ -1,415 +1,412 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trader Cockpit</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: 'Segoe UI', system-ui, monospace;
-    font-size: 13px;
-  }
-
-  /* ── Header ── */
-  #header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    background: #161b22;
-    border-bottom: 1px solid #30363d;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  #header h1 { font-size: 14px; font-weight: 600; letter-spacing: 1px; color: #58a6ff; }
-  #clock      { font-size: 13px; color: #8b949e; }
-  #phase-badge {
-    padding: 3px 10px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-
-  /* ── Index bias bar ── */
-  #bias-bar {
-    display: flex;
-    gap: 12px;
-    padding: 8px 16px;
-    background: #0d1117;
-    border-bottom: 1px solid #21262d;
-  }
-  .bias-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .bias-bull { color: #3fb950; }
-  .bias-bear { color: #f85149; }
-  .bias-neut { color: #8b949e; }
-
-  /* ── Signal feed ── */
-  #feed {
-    padding: 12px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .card {
-    border-radius: 6px;
-    padding: 10px 14px;
-    border-left: 4px solid;
-    background: #161b22;
-    animation: slide-in 0.2s ease;
-  }
-  @keyframes slide-in {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .card.OPEN_DRIVE_ENTRY  { border-color: #3fb950; }
-  .card.SPIKE_BREAKOUT    { border-color: #d29922; }
-  .card.ABSORPTION        { border-color: #58a6ff; }
-  .card.TRAIL_UPDATE      { border-color: #8b949e; }
-  .card.DRIVE_FAILED      { border-color: #f85149; }
-  .card.EXIT              { border-color: #f85149; }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 5px;
-  }
-  .card-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .signal-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .dot-BULLISH { background: #3fb950; }
-  .dot-BEARISH { background: #f85149; }
-  .dot-NEUTRAL { background: #8b949e; }
-
-  .card-time { font-size: 11px; color: #8b949e; }
-
-  .card-type {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.8px;
-    padding: 2px 6px;
-    border-radius: 3px;
-    background: #21262d;
-    color: #8b949e;
-  }
-
-  .levels {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-    font-size: 11px;
-    color: #8b949e;
-  }
-  .lv { display: flex; gap: 4px; }
-  .lv span:first-child { color: #6e7681; }
-  .lv .val { color: #e6edf3; font-weight: 600; }
-  .lv .val.stop  { color: #f85149; }
-  .lv .val.t1    { color: #3fb950; }
-  .lv .val.t2    { color: #2ea043; }
-  .lv .val.trail { color: #58a6ff; }
-  .lv .val.entry { color: #d29922; }
-
-  .card-msg {
-    margin-top: 5px;
-    font-size: 11px;
-    color: #8b949e;
-    font-style: italic;
-  }
-
-  /* ── Connection status ── */
-  #conn-status {
-    position: fixed;
-    bottom: 12px;
-    right: 14px;
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    background: #21262d;
-  }
-  #conn-status.connected    { color: #3fb950; }
-  #conn-status.disconnected { color: #f85149; }
-  #conn-status.connecting   { color: #d29922; }
-
-  /* ── Empty state ── */
-  #empty {
-    text-align: center;
-    color: #6e7681;
-    padding: 60px 16px;
-    font-size: 12px;
-  }
-</style>
-</head>
-<body>
-
-<div id="header">
-  <h1>TRADER COCKPIT</h1>
-  <span id="clock">--:--:--</span>
-  <span id="phase-badge" style="background:#21262d;color:#8b949e;">--</span>
-</div>
-
-<div id="bias-bar">
-  <div class="bias-item"><span style="color:#6e7681">NIFTY</span>     <span id="bias-nifty"     class="bias-neut">--</span></div>
-  <div class="bias-item"><span style="color:#6e7681">BANKNIFTY</span> <span id="bias-banknifty" class="bias-neut">--</span></div>
-  <div class="bias-item"><span style="color:#6e7681">SENSEX</span>    <span id="bias-sensex"    class="bias-neut">--</span></div>
-</div>
-
-<div id="feed">
-  <div id="empty">Waiting for signals…<br>Market opens at 9:15 IST</div>
-</div>
-
-<div id="conn-status" class="connecting">Connecting…</div>
-
+<script src="https://cdn.tailwindcss.com"></script>
 <script>
-// ── Audio beep (native WebAudio, no file required) ───────────────────────────
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let audioCtx = null;
-
-function beep(freq = 880, type = 'sine', dur = 0.15) {
-  try {
-    if (!audioCtx) audioCtx = new AudioCtx();
-    const osc  = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.type      = type;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    osc.start(audioCtx.currentTime);
-    osc.stop(audioCtx.currentTime + dur);
-  } catch (_) {}
-}
-
-function alertSound(signalType) {
-  if (signalType === 'OPEN_DRIVE_ENTRY')  { beep(880, 'sine',   0.12); setTimeout(() => beep(1100, 'sine', 0.12), 140); }
-  else if (signalType === 'SPIKE_BREAKOUT'){ beep(660, 'square', 0.10); }
-  else if (signalType === 'ABSORPTION')    { beep(440, 'sine',   0.15); }
-  else if (signalType === 'DRIVE_FAILED')  { beep(330, 'sawtooth', 0.2); }
-  else if (signalType === 'EXIT')          { beep(220, 'sine',   0.25); }
-}
-
-// ── Clock ─────────────────────────────────────────────────────────────────────
-function updateClock() {
-  const now = new Date();
-  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  document.getElementById('clock').textContent =
-    ist.toTimeString().slice(0, 8);
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-// ── Phase badge ───────────────────────────────────────────────────────────────
-const PHASE_COLORS = {
-  PRE_MARKET:     '#21262d',
-  PRE_SIGNAL:     '#21262d',
-  DRIVE_WINDOW:   '#1f2d1f',
-  EXECUTION:      '#1a2d1a',
-  TRANSITION:     '#1e2a1e',
-  MID_SESSION:    '#21262d',
-  DEAD_ZONE:      '#2d2118',
-  CLOSE_MOMENTUM: '#1e2840',
-  SESSION_END:    '#2d1818',
-  POST_MARKET:    '#21262d',
-};
-const PHASE_TEXT_COLORS = {
-  DRIVE_WINDOW:   '#3fb950',
-  EXECUTION:      '#2ea043',
-  CLOSE_MOMENTUM: '#58a6ff',
-  SESSION_END:    '#f85149',
-  DEAD_ZONE:      '#d29922',
-};
-
-function setPhase(phase) {
-  const badge = document.getElementById('phase-badge');
-  badge.textContent = phase.replace(/_/g, ' ');
-  badge.style.background = PHASE_COLORS[phase] || '#21262d';
-  badge.style.color      = PHASE_TEXT_COLORS[phase] || '#8b949e';
-}
-
-// ── Index bias ────────────────────────────────────────────────────────────────
-function setBias(id, direction) {
-  const el = document.getElementById(id);
-  el.textContent  = direction === 'NEUTRAL' ? '—' : (direction === 'BULLISH' ? '↑' : '↓') + ' ' + direction;
-  el.className    = direction === 'BULLISH' ? 'bias-bull' : direction === 'BEARISH' ? 'bias-bear' : 'bias-neut';
-}
-
-// ── Status polling (index bias + phase) ───────────────────────────────────────
-async function pollStatus() {
-  try {
-    const r = await fetch('/api/v1/status');
-    if (!r.ok) return;
-    const d = await r.json();
-    setPhase(d.session_phase || 'PRE_MARKET');
-    if (d.index_bias) {
-      setBias('bias-nifty',     d.index_bias.nifty);
-      setBias('bias-banknifty', d.index_bias.banknifty);
-      setBias('bias-sensex',    d.index_bias.sensex);
-    }
-  } catch (_) {}
-}
-setInterval(pollStatus, 10_000);
-pollStatus();
-
-// ── Signal card rendering ─────────────────────────────────────────────────────
-const MAX_CARDS = 30;
-let cardCount   = 0;
-
-function fmt(v) { return v != null ? Number(v).toFixed(2) : null; }
-
-function timeStr(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false });
-}
-
-function renderCard(s) {
-  const feed  = document.getElementById('feed');
-  const empty = document.getElementById('empty');
-  if (empty) empty.remove();
-
-  const card = document.createElement('div');
-  card.className = `card ${s.signal_type}`;
-  card.id = `card-${s.id}`;
-
-  const dotClass = `dot-${s.direction}`;
-  const typeLabel = s.signal_type.replace(/_/g, ' ');
-
-  let levelsHtml = '';
-  const lvs = [];
-
-  if (s.entry_low != null && s.entry_high != null)
-    lvs.push(`<div class="lv"><span>Entry</span><span class="val entry">${fmt(s.entry_low)}–${fmt(s.entry_high)}</span></div>`);
-  if (s.stop != null)
-    lvs.push(`<div class="lv"><span>Stop</span><span class="val stop">${fmt(s.stop)}</span></div>`);
-  if (s.target_1 != null)
-    lvs.push(`<div class="lv"><span>T1</span><span class="val t1">${fmt(s.target_1)}</span></div>`);
-  if (s.target_2 != null)
-    lvs.push(`<div class="lv"><span>T2</span><span class="val t2">${fmt(s.target_2)}</span></div>`);
-  if (s.trail_stop != null)
-    lvs.push(`<div class="lv"><span>Trail</span><span class="val trail">${fmt(s.trail_stop)}</span></div>`);
-
-  if (lvs.length) levelsHtml = `<div class="levels">${lvs.join('')}</div>`;
-
-  const msgHtml = s.message ? `<div class="card-msg">${s.message}</div>` : '';
-
-  card.innerHTML = `
-    <div class="card-header">
-      <div class="card-title">
-        <div class="signal-dot ${dotClass}"></div>
-        <strong>${s.symbol}</strong>
-        <span class="card-type">${typeLabel}</span>
-      </div>
-      <span class="card-time">${timeStr(s.timestamp)}</span>
-    </div>
-    ${levelsHtml}
-    ${msgHtml}
-  `;
-
-  feed.insertBefore(card, feed.firstChild);
-  cardCount++;
-
-  // Trim old cards.
-  if (cardCount > MAX_CARDS) {
-    const cards = feed.querySelectorAll('.card');
-    if (cards.length > MAX_CARDS) {
-      cards[cards.length - 1].remove();
-      cardCount--;
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          surface: '#161b22',
+          base:    '#0d1117',
+          border:  '#30363d',
+          muted:   '#8b949e',
+          subtle:  '#21262d',
+        },
+        keyframes: {
+          'slide-in': {
+            '0%':   { opacity: '0', transform: 'translateY(-4px)' },
+            '100%': { opacity: '1', transform: 'translateY(0)' },
+          },
+        },
+        animation: {
+          'slide-in': 'slide-in 0.18s ease',
+        },
+      }
     }
   }
-}
-
-function handleSignal(s) {
-  // Update existing trail card if one exists for this symbol, else create new.
-  if (s.signal_type === 'TRAIL_UPDATE') {
-    const existing = document.getElementById(`trail-${s.symbol}`);
-    if (existing) {
-      existing.querySelector('.val.trail').textContent = fmt(s.trail_stop);
-      existing.querySelector('.card-time').textContent = timeStr(s.timestamp);
-      return;
-    }
-    const card = renderCard(s);
-    // Mark for in-place update next time.
-    const el = document.getElementById(`card-${s.id}`);
-    if (el) el.id = `trail-${s.symbol}`;
-    return;
-  }
-
-  renderCard(s);
-  alertSound(s.signal_type);
-
-  // Browser tab notification.
-  if (document.hidden) {
-    const orig = document.title;
-    let blink  = 0;
-    const iv = setInterval(() => {
-      document.title = blink++ % 2 === 0 ? `⚡ ${s.symbol}` : orig;
-      if (blink > 8) { clearInterval(iv); document.title = orig; }
-    }, 600);
-  }
-}
-
-// ── SSE connection ────────────────────────────────────────────────────────────
-const connEl = document.getElementById('conn-status');
-let source   = null;
-
-function connect() {
-  if (source) source.close();
-  connEl.textContent = 'Connecting…';
-  connEl.className   = 'connecting';
-
-  source = new EventSource('/api/v1/signals/stream');
-
-  source.onopen = () => {
-    connEl.textContent = 'Connected';
-    connEl.className   = 'conn-status connected';
-  };
-
-  source.onmessage = (e) => {
-    try {
-      const sig = JSON.parse(e.data);
-      handleSignal(sig);
-    } catch (_) {}
-  };
-
-  source.onerror = () => {
-    connEl.textContent = 'Reconnecting…';
-    connEl.className   = 'conn-status disconnected';
-    source.close();
-    setTimeout(connect, 3000);
-  };
-}
-
-// Unlock audio on first user interaction (browser autoplay policy).
-document.addEventListener('click', () => {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  audioCtx.resume();
-}, { once: true });
-
-connect();
 </script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+
+<body
+  class="bg-base text-[#e6edf3] font-['Segoe_UI',system-ui,monospace] text-sm h-screen flex flex-col overflow-hidden"
+  x-data="cockpit()"
+  x-init="init()"
+>
+
+<!-- ═══════════════════════════════════════════════════════════ Header ═══ -->
+<header class="shrink-0 flex items-center justify-between px-4 py-2 bg-surface border-b border-border z-20">
+  <h1 class="text-sm font-semibold tracking-widest text-[#58a6ff]">TRADER COCKPIT</h1>
+
+  <div class="flex items-center gap-3">
+    <!-- Index bias pills -->
+    <div class="hidden sm:flex items-center gap-3 text-xs font-semibold">
+      <template x-for="idx in ['nifty','banknifty','sensex']" :key="idx">
+        <span class="flex items-center gap-1">
+          <span class="text-muted uppercase" x-text="idx"></span>
+          <span
+            :class="{
+              'text-[#3fb950]': bias[idx] === 'BULLISH',
+              'text-[#f85149]': bias[idx] === 'BEARISH',
+              'text-muted':     bias[idx] !== 'BULLISH' && bias[idx] !== 'BEARISH',
+            }"
+            x-text="bias[idx] === 'BULLISH' ? '↑' : bias[idx] === 'BEARISH' ? '↓' : '—'"
+          ></span>
+        </span>
+      </template>
+    </div>
+
+    <!-- Phase badge -->
+    <span
+      class="text-[11px] font-bold tracking-wide px-2 py-0.5 rounded"
+      :style="phaseBadgeStyle()"
+      x-text="phase.replace(/_/g,' ')"
+    ></span>
+
+    <!-- Clock -->
+    <span class="text-muted text-xs tabular-nums" x-text="clock"></span>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════ Filter toolbar ═══ -->
+<div class="shrink-0 flex items-center justify-between px-4 py-1.5 bg-surface border-b border-[#21262d] gap-3 z-10">
+
+  <!-- Filter tabs -->
+  <div class="flex items-center gap-1.5">
+    <template x-for="tab in tabs" :key="tab.key">
+      <button
+        @click="setFilter(tab.key)"
+        :class="[
+          'text-[11px] font-bold tracking-wide px-3 py-1 rounded border transition-colors',
+          filter === tab.key ? tab.activeClass : 'bg-subtle border-border text-muted hover:text-[#e6edf3] hover:border-[#58a6ff]'
+        ]"
+        x-text="tab.label"
+      ></button>
+    </template>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <!-- Value (ADV) filter -->
+    <div class="flex items-center gap-1">
+      <span class="text-muted text-[10px] mr-0.5 hidden sm:block">VALUE</span>
+      <template x-for="tier in valueTiers" :key="tier.cr">
+        <button
+          @click="minValue = tier.cr"
+          :class="[
+            'text-[10px] font-bold px-2 py-1 rounded border transition-colors',
+            minValue === tier.cr
+              ? 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]'
+              : 'bg-subtle border-border text-muted hover:border-[#58a6ff] hover:text-[#e6edf3]'
+          ]"
+          x-text="tier.label"
+        ></button>
+      </template>
+    </div>
+
+    <!-- Signal count -->
+    <span class="text-muted text-[11px] tabular-nums hidden sm:block">
+      <span x-text="filteredSignals.length"></span> / <span x-text="signals.length"></span>
+    </span>
+
+    <!-- Clear button -->
+    <button
+      @click="signals = []"
+      class="text-[11px] font-semibold text-muted hover:text-[#f85149] border border-border hover:border-[#f85149] px-2.5 py-1 rounded transition-colors"
+    >CLEAR</button>
+
+    <!-- Pause / Resume -->
+    <button
+      @click="togglePause()"
+      :class="[
+        'text-[11px] font-bold px-3 py-1 rounded border flex items-center gap-1.5 transition-colors',
+        paused
+          ? 'bg-[#2d2118] border-[#d29922] text-[#d29922]'
+          : 'bg-subtle border-border text-muted hover:border-[#d29922] hover:text-[#d29922]'
+      ]"
+    >
+      <span x-text="paused ? '▶' : '⏸'"></span>
+      <span x-text="paused ? 'RESUME' : 'PAUSE'"></span>
+      <span
+        x-show="paused && pending.length > 0"
+        x-text="pending.length"
+        class="bg-[#d29922] text-[#0d1117] text-[10px] font-black px-1.5 rounded-full"
+      ></span>
+    </button>
+
+    <!-- History toggle -->
+    <button
+      @click="toggleHistory()"
+      :class="[
+        'text-[11px] font-bold px-3 py-1 rounded border flex items-center gap-1.5 transition-colors',
+        historyMode
+          ? 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]'
+          : 'bg-subtle border-border text-muted hover:border-[#58a6ff] hover:text-[#58a6ff]'
+      ]"
+    >
+      <span x-text="historyMode ? '← LIVE' : '⏮ HISTORY'"></span>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ Signal feed ═══ -->
+<div class="flex-1 overflow-y-auto p-4" id="feed" x-show="!historyMode">
+
+  <!-- Empty state -->
+  <div x-show="signals.length === 0" class="flex flex-col items-center justify-center h-full text-muted text-xs gap-2">
+    <span class="text-2xl">📡</span>
+    <span>Waiting for signals — market opens at 09:15 IST</span>
+  </div>
+
+  <!-- Card grid -->
+  <div class="flex flex-wrap gap-4 content-start">
+    <template x-for="s in filteredSignals" :key="s.id">
+      <div class="relative animate-slide-in">
+
+        <!-- Count badge — corner notification -->
+        <template x-if="s._count > 1">
+          <div class="absolute -top-2.5 -right-2.5 z-10 min-w-[22px] h-[22px] px-1 rounded-full text-[#0d1117] text-[11px] font-black flex items-center justify-center leading-none shadow"
+               style="background:#d29922">
+            <span x-text="s._count"></span>
+          </div>
+        </template>
+
+        <!-- Card -->
+        <div class="w-52 rounded-xl overflow-hidden border border-[#30363d]"
+             :style="cardStyle(s.signal_type)">
+
+          <!-- Coloured top bar -->
+          <div class="h-1 w-full" :style="'background:' + signalColor(s.signal_type)"></div>
+
+          <!-- Symbol row -->
+          <div class="flex items-center justify-between px-3 pt-2 pb-0.5">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full shrink-0" :style="'background:' + dirColor(s.direction)"></span>
+              <span class="font-bold text-[13px] tracking-wide" x-text="s.symbol"></span>
+            </div>
+            <!-- Type badge with tooltip hint -->
+            <span class="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded cursor-default"
+                  :style="typeStyle(s.signal_type)"
+                  :title="signalDesc(s.signal_type)"
+                  x-text="shortType(s.signal_type)"></span>
+          </div>
+
+          <!-- Signal description (small subtitle) -->
+          <p class="px-3 pb-1 text-[10px] leading-tight" :style="'color:' + signalColor(s.signal_type) + ';opacity:0.75'" x-text="signalDesc(s.signal_type)"></p>
+
+          <!-- Price + Vol -->
+          <div class="flex items-baseline justify-between px-3 pb-2">
+            <span class="font-mono font-bold text-[16px] text-[#e6edf3] tabular-nums" x-text="s.price ? Number(s.price).toFixed(2) : '—'"></span>
+            <span x-show="s.volume_ratio != null" class="text-[10px]" style="color:#8b949e">
+              Vol <span style="color:#e6edf3;font-weight:600" x-text="s.volume_ratio ? Number(s.volume_ratio).toFixed(1)+'×' : ''"></span>
+            </span>
+          </div>
+
+          <!-- Entry / SL / T1 levels -->
+          <template x-if="s.entry_low != null || s.stop != null">
+            <div class="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-[10px]" style="color:#8b949e">
+              <span x-show="s.entry_low != null">E <span style="color:#d29922;font-weight:600" x-text="fmt(s.entry_low)+'–'+fmt(s.entry_high)"></span></span>
+              <span x-show="s.stop != null">SL <span style="color:#f85149;font-weight:600" x-text="fmt(s.stop)"></span></span>
+              <span x-show="s.target_1 != null">T1 <span style="color:#3fb950;font-weight:600" x-text="fmt(s.target_1)"></span></span>
+              <span x-show="s.trail_stop != null">Trail <span style="color:#58a6ff;font-weight:600" x-text="fmt(s.trail_stop)"></span></span>
+            </div>
+          </template>
+
+          <!-- Metrics (reactive: reads directly from metricsCache) -->
+          <template x-if="metricsCache[s.symbol]">
+            <div class="border-t px-3 py-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]"
+                 style="border-color:#21262d;color:#8b949e">
+
+              <span x-show="metricsCache[s.symbol].day_high && s.price">DH
+                <span class="font-semibold tabular-nums"
+                      :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_high) / metricsCache[s.symbol].day_high * 100) < 1 ? '#3fb950' : '#e6edf3')"
+                      x-text="pct(s.price, metricsCache[s.symbol].day_high)"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].day_low && s.price">DL
+                <span class="font-semibold tabular-nums"
+                      :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_low) / metricsCache[s.symbol].day_low * 100) < 1 ? '#f85149' : '#e6edf3')"
+                      x-text="pct(s.price, metricsCache[s.symbol].day_low)"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].week52_high && s.price">52H
+                <span class="font-semibold tabular-nums"
+                      :style="'color:' + (s.price / metricsCache[s.symbol].week52_high >= 0.95 ? '#3fb950' : s.price / metricsCache[s.symbol].week52_high < 0.6 ? '#f85149' : '#e6edf3')"
+                      x-text="pct(s.price, metricsCache[s.symbol].week52_high)"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].week52_low && s.price">52L
+                <span class="font-semibold tabular-nums"
+                      :style="'color:' + (s.price / metricsCache[s.symbol].week52_low < 1.05 ? '#f85149' : '#3fb950')"
+                      x-text="'+' + pct(s.price, metricsCache[s.symbol].week52_low)"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].atr_14">ATR
+                <span class="font-semibold" style="color:#d29922" x-text="fmt(metricsCache[s.symbol].atr_14)"></span>
+              </span>
+
+              <span x-show="metricsCache[s.symbol].adv_20_cr != null">ADV
+                <span class="font-semibold tabular-nums"
+                      :style="'color:' + (metricsCache[s.symbol].adv_20_cr >= 500 ? '#3fb950' : metricsCache[s.symbol].adv_20_cr >= 100 ? '#d29922' : metricsCache[s.symbol].adv_20_cr >= 25 ? '#e6edf3' : '#8b949e')"
+                      x-text="metricsCache[s.symbol].adv_20_cr >= 100 ? Math.round(metricsCache[s.symbol].adv_20_cr)+'Cr' : metricsCache[s.symbol].adv_20_cr.toFixed(1)+'Cr'"></span>
+              </span>
+
+            </div>
+          </template>
+
+          <!-- Footer: O=H / O=L + time -->
+          <div class="flex items-center justify-between px-3 py-1.5 border-t" style="border-color:#21262d">
+            <div class="flex gap-1">
+              <template x-if="metricsCache[s.symbol] && metricsCache[s.symbol].day_high && metricsCache[s.symbol].day_open && Math.abs(metricsCache[s.symbol].day_high - metricsCache[s.symbol].day_open) / metricsCache[s.symbol].day_open < 0.001">
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-black" style="background:#2d1818;color:#f85149">O=H ↓</span>
+              </template>
+              <template x-if="metricsCache[s.symbol] && metricsCache[s.symbol].day_low && metricsCache[s.symbol].day_open && Math.abs(metricsCache[s.symbol].day_open - metricsCache[s.symbol].day_low) / metricsCache[s.symbol].day_open < 0.001">
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-black" style="background:#1a2d1a;color:#3fb950">O=L ↑</span>
+              </template>
+            </div>
+            <span class="text-[10px] tabular-nums" style="color:#8b949e" x-text="timeStr(s.timestamp)"></span>
+          </div>
+
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ History panel ═══ -->
+<div class="flex-1 flex flex-col overflow-hidden" x-show="historyMode">
+
+  <!-- Date picker bar -->
+  <div class="shrink-0 flex items-center gap-2 px-4 py-2 bg-surface border-b border-border flex-wrap">
+    <span class="text-muted text-[11px] font-bold tracking-wider">DATE</span>
+    <input
+      type="date"
+      x-model="historyDate"
+      @change="loadHistory()"
+      class="bg-subtle border border-border text-[#e6edf3] text-xs rounded px-2 py-0.5 focus:outline-none focus:border-[#58a6ff]"
+    />
+    <template x-for="d in historyDates.slice(0, 7)" :key="d">
+      <button
+        @click="historyDate = d; loadHistory()"
+        :class="[
+          'text-[10px] font-bold px-2 py-1 rounded border transition-colors',
+          historyDate === d
+            ? 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]'
+            : 'bg-subtle border-border text-muted hover:border-[#58a6ff] hover:text-[#e6edf3]'
+        ]"
+        x-text="d"
+      ></button>
+    </template>
+    <span x-show="historyLoading" class="text-muted text-[11px] animate-pulse">Loading…</span>
+    <span x-show="!historyLoading && historySignals.length > 0" class="text-muted text-[11px] ml-auto">
+      <span x-text="filteredHistory.length"></span> / <span x-text="historySignals.length"></span> signals
+    </span>
+  </div>
+
+  <!-- History cards -->
+  <div class="flex-1 overflow-y-auto p-4">
+
+    <div x-show="historyLoading" class="flex flex-col items-center justify-center h-full text-muted text-xs gap-2">
+      <span class="text-2xl animate-pulse">⏳</span>
+      <span>Loading history…</span>
+    </div>
+
+    <div x-show="!historyLoading && historySignals.length === 0" class="flex flex-col items-center justify-center h-full text-muted text-xs gap-2">
+      <span class="text-2xl">📂</span>
+      <span>No signals saved for <span x-text="historyDate"></span></span>
+    </div>
+
+    <div class="flex flex-wrap gap-4 content-start">
+      <template x-for="s in filteredHistory" :key="s.symbol + s.signal_type + s.timestamp">
+        <div class="relative animate-slide-in">
+          <div class="w-52 rounded-xl overflow-hidden border border-[#30363d]"
+               :style="cardStyle(s.signal_type)">
+            <div class="h-1 w-full" :style="'background:' + signalColor(s.signal_type)"></div>
+            <div class="flex items-center justify-between px-3 pt-2 pb-0.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full shrink-0" :style="'background:' + dirColor(s.direction)"></span>
+                <span class="font-bold text-[13px] tracking-wide" x-text="s.symbol"></span>
+              </div>
+              <span class="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded cursor-default"
+                    :style="typeStyle(s.signal_type)"
+                    :title="signalDesc(s.signal_type)"
+                    x-text="shortType(s.signal_type)"></span>
+            </div>
+            <p class="px-3 pb-1 text-[10px] leading-tight" :style="'color:' + signalColor(s.signal_type) + ';opacity:0.75'" x-text="signalDesc(s.signal_type)"></p>
+            <div class="flex items-baseline justify-between px-3 pb-2">
+              <span class="font-mono font-bold text-[16px] text-[#e6edf3] tabular-nums" x-text="s.price ? Number(s.price).toFixed(2) : '—'"></span>
+              <span x-show="s.volume_ratio != null" class="text-[10px]" style="color:#8b949e">
+                Vol <span style="color:#e6edf3;font-weight:600" x-text="s.volume_ratio ? Number(s.volume_ratio).toFixed(1)+'×' : ''"></span>
+              </span>
+            </div>
+            <template x-if="s.entry_low != null || s.stop != null">
+              <div class="flex flex-wrap gap-x-3 gap-y-0.5 px-3 pb-2 text-[10px]" style="color:#8b949e">
+                <span x-show="s.entry_low != null">E <span style="color:#d29922;font-weight:600" x-text="fmt(s.entry_low)+'–'+fmt(s.entry_high)"></span></span>
+                <span x-show="s.stop != null">SL <span style="color:#f85149;font-weight:600" x-text="fmt(s.stop)"></span></span>
+                <span x-show="s.target_1 != null">T1 <span style="color:#3fb950;font-weight:600" x-text="fmt(s.target_1)"></span></span>
+                <span x-show="s.trail_stop != null">Trail <span style="color:#58a6ff;font-weight:600" x-text="fmt(s.trail_stop)"></span></span>
+              </div>
+            </template>
+            <template x-if="metricsCache[s.symbol]">
+              <div class="border-t px-3 py-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]"
+                   style="border-color:#21262d;color:#8b949e">
+                <span x-show="metricsCache[s.symbol].day_high && s.price">DH
+                  <span class="font-semibold tabular-nums"
+                        :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_high) / metricsCache[s.symbol].day_high * 100) < 1 ? '#3fb950' : '#e6edf3')"
+                        x-text="pct(s.price, metricsCache[s.symbol].day_high)"></span>
+                </span>
+                <span x-show="metricsCache[s.symbol].day_low && s.price">DL
+                  <span class="font-semibold tabular-nums"
+                        :style="'color:' + (Math.abs((s.price - metricsCache[s.symbol].day_low) / metricsCache[s.symbol].day_low * 100) < 1 ? '#f85149' : '#e6edf3')"
+                        x-text="pct(s.price, metricsCache[s.symbol].day_low)"></span>
+                </span>
+                <span x-show="metricsCache[s.symbol].week52_high && s.price">52H
+                  <span class="font-semibold tabular-nums"
+                        :style="'color:' + (s.price / metricsCache[s.symbol].week52_high >= 0.95 ? '#3fb950' : s.price / metricsCache[s.symbol].week52_high < 0.6 ? '#f85149' : '#e6edf3')"
+                        x-text="pct(s.price, metricsCache[s.symbol].week52_high)"></span>
+                </span>
+                <span x-show="metricsCache[s.symbol].week52_low && s.price">52L
+                  <span class="font-semibold tabular-nums"
+                        :style="'color:' + (s.price / metricsCache[s.symbol].week52_low < 1.05 ? '#f85149' : '#3fb950')"
+                        x-text="'+' + pct(s.price, metricsCache[s.symbol].week52_low)"></span>
+                </span>
+                <span x-show="metricsCache[s.symbol].atr_14">ATR
+                  <span class="font-semibold" style="color:#d29922" x-text="fmt(metricsCache[s.symbol].atr_14)"></span>
+                </span>
+                <span x-show="metricsCache[s.symbol].adv_20_cr != null">ADV
+                  <span class="font-semibold tabular-nums"
+                        :style="'color:' + (metricsCache[s.symbol].adv_20_cr >= 500 ? '#3fb950' : metricsCache[s.symbol].adv_20_cr >= 100 ? '#d29922' : metricsCache[s.symbol].adv_20_cr >= 25 ? '#e6edf3' : '#8b949e')"
+                        x-text="metricsCache[s.symbol].adv_20_cr >= 100 ? Math.round(metricsCache[s.symbol].adv_20_cr)+'Cr' : metricsCache[s.symbol].adv_20_cr.toFixed(1)+'Cr'"></span>
+                </span>
+              </div>
+            </template>
+            <div class="flex items-center justify-between px-3 py-1.5 border-t" style="border-color:#21262d">
+              <span class="text-[10px] font-bold" style="color:#58a6ff" x-text="timeStr(s.timestamp)"></span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ Connection indicator ═══ -->
+<div
+  id="conn-status"
+  class="fixed bottom-3 right-4 text-[11px] px-3 py-1 rounded-full bg-subtle"
+  :class="{
+    'text-[#3fb950]': connState === 'connected',
+    'text-[#f85149]': connState === 'disconnected',
+    'text-[#d29922]': connState === 'connecting',
+  }"
+  x-text="connState === 'connected' ? 'Connected' : connState === 'disconnected' ? 'Reconnecting…' : 'Connecting…'"
+></div>
+
+<!-- ══════════════════════════════════════════════════════════ Scripts ═══ -->
+<script src="/api/v1/ui/cockpit.js"></script>
 </body>
 </html>

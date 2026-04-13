@@ -71,23 +71,27 @@ class SubscriptionManager:
     index_futures  : index future InstrumentMeta records (market proxy)
     client_id      : Dhan client ID
     access_token   : Dhan access token
-    reconnect_delay_s : initial reconnect delay passed to each client
-    batch_size     : instruments per WebSocket connection (default 1000)
+    reconnect_delay_s    : initial reconnect delay passed to each client
+    batch_size           : instruments per WebSocket connection (default 1000)
+    connection_stagger_s : seconds to wait between starting successive connections
+                           to avoid simultaneous connect bursts that trigger HTTP 429
     """
 
     def __init__(
         self,
-        equities:          list[InstrumentMeta],
-        index_futures:     list[InstrumentMeta],
-        client_id:         str,
-        token_getter:      Callable[[], Awaitable[str]],
-        reconnect_delay_s: float = 5.0,
-        batch_size:        int   = WS_BATCH_SIZE,
+        equities:              list[InstrumentMeta],
+        index_futures:         list[InstrumentMeta],
+        client_id:             str,
+        token_getter:          Callable[[], Awaitable[str]],
+        reconnect_delay_s:     float = 5.0,
+        batch_size:            int   = WS_BATCH_SIZE,
+        connection_stagger_s:  float = 3.0,
     ) -> None:
-        self._client_id         = client_id
-        self._token_getter      = token_getter
-        self._reconnect_delay_s = reconnect_delay_s
-        self._batch_size        = batch_size
+        self._client_id              = client_id
+        self._token_getter           = token_getter
+        self._reconnect_delay_s      = reconnect_delay_s
+        self._batch_size             = batch_size
+        self._connection_stagger_s   = connection_stagger_s
 
         self._clients: list[DhanWebSocketClient] = []
         self._tasks:   list[asyncio.Task]         = []
@@ -100,17 +104,21 @@ class SubscriptionManager:
     # ── Public interface ───────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        """Launch all WebSocket clients and drain tasks."""
+        """Launch all WebSocket clients and drain tasks, staggered to avoid 429s."""
         for idx, client in enumerate(self._clients):
-            ws_task    = asyncio.create_task(client.run(), name=f"dhan-ws-{idx}")
+            stagger = idx * self._connection_stagger_s
+            ws_task = asyncio.create_task(
+                self._delayed_run(client, stagger), name=f"dhan-ws-{idx}"
+            )
             drain_task = asyncio.create_task(
                 self._drain(client.queue), name=f"dhan-drain-{idx}"
             )
             self._tasks.extend([ws_task, drain_task])
 
         logger.info(
-            "SubscriptionManager: %d WebSocket connection(s) started",
-            len(self._clients),
+            "SubscriptionManager: %d WebSocket connection(s) started "
+            "(staggered %.1fs apart)",
+            len(self._clients), self._connection_stagger_s,
         )
 
     async def stop(self) -> None:
@@ -137,12 +145,16 @@ class SubscriptionManager:
         self._tasks = [t for t in self._tasks if not t.get_name().startswith("dhan-ws-")]
 
         for idx, client in enumerate(self._clients):
-            ws_task = asyncio.create_task(client.run(), name=f"dhan-ws-{idx}")
+            stagger = idx * self._connection_stagger_s
+            ws_task = asyncio.create_task(
+                self._delayed_run(client, stagger), name=f"dhan-ws-{idx}"
+            )
             self._tasks.append(ws_task)
 
         logger.info(
-            "SubscriptionManager: %d WebSocket connection(s) reconnecting with fresh token",
-            len(self._clients),
+            "SubscriptionManager: %d WebSocket connection(s) reconnecting with fresh token "
+            "(staggered %.1fs apart)",
+            len(self._clients), self._connection_stagger_s,
         )
 
     def connection_count(self) -> int:
@@ -187,6 +199,13 @@ class SubscriptionManager:
             "(%d equities, %d index futures)",
             total, len(self._clients), len(equities), len(index_futures),
         )
+
+    async def _delayed_run(self, client: DhanWebSocketClient, delay_s: float) -> None:
+        """Sleep for delay_s then run the client (used to stagger connect attempts)."""
+        if delay_s > 0:
+            logger.debug("Staggering connection start by %.1fs", delay_s)
+            await asyncio.sleep(delay_s)
+        await client.run()
 
     async def _drain(self, source: asyncio.Queue[dict]) -> None:
         """Forward ticks from a client queue to the merged tick_queue."""
