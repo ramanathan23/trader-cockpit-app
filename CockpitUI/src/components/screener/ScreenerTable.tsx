@@ -17,25 +17,34 @@ const COLS: { key: string; label: string; title?: string; align?: 'left' | 'righ
   { key: 'symbol',        label: 'SYMBOL',  align: 'left' },
   { key: 'adv_20_cr',     label: 'ADV' },
   { key: 'atr_14',        label: 'ATR' },
-  { key: 'prev_day_close', label: 'CLOSE' },
+  { key: 'display_price', label: 'PRICE', title: 'Live price when available, otherwise previous close' },
+  { key: 'dvwap_delta_pct', label: 'DVWAP%', title: '% above or below the current session VWAP' },
+  { key: 'ema50_delta_pct', label: '50E%', title: '% above or below the 50-day EMA' },
+  { key: 'ema200_delta_pct', label: '200E%', title: '% above or below the 200-day EMA' },
   { key: 'f52h',          label: '52H%',   title: '% below 52-week high (0 = at high)' },
   { key: 'f52l',          label: '52L%',   title: '% above 52-week low' },
-  { key: 'prev_day_high', label: 'PDH' },
-  { key: 'prev_day_low',  label: 'PDL' },
-  { key: 'prev_week_high', label: 'PWH' },
-  { key: 'prev_week_low',  label: 'PWL' },
-  { key: 'prev_month_high', label: 'PMH' },
-  { key: 'prev_day_close', label: 'PMC' },  // last column is prev month close alias
+  { key: 'week_return_pct', label: 'WK%', title: '% return versus 5 trading sessions ago' },
+  { key: 'week_gain_pct', label: 'W+%', title: '% above the rolling 5-session low' },
+  { key: 'week_decline_pct', label: 'W-%', title: '% below the rolling 5-session high' },
 ];
 
 const SortArrow = ({ col, sortCol, sortAsc }: { col: string; sortCol: string; sortAsc: boolean }) =>
   sortCol === col ? <span className="ml-0.5">{sortAsc ? '▲' : '▼'}</span> : null;
 
-const Num = ({ v, decimals = 2 }: { v?: number | null; decimals?: number }) => (
-  <span className="font-mono tabular-nums text-muted">
-    {v != null ? v.toFixed(decimals) : '—'}
-  </span>
-);
+function pctColor(value?: number | null, invert = false): string {
+  if (value == null) return '#2a3f58';
+  const score = invert ? -value : value;
+  if (score >= 2) return '#0dbd7d';
+  if (score >= 0) return '#c5d8f0';
+  if (score >= -3) return '#e8933a';
+  return '#f23d55';
+}
+
+function pctText(value?: number | null, forcePlus = false): string {
+  if (value == null) return '—';
+  const prefix = value > 0 || (forcePlus && value >= 0) ? '+' : '';
+  return `${prefix}${value.toFixed(1)}%`;
+}
 
 export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: ScreenerTableProps) => {
   if (loading) {
@@ -109,7 +118,16 @@ const ScreenerTableRow = memo(({ row: r }: { row: ScreenerRow }) => {
         <span className="num">{r.atr_14 != null ? r.atr_14.toFixed(2) : '—'}</span>
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-fg">
-        <span className="num font-semibold">{fmt2(r.prev_day_close)}</span>
+        <span className="num font-semibold">{fmt2(r.display_price)}</span>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>
+        <span className="num">{pctText(r.dvwap_delta_pct, true)}</span>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>
+        <span className="num">{pctText(r.ema50_delta_pct, true)}</span>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>
+        <span className="num">{pctText(r.ema200_delta_pct, true)}</span>
       </td>
       <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: f52hColor }}>
         <span className="num">{r.f52h != null ? (r.f52h >= 0 ? '+' : '') + r.f52h.toFixed(1) + '%' : '—'}</span>
@@ -117,12 +135,15 @@ const ScreenerTableRow = memo(({ row: r }: { row: ScreenerRow }) => {
       <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: f52lColor }}>
         <span className="num">{r.f52l != null ? '+' + r.f52l.toFixed(1) + '%' : '—'}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_day_high != null ? r.prev_day_high.toFixed(2) : '—'}</span></td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_day_low  != null ? r.prev_day_low.toFixed(2)  : '—'}</span></td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_week_high != null ? r.prev_week_high.toFixed(2) : '—'}</span></td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_week_low  != null ? r.prev_week_low.toFixed(2)  : '—'}</span></td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_month_high != null ? r.prev_month_high.toFixed(2) : '—'}</span></td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#2a3f58' }}><span className="num">{r.prev_day_close  != null ? r.prev_day_close.toFixed(2)  : '—'}</span></td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_return_pct) }}>
+        <span className="num">{pctText(r.week_return_pct, true)}</span>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_gain_pct, true) }}>
+        <span className="num">{pctText(r.week_gain_pct, true)}</span>
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_decline_pct, true) }}>
+        <span className="num">{pctText(r.week_decline_pct)}</span>
+      </td>
     </tr>
   );
 });

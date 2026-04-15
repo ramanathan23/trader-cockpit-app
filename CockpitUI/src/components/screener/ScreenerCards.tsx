@@ -29,6 +29,9 @@ ProximityBar.displayName = 'ProximityBar';
 const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
   const f52hColor = r.f52h == null ? '#2a3f58' : r.f52h >= -2 ? '#0dbd7d' : r.f52h >= -10 ? '#e8933a' : '#f23d55';
   const f52lColor = r.f52l == null ? '#2a3f58' : r.f52l > 50  ? '#0dbd7d' : r.f52l > 20   ? '#e8933a' : '#f23d55';
+  const dvwapColor = r.dvwap_delta_pct == null ? '#2a3f58' : r.dvwap_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
+  const ema50Color = r.ema50_delta_pct == null ? '#2a3f58' : r.ema50_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
+  const ema200Color = r.ema200_delta_pct == null ? '#2a3f58' : r.ema200_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
 
   return (
     <div className="w-44 rounded-md border border-border bg-card hover:bg-lift transition-colors p-3 flex flex-col gap-2.5">
@@ -47,12 +50,24 @@ const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
 
       {/* Close price + ATR */}
       <div className="flex items-baseline gap-2">
-        <span className="num font-bold text-[15px] text-fg tabular-nums">{fmt2(r.prev_day_close)}</span>
+        <span className="num font-bold text-[15px] text-fg tabular-nums">{fmt2(r.display_price)}</span>
         {r.atr_14 != null && (
           <span className="text-[9px]" style={{ color: '#2a3f58' }}>
             ATR <span className="num" style={{ color: '#e8933a' }}>{r.atr_14.toFixed(2)}</span>
           </span>
         )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-1 text-[9px]">
+        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: dvwapColor, background: `${dvwapColor}15` }}>
+          DV {r.dvwap_delta_pct != null ? `${r.dvwap_delta_pct >= 0 ? '+' : ''}${r.dvwap_delta_pct.toFixed(1)}%` : '—'}
+        </span>
+        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: ema50Color, background: `${ema50Color}15` }}>
+          50E {r.ema50_delta_pct != null ? `${r.ema50_delta_pct >= 0 ? '+' : ''}${r.ema50_delta_pct.toFixed(1)}%` : '—'}
+        </span>
+        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: ema200Color, background: `${ema200Color}15` }}>
+          200E {r.ema200_delta_pct != null ? `${r.ema200_delta_pct >= 0 ? '+' : ''}${r.ema200_delta_pct.toFixed(1)}%` : '—'}
+        </span>
       </div>
 
       {/* 52H proximity */}
@@ -77,12 +92,10 @@ const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
         <ProximityBar pct={r.f52l} />
       </div>
 
-      {/* Level grid */}
-      <div className="grid grid-cols-2 gap-1 text-[9px]" style={{ color: '#1e2e4a' }}>
-        {r.prev_day_high  && <span>PDH <span className="num" style={{ color: '#5a7796' }}>{fmt2(r.prev_day_high)}</span></span>}
-        {r.prev_day_low   && <span>PDL <span className="num" style={{ color: '#5a7796' }}>{fmt2(r.prev_day_low)}</span></span>}
-        {r.prev_week_high && <span>PWH <span className="num" style={{ color: '#5a7796' }}>{fmt2(r.prev_week_high)}</span></span>}
-        {r.prev_week_low  && <span>PWL <span className="num" style={{ color: '#5a7796' }}>{fmt2(r.prev_week_low)}</span></span>}
+      <div className="grid grid-cols-3 gap-1 text-[9px]" style={{ color: '#1e2e4a' }}>
+        <span>WK <span className="num" style={{ color: '#5a7796' }}>{r.week_return_pct != null ? `${r.week_return_pct >= 0 ? '+' : ''}${r.week_return_pct.toFixed(1)}%` : '—'}</span></span>
+        <span>W+ <span className="num" style={{ color: '#5a7796' }}>{r.week_gain_pct != null ? `+${r.week_gain_pct.toFixed(1)}%` : '—'}</span></span>
+        <span>W- <span className="num" style={{ color: '#5a7796' }}>{r.week_decline_pct != null ? `${r.week_decline_pct.toFixed(1)}%` : '—'}</span></span>
       </div>
     </div>
   );

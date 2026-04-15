@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useScreener } from '@/hooks/useScreener';
+import { computeBreadthStats } from '@/domain/screener';
 import { ScreenerFilters } from './ScreenerFilters';
 import { ScreenerTable } from './ScreenerTable';
 import { ScreenerCards } from './ScreenerCards';
+import { ScreenerStatsBar } from './ScreenerStatsBar';
 
 interface ScreenerPanelProps {
   active: boolean;
@@ -22,6 +24,8 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
     loadScreener, resetFilters,
     totalCount,
   } = useScreener();
+
+  const breadth = useMemo(() => computeBreadthStats(filteredRows), [filteredRows]);
 
   // Auto-load on first activation
   useEffect(() => {
@@ -41,6 +45,8 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
         loading={loading}        onRefresh={loadScreener}
         viewMode={viewMode}      onViewMode={setViewMode}
       />
+
+      <ScreenerStatsBar stats={breadth} total={filteredRows.length} />
 
       {viewMode === 'table'
         ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} />

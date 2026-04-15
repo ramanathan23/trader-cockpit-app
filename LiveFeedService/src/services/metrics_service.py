@@ -33,7 +33,7 @@ _INTRADAY_TTL = 60   # seconds — refresh day range every minute
 class MetricsService:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
-        # symbol → {week52_high, week52_low, atr_14, adv_20_cr, trading_days, …}
+        # symbol → {week52_high, week52_low, atr_14, adv_20_cr, ema_50, …}
         self._daily: dict[str, dict] = {}
         # IST date on which _daily was last populated — None = never loaded
         self._daily_date: date | None = None
@@ -66,7 +66,10 @@ class MetricsService:
             SELECT
                 symbol,
                 week52_high, week52_low,
-                atr_14, adv_20_cr, trading_days,
+                atr_14, adv_20_cr,
+                ema_50, ema_200,
+                week_return_pct, week_gain_pct, week_decline_pct,
+                trading_days,
                 prev_day_high, prev_day_low, prev_day_close,
                 prev_week_high, prev_week_low,
                 prev_month_high, prev_month_low
@@ -79,6 +82,11 @@ class MetricsService:
                 "week52_low":     round(float(row["week52_low"]),  2)   if row["week52_low"]    else None,
                 "atr_14":         round(float(row["atr_14"] or 0), 2),
                 "adv_20_cr":      round(float(row["adv_20_cr"] or 0), 1),
+                "ema_50":         round(float(row["ema_50"]), 2)         if row["ema_50"]         else None,
+                "ema_200":        round(float(row["ema_200"]), 2)        if row["ema_200"]        else None,
+                "week_return_pct": round(float(row["week_return_pct"]), 2) if row["week_return_pct"] is not None else None,
+                "week_gain_pct":   round(float(row["week_gain_pct"]), 2)   if row["week_gain_pct"] is not None else None,
+                "week_decline_pct": round(float(row["week_decline_pct"]), 2) if row["week_decline_pct"] is not None else None,
                 "trading_days":   int(row["trading_days"]),
                 "prev_day_high":  round(float(row["prev_day_high"]), 2)  if row["prev_day_high"]  else None,
                 "prev_day_low":   round(float(row["prev_day_low"]),  2)  if row["prev_day_low"]   else None,

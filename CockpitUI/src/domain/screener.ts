@@ -5,6 +5,13 @@ export interface ScreenerRow {
   symbol: string;
   adv_20_cr?: number;
   atr_14?: number;
+  current_price?: number;
+  daily_vwap?: number;
+  ema_50?: number;
+  ema_200?: number;
+  week_return_pct?: number;
+  week_gain_pct?: number;
+  week_decline_pct?: number;
   prev_day_close?: number;
   prev_day_high?: number;
   prev_day_low?: number;
@@ -15,8 +22,20 @@ export interface ScreenerRow {
   prev_month_high?: number;
   prev_month_low?: number;
   // Derived fields added client-side
+  display_price?: number;
   f52h?: number;  // % below 52-week high  (negative = below, 0 = at high)
   f52l?: number;  // % above 52-week low   (positive = above)
+  dvwap_delta_pct?: number;
+  ema50_delta_pct?: number;
+  ema200_delta_pct?: number;
+}
+
+export interface ScreenerBreadthStat {
+  key: string;
+  label: string;
+  count: number;
+  eligible: number;
+  pct: number;
 }
 
 export interface ScreenerRangeFilter {
@@ -51,16 +70,80 @@ export const SCREENER_PRESETS: { key: ScreenerPreset; label: string }[] = [
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
-export function decorateRows(raw: Omit<ScreenerRow, 'f52h' | 'f52l'>[]): ScreenerRow[] {
+export function rowPrice(row: Pick<ScreenerRow, 'current_price' | 'prev_day_close'>): number | undefined {
+  return row.current_price ?? row.prev_day_close;
+}
+
+function pctFromReference(price?: number, reference?: number): number | undefined {
+  if (price == null || reference == null || reference === 0) return undefined;
+  return (price - reference) / reference * 100;
+}
+
+function pctDownFromHigh(price?: number, high?: number): number | undefined {
+  if (price == null || high == null || high === 0) return undefined;
+  return (high - price) / high * 100;
+}
+
+export function decorateRows(raw: Omit<ScreenerRow, 'display_price' | 'f52h' | 'f52l' | 'dvwap_delta_pct' | 'ema50_delta_pct' | 'ema200_delta_pct'>[]): ScreenerRow[] {
   return raw.map(r => ({
     ...r,
-    f52h: r.week52_high && r.prev_day_close
-      ? (r.prev_day_close - r.week52_high) / r.week52_high * 100
-      : undefined,
-    f52l: r.week52_low && r.prev_day_close
-      ? (r.prev_day_close - r.week52_low) / r.week52_low * 100
-      : undefined,
+    display_price: rowPrice(r),
+    f52h: pctFromReference(rowPrice(r), r.week52_high),
+    f52l: pctFromReference(rowPrice(r), r.week52_low),
+    dvwap_delta_pct: pctFromReference(rowPrice(r), r.daily_vwap),
+    ema50_delta_pct: pctFromReference(rowPrice(r), r.ema_50),
+    ema200_delta_pct: pctFromReference(rowPrice(r), r.ema_200),
+    week_decline_pct: pctDownFromHigh(rowPrice(r), r.week52_high) != null && r.week_decline_pct == null
+      ? r.week_decline_pct
+      : r.week_decline_pct,
   }));
+}
+
+function ratio(count: number, eligible: number): number {
+  return eligible > 0 ? count / eligible * 100 : 0;
+}
+
+export function computeBreadthStats(rows: ScreenerRow[]): ScreenerBreadthStat[] {
+  const aboveDvwapEligible = rows.filter(r => r.display_price != null && r.daily_vwap != null);
+  const aboveEma50Eligible = rows.filter(r => r.display_price != null && r.ema_50 != null);
+  const aboveEma200Eligible = rows.filter(r => r.display_price != null && r.ema_200 != null);
+  const positiveWeekEligible = rows.filter(r => r.week_return_pct != null);
+
+  const aboveDvwap = aboveDvwapEligible.filter(r => (r.dvwap_delta_pct ?? Number.NEGATIVE_INFINITY) > 0).length;
+  const aboveEma50 = aboveEma50Eligible.filter(r => (r.ema50_delta_pct ?? Number.NEGATIVE_INFINITY) > 0).length;
+  const aboveEma200 = aboveEma200Eligible.filter(r => (r.ema200_delta_pct ?? Number.NEGATIVE_INFINITY) > 0).length;
+  const positiveWeek = positiveWeekEligible.filter(r => (r.week_return_pct ?? Number.NEGATIVE_INFINITY) > 0).length;
+
+  return [
+    {
+      key: 'dvwap',
+      label: 'Above DVWAP',
+      count: aboveDvwap,
+      eligible: aboveDvwapEligible.length,
+      pct: ratio(aboveDvwap, aboveDvwapEligible.length),
+    },
+    {
+      key: 'ema50',
+      label: 'Above 50 EMA',
+      count: aboveEma50,
+      eligible: aboveEma50Eligible.length,
+      pct: ratio(aboveEma50, aboveEma50Eligible.length),
+    },
+    {
+      key: 'ema200',
+      label: 'Above 200 EMA',
+      count: aboveEma200,
+      eligible: aboveEma200Eligible.length,
+      pct: ratio(aboveEma200, aboveEma200Eligible.length),
+    },
+    {
+      key: 'week',
+      label: 'Positive Week',
+      count: positiveWeek,
+      eligible: positiveWeekEligible.length,
+      pct: ratio(positiveWeek, positiveWeekEligible.length),
+    },
+  ];
 }
 
 export function applyFilters(
@@ -81,7 +164,7 @@ export function applyFilters(
     if (atr < range.atrMin) return false;
     if (range.atrMax !== Infinity && atr > range.atrMax) return false;
 
-    const close = r.prev_day_close ?? 0;
+    const close = r.display_price ?? 0;
     if (close < range.closeMin) return false;
     if (range.closeMax !== Infinity && close > range.closeMax) return false;
 

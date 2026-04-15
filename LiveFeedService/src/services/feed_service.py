@@ -126,6 +126,38 @@ class FeedService:
             },
         }
 
+    def screener_live_metrics(self) -> dict[str, dict]:
+        """
+        Lightweight live snapshot for the screener.
+
+        Returns per-symbol current price from the active builder plus current
+        session VWAP when the symbol has already emitted at least one candle.
+        """
+        if not self._tick_router:
+            return {}
+
+        live: dict[str, dict] = {}
+        for row in self._tick_router.builder_summary():
+            if row["is_index_future"]:
+                continue
+
+            symbol = row["symbol"]
+            snapshot: dict[str, float] = {}
+
+            if row["last_price"] is not None:
+                snapshot["current_price"] = round(float(row["last_price"]), 2)
+
+            engine = self._engines.get(symbol)
+            if engine is not None:
+                vwap = engine.current_vwap()
+                if vwap is not None:
+                    snapshot["daily_vwap"] = round(float(vwap), 2)
+
+            if snapshot:
+                live[symbol] = snapshot
+
+        return live
+
     async def update_token(self, new_token: str) -> None:
         """
         Persist a new Dhan access token and reconnect all WebSocket feeds.

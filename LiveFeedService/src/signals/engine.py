@@ -103,6 +103,10 @@ class SignalEngine:
         """Replace daily metrics (e.g. if reloaded at session start)."""
         self._metrics = metrics
 
+    def current_vwap(self) -> float | None:
+        """Current session VWAP built from completed intraday candles."""
+        return self._state.vwap.vwap
+
     def on_candle(
         self,
         candle:     Candle,

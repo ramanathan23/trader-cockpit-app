@@ -132,17 +132,20 @@ async def instrument_metrics(symbol: str, request: Request):
 # ── Watchlist screener — all instruments with daily metrics ───────────────────
 
 @router.get("/screener", summary="All instruments with pre-computed daily metrics for screening")
-async def screener(request: Request):
+async def screener(request: Request, svc: FeedServiceDep):
     """
     Returns every tracked instrument with its pre-computed daily metrics
-    (ADV-20, ATR-14, 52-week H/L, prev day/week/month H/L/C) from the
-    in-memory MetricsService cache — zero database cost per call.
+    (ADV-20, ATR-14, EMAs, weekly breadth, 52-week H/L, prev day/week/month
+    H/L/C) from the in-memory MetricsService cache.
 
-    Clients can compute derived columns (distance from 52H, 52L range
-    position, etc.) client-side and filter/sort accordingly.
+    The response is also enriched with live session fields where available:
+    current price and session VWAP (DVWAP), both sourced from the running
+    feed pipeline instead of the database.
     """
     rows = request.app.state.metrics.all_daily()
-    return {"count": len(rows), "symbols": rows}
+    live = svc.screener_live_metrics()
+    merged = [{**row, **live.get(row["symbol"], {})} for row in rows]
+    return {"count": len(merged), "symbols": merged}
 
 
 # ── Signal history (daily review) ────────────────────────────────────────────
