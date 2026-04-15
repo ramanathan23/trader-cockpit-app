@@ -58,6 +58,9 @@ interface SignalToolbarProps {
   // Navigation
   activeView: 'live' | 'history' | 'screener';
   onViewChange: (v: 'live' | 'history' | 'screener') => void;
+  // Help legend
+  showHelp: boolean;
+  onToggleHelp: () => void;
 }
 
 export const SignalToolbar = memo(({
@@ -66,11 +69,12 @@ export const SignalToolbar = memo(({
   paused, pendingCount, onTogglePause, onClear,
   viewMode, onViewMode,
   activeView, onViewChange,
+  showHelp, onToggleHelp,
 }: SignalToolbarProps) => {
   const filtered = filterSignals(signals, category, minAdvCr, metricsCache);
 
   return (
-    <div className="shrink-0 flex items-center flex-wrap gap-2.5 px-4 py-2 bg-panel border-b border-border z-10">
+    <div className="shrink-0 flex items-center flex-wrap gap-2.5 px-3 py-2 bg-panel border-b border-border z-10 xl:px-4">
 
       {/* ── View navigation (left-most) ─────────────────────────── */}
       <div className="seg-group">
@@ -109,7 +113,7 @@ export const SignalToolbar = memo(({
       </div>
 
       {/* ── Right cluster ──────────────────────────────────────── */}
-      <div className="flex items-center gap-2, ml-auto">
+      <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
 
         {/* Value (ADV) tier filter */}
         <div className="seg-group">
@@ -130,7 +134,7 @@ export const SignalToolbar = memo(({
         <div className="w-px h-4 bg-border" />
 
         {/* Signal count */}
-        <span className="num text-[10px] tabular-nums text-ghost hidden sm:block" title="Filtered signals / total signals in session">
+        <span className="num text-[10px] tabular-nums text-ghost hidden md:block" title="Filtered signals / total signals in session">
           {filtered.length}/{signals.length}
         </span>
 
@@ -163,6 +167,19 @@ export const SignalToolbar = memo(({
         {activeView !== 'screener' && (
           <ViewToggle view={viewMode} onChange={onViewMode} />
         )}
+
+        {/* Help toggle */}
+        <button
+          onClick={onToggleHelp}
+          title={showHelp ? 'Hide help legend' : 'Show help legend — explains all metrics, signal types and phases'}
+          className={`w-6 h-6 flex items-center justify-center rounded text-[11px] font-black border transition-all ${
+            showHelp
+              ? 'border-accent/50 text-accent bg-accent/10'
+              : 'border-border text-ghost hover:text-fg hover:border-rim'
+          }`}
+        >
+          ?
+        </button>
       </div>
     </div>
   );

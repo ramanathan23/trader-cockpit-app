@@ -6,31 +6,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── Deep navy palette ────────────────────────────────────
-        base:    '#050c18',   // main background
-        panel:   '#080f1e',   // panel / sidebar
-        card:    '#0c1423',   // card surface
-        lift:    '#111d33',   // hover / elevated surface
-        border:  '#172035',   // hairline border
-        rim:     '#1e2e4a',   // visible border (tables etc.)
-        // ── Semantic text ────────────────────────────────────────
-        fg:      '#c5d8f0',   // primary text
-        dim:     '#5a7796',   // secondary text
-        ghost:   '#2a3f58',   // placeholder / disabled
-        // ── Accent + signal colors ───────────────────────────────
-        accent:  '#2d7ee8',   // primary action blue
-        bull:    '#0dbd7d',   // bullish green
-        bear:    '#f23d55',   // bearish red
-        amber:   '#e8933a',   // volume / ADV
-        violet:  '#9b72f7',   // reversal signals
-        sky:     '#38b6ff',   // VWAP signals
+        base:   'rgb(var(--base) / <alpha-value>)',
+        panel:  'rgb(var(--panel) / <alpha-value>)',
+        card:   'rgb(var(--card) / <alpha-value>)',
+        lift:   'rgb(var(--lift) / <alpha-value>)',
+        border: 'rgb(var(--border) / <alpha-value>)',
+        rim:    'rgb(var(--rim) / <alpha-value>)',
+        fg:     'rgb(var(--fg) / <alpha-value>)',
+        dim:    'rgb(var(--dim) / <alpha-value>)',
+        ghost:  'rgb(var(--ghost) / <alpha-value>)',
+        accent: 'rgb(var(--accent) / <alpha-value>)',
+        bull:   'rgb(var(--bull) / <alpha-value>)',
+        bear:   'rgb(var(--bear) / <alpha-value>)',
+        amber:  'rgb(var(--amber) / <alpha-value>)',
+        violet: 'rgb(var(--violet) / <alpha-value>)',
+        sky:    'rgb(var(--sky) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', '"Fira Code"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        card:  '0 1px 12px 0 rgba(0,0,0,0.5)',
+        card:  'var(--shadow-card)',
         glow:  '0 0 12px rgba(13,189,125,0.25)',
         glowR: '0 0 12px rgba(242,61,85,0.25)',
         glowB: '0 0 12px rgba(45,126,232,0.25)',

@@ -53,8 +53,6 @@ class MetricsComputeService:
                     close::float,
                     volume::float,
                     LAG(close::float) OVER (PARTITION BY symbol ORDER BY time ASC) AS prev_close,
-                    LAG(high::float)  OVER (PARTITION BY symbol ORDER BY time ASC) AS prev_high,
-                    LAG(low::float)   OVER (PARTITION BY symbol ORDER BY time ASC) AS prev_low,
                     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY time ASC)      AS rn,
                     COUNT(*)         OVER (PARTITION BY symbol)                    AS total
                 FROM price_data_daily
@@ -65,7 +63,7 @@ class MetricsComputeService:
                     symbol,
                     time,
                     high, low, close, volume,
-                    prev_high, prev_low, prev_close,
+                    prev_close,
                     GREATEST(
                         high - low,
                         ABS(high - COALESCE(prev_close, close)),
@@ -83,9 +81,9 @@ class MetricsComputeService:
                 AVG(close * volume / 1e7)
                                  FILTER (WHERE rn > total - 20)         AS adv_20_cr,
                 COUNT(*)                                                 AS trading_days,
-                MAX(prev_high)   FILTER (WHERE rn = total)              AS prev_day_high,
-                MAX(prev_low)    FILTER (WHERE rn = total)              AS prev_day_low,
-                MAX(prev_close)  FILTER (WHERE rn = total)              AS prev_day_close,
+                                MAX(high)        FILTER (WHERE rn = total)              AS prev_day_high,
+                                MAX(low)         FILTER (WHERE rn = total)              AS prev_day_low,
+                                MAX(close)       FILTER (WHERE rn = total)              AS prev_day_close,
                 MAX(high) FILTER (
                     WHERE time >= date_trunc('week', CURRENT_DATE) - INTERVAL '7 days'
                       AND time  < date_trunc('week', CURRENT_DATE)

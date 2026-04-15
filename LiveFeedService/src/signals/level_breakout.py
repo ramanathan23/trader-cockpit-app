@@ -105,8 +105,11 @@ def detect_pdh_pdl(
     min_vol_ratio: float = 1.3,
 ) -> Optional[SignalType]:
     """
-    Returns PDH_BREAKOUT when candle closes above previous day high on volume.
-    Returns PDL_BREAKDOWN when candle closes below previous day low on volume.
+    Returns PDH_BREAKOUT only when the candle crosses above previous day high
+    on volume.
+
+    Returns PDL_BREAKDOWN only when the candle crosses below previous day low
+    on volume.
     """
     window = history[-vol_window:] if len(history) >= vol_window else history
     vols   = [c.volume for c in window if c.volume > 0]
@@ -116,9 +119,13 @@ def detect_pdh_pdl(
     if median_vol == 0 or candle.volume < min_vol_ratio * median_vol:
         return None
 
-    if candle.close > prev_day_high:
+    prev_candle = history[-1] if history else None
+    if prev_candle is None:
+        return None
+
+    if prev_candle.close <= prev_day_high and candle.close > prev_day_high:
         return SignalType.PDH_BREAKOUT
-    if candle.close < prev_day_low:
+    if prev_candle.close >= prev_day_low and candle.close < prev_day_low:
         return SignalType.PDL_BREAKDOWN
     return None
 

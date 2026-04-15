@@ -120,7 +120,7 @@ export const SignalFeed = memo(({
 
   return (
     <div className="flex-1 overflow-y-auto p-3">
-      <div className="grid gap-2.5 content-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(185px, 1fr))' }}>
+      <div className="signal-grid">
         {filtered.map(s => (
           <SignalCard
             key={s.id}

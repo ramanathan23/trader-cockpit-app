@@ -5,23 +5,65 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --base: 5 12 24;
+    --panel: 8 15 30;
+    --card: 12 20 35;
+    --lift: 17 29 51;
+    --border: 23 32 53;
+    --rim: 39 59 85;
+    --fg: 212 226 244;
+    --dim: 116 142 170;
+    --ghost: 77 101 128;
+    --accent: 45 126 232;
+    --bull: 13 189 125;
+    --bear: 242 61 85;
+    --amber: 232 147 58;
+    --violet: 155 114 247;
+    --sky: 56 182 255;
+    --shadow-card: 0 10px 22px rgba(0, 0, 0, 0.22);
+  }
+
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --base: 242 246 252;
+    --panel: 249 251 255;
+    --card: 255 255 255;
+    --lift: 236 242 250;
+    --border: 213 225 238;
+    --rim: 154 177 201;
+    --fg: 18 31 47;
+    --dim: 73 98 124;
+    --ghost: 112 136 160;
+    --accent: 27 104 214;
+    --bull: 6 157 101;
+    --bear: 214 62 82;
+    --amber: 194 120 33;
+    --violet: 111 86 204;
+    --sky: 17 131 224;
+    --shadow-card: 0 10px 24px rgba(29, 55, 83, 0.08);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #1e2e4a transparent;
+    scrollbar-color: rgb(var(--rim)) transparent;
   }
   *::-webkit-scrollbar       { width: 3px; height: 3px; }
   *::-webkit-scrollbar-track { background: transparent; }
-  *::-webkit-scrollbar-thumb { background: #1e2e4a; border-radius: 99px; }
-  *::-webkit-scrollbar-thumb:hover { background: #2a3f5a; }
+  *::-webkit-scrollbar-thumb { background: rgb(var(--rim)); border-radius: 99px; }
+  *::-webkit-scrollbar-thumb:hover { background: rgb(var(--ghost)); }
+
+  html,
+  body {
+    min-width: 320px;
+    background: rgb(var(--base));
+    color: rgb(var(--fg));
+  }
 
   body {
-    background: #050c18;
-    color: #c5d8f0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: 'tnum' 1; /* tabular numbers everywhere */
+    transition: background-color 0.18s ease, color 0.18s ease;
   }
 
   /* Remove number input spinners */
@@ -32,8 +74,8 @@
   /* Segmented control shared style */
   .seg-group {
     display: flex;
-    background: #080f1e;
-    border: 1px solid #172035;
+    background: rgb(var(--panel));
+    border: 1px solid rgb(var(--border));
     border-radius: 6px;
     padding: 2px;
     gap: 1px;
@@ -42,16 +84,77 @@
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.06em;
-    padding: 3px 10px;
+    padding: 4px 10px;
     border-radius: 4px;
     transition: background 0.12s, color 0.12s;
-    color: #5a7796;
+    color: rgb(var(--dim));
     white-space: nowrap;
     cursor: pointer;
   }
-  .seg-btn:hover  { color: #c5d8f0; background: #111d33; }
-  .seg-btn.active { color: #c5d8f0; background: #172035; }
+  .seg-btn:hover  { color: rgb(var(--fg)); background: rgb(var(--lift)); }
+  .seg-btn.active { color: rgb(var(--fg)); background: rgb(var(--border)); }
 
   /* Monospace numeric utility */
   .num { font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace; }
+
+  .signal-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    align-content: start;
+  }
+
+  .help-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 16px 20px;
+  }
+
+  .help-section-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 18px;
+  }
+
+  .theme-chip {
+    border: 1px solid rgb(var(--border));
+    background: rgb(var(--panel));
+    color: rgb(var(--dim));
+  }
+
+  .theme-chip:hover {
+    color: rgb(var(--fg));
+    border-color: rgb(var(--rim));
+  }
+
+  @media (max-width: 1366px) {
+    .signal-grid {
+      gap: 10px;
+      grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+    }
+
+    .help-legend {
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 14px 16px;
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .signal-grid {
+      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    }
+
+    .help-legend,
+    .help-section-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .seg-btn {
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+  }
 }

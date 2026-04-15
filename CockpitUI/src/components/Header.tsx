@@ -16,14 +16,16 @@ interface HeaderProps {
   phase: MarketPhase;
   bias: Record<IndexName, Bias>;
   clock: string;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Header({ phase, bias, clock }: HeaderProps) {
+export function Header({ phase, bias, clock, theme, onToggleTheme }: HeaderProps) {
   const ps = PHASE_STYLE[phase] ?? PHASE_STYLE['--'];
 
   return (
     <header
-      className="shrink-0 flex items-center justify-between px-5 py-2.5 bg-panel border-b border-border z-20"
+      className="shrink-0 flex items-center justify-between gap-4 px-4 py-2.5 bg-panel border-b border-border z-20"
       onClick={unlockAudio}
       title="Click to unlock in-browser audio alerts"
     >
@@ -36,7 +38,7 @@ export function Header({ phase, bias, clock }: HeaderProps) {
         </h1>
       </div>
 
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-3 sm:gap-5">
         {/* Index bias — icon + name */}
         <div className="hidden sm:flex items-center gap-4">
           {(['nifty', 'banknifty', 'sensex'] as IndexName[]).map(idx => {
@@ -47,13 +49,13 @@ export function Header({ phase, bias, clock }: HeaderProps) {
                 <span
                   className="text-[9px] font-bold tracking-wider"
                   title={`${idx.toUpperCase()} bias: ${up ? 'Bullish — price above key moving averages' : dn ? 'Bearish — price below key moving averages' : 'Neutral — no clear direction'}`}
-                  style={{ color: up ? '#0dbd7d' : dn ? '#f23d55' : '#2a3f58' }}
+                  style={{ color: up ? 'rgb(var(--bull))' : dn ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
                 >
                   {idx.toUpperCase()}
                 </span>
                 <span
                   className="text-[13px] leading-none"
-                  style={{ color: up ? '#0dbd7d' : dn ? '#f23d55' : '#2a3f58' }}
+                  style={{ color: up ? 'rgb(var(--bull))' : dn ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
                 >
                   {up ? '↑' : dn ? '↓' : '·'}
                 </span>
@@ -64,6 +66,17 @@ export function Header({ phase, bias, clock }: HeaderProps) {
 
         {/* Divider */}
         <div className="hidden sm:block w-px h-4 bg-border" />
+
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            onToggleTheme();
+          }}
+          className="theme-chip flex items-center gap-1.5 rounded-md px-2 py-1 text-[9px] font-bold tracking-[0.14em] uppercase transition-colors"
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        >
+          <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        </button>
 
         {/* Phase badge */}
         <span
@@ -79,7 +92,7 @@ export function Header({ phase, bias, clock }: HeaderProps) {
         </span>
 
         {/* Clock */}
-        <span className="num text-[11px] tabular-nums" style={{ color: '#2a3f58' }}>{clock}</span>
+        <span className="num text-[11px] tabular-nums text-ghost">{clock}</span>
       </div>
     </header>
   );

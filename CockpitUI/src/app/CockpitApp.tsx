@@ -7,12 +7,14 @@ import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
 import { useNotes } from '@/hooks/useNotes';
 import { Header } from '@/components/Header';
+import { HelpLegend } from '@/components/HelpLegend';
 import { SignalToolbar } from '@/components/signals/SignalToolbar';
 import { SignalFeed } from '@/components/signals/SignalFeed';
 import { ScreenerPanel } from '@/components/screener/ScreenerPanel';
 import { ConnectionDot } from '@/components/ui/ConnectionDot';
 
 type AppView = 'live' | 'history' | 'screener';
+type ThemeMode = 'dark' | 'light';
 
 // ── History date bar ─────────────────────────────────────────────────────────
 function HistoryBar({
@@ -25,13 +27,13 @@ function HistoryBar({
 }) {
   return (
     <div className="shrink-0 flex items-center gap-3 px-4 py-2 bg-panel border-b border-border flex-wrap">
-      <span className="text-[9px] font-bold tracking-[0.14em] uppercase" style={{ color: '#1e2e4a' }}>DATE</span>
+      <span className="text-[9px] font-bold tracking-[0.14em] uppercase text-ghost">DATE</span>
       <input
         type="date"
         value={date}
         onChange={e => onDate(e.target.value)}
         className="bg-card border border-border text-fg text-xs rounded-[4px] px-2 py-0.5 focus:outline-none"
-        style={{ colorScheme: 'dark' }}
+        style={{ colorScheme: 'inherit' }}
       />
       <div className="seg-group">
         {dates.slice(0, 7).map(d => (
@@ -45,7 +47,7 @@ function HistoryBar({
           </button>
         ))}
       </div>
-      {loading && <span className="text-[10px] animate-blink" style={{ color: '#2a3f58' }}>Loading…</span>}
+      {loading && <span className="text-[10px] animate-blink text-ghost">Loading…</span>}
     </div>
   );
 }
@@ -62,6 +64,24 @@ export function CockpitApp() {
   const [minAdvCr,   setMinAdvCr]   = useState(0);
   const [viewMode,   setViewMode]   = useState<'card' | 'table'>('card');
   const [histViewMode, setHistViewMode] = useState<'card' | 'table'>('card');
+  const [showHelp,   setShowHelp]   = useState(false);
+  const [theme,      setTheme]      = useState<ThemeMode>('dark');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('trader-cockpit-theme');
+    if (stored === 'dark' || stored === 'light') {
+      setTheme(stored);
+      return;
+    }
+
+    setTheme(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('trader-cockpit-theme', theme);
+  }, [theme]);
 
   // Lazy-load history data when switching to history view
   useEffect(() => {
@@ -104,7 +124,13 @@ export function CockpitApp() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-base text-fg text-sm">
-      <Header phase={market.phase} bias={market.bias} clock={market.clock} />
+      <Header
+        phase={market.phase}
+        bias={market.bias}
+        clock={market.clock}
+        theme={theme}
+        onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+      />
 
       <SignalToolbar
         category={category}   onCategory={setCategory}
@@ -119,7 +145,12 @@ export function CockpitApp() {
         onViewMode={onCurrentViewMode}
         activeView={view}
         onViewChange={setView}
+        showHelp={showHelp}
+        onToggleHelp={() => setShowHelp(h => !h)}
       />
+
+      {/* Help legend */}
+      {showHelp && <HelpLegend />}
 
       {/* History date picker */}
       {view === 'history' && (
@@ -152,7 +183,7 @@ export function CockpitApp() {
       )}
 
       {/* Footer: filtered count + connection indicator */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-1 bg-panel border-t border-border" style={{ color: '#2a3f58', fontSize: '10px' }}>
+      <div className="shrink-0 flex items-center justify-between px-4 py-1 bg-panel border-t border-border text-[10px] text-ghost">
         <span className="num tabular-nums">
           {filteredCount}/{currentSignals.length} signals
         </span>
