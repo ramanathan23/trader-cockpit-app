@@ -79,11 +79,6 @@ function pctFromReference(price?: number, reference?: number): number | undefine
   return (price - reference) / reference * 100;
 }
 
-function pctDownFromHigh(price?: number, high?: number): number | undefined {
-  if (price == null || high == null || high === 0) return undefined;
-  return (high - price) / high * 100;
-}
-
 export function decorateRows(raw: Omit<ScreenerRow, 'display_price' | 'f52h' | 'f52l' | 'dvwap_delta_pct' | 'ema50_delta_pct' | 'ema200_delta_pct'>[]): ScreenerRow[] {
   return raw.map(r => ({
     ...r,
@@ -93,9 +88,6 @@ export function decorateRows(raw: Omit<ScreenerRow, 'display_price' | 'f52h' | '
     dvwap_delta_pct: pctFromReference(rowPrice(r), r.daily_vwap),
     ema50_delta_pct: pctFromReference(rowPrice(r), r.ema_50),
     ema200_delta_pct: pctFromReference(rowPrice(r), r.ema_200),
-    week_decline_pct: pctDownFromHigh(rowPrice(r), r.week52_high) != null && r.week_decline_pct == null
-      ? r.week_decline_pct
-      : r.week_decline_pct,
   }));
 }
 
