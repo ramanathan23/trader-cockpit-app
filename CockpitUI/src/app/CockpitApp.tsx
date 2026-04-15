@@ -1,0 +1,164 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { filterSignals, type SignalCategory } from '@/domain/signal';
+import { useMarketStatus } from '@/hooks/useMarketStatus';
+import { useSignals } from '@/hooks/useSignals';
+import { useHistory } from '@/hooks/useHistory';
+import { useNotes } from '@/hooks/useNotes';
+import { Header } from '@/components/Header';
+import { SignalToolbar } from '@/components/signals/SignalToolbar';
+import { SignalFeed } from '@/components/signals/SignalFeed';
+import { ScreenerPanel } from '@/components/screener/ScreenerPanel';
+import { ConnectionDot } from '@/components/ui/ConnectionDot';
+
+type AppView = 'live' | 'history' | 'screener';
+
+// ── History date bar ─────────────────────────────────────────────────────────
+function HistoryBar({
+  date, dates, loading, onDate,
+}: {
+  date: string;
+  dates: string[];
+  loading: boolean;
+  onDate: (d: string) => void;
+}) {
+  return (
+    <div className="shrink-0 flex items-center gap-3 px-4 py-2 bg-panel border-b border-border flex-wrap">
+      <span className="text-[9px] font-bold tracking-[0.14em] uppercase" style={{ color: '#1e2e4a' }}>DATE</span>
+      <input
+        type="date"
+        value={date}
+        onChange={e => onDate(e.target.value)}
+        className="bg-card border border-border text-fg text-xs rounded-[4px] px-2 py-0.5 focus:outline-none"
+        style={{ colorScheme: 'dark' }}
+      />
+      <div className="seg-group">
+        {dates.slice(0, 7).map(d => (
+          <button
+            key={d}
+            onClick={() => onDate(d)}
+            className={`seg-btn ${date === d ? 'active' : ''}`}
+            style={date === d ? { color: '#2d7ee8' } : undefined}
+          >
+            {d}
+          </button>
+        ))}
+      </div>
+      {loading && <span className="text-[10px] animate-blink" style={{ color: '#2a3f58' }}>Loading…</span>}
+    </div>
+  );
+}
+
+// ── Root app ─────────────────────────────────────────────────────────────────
+export function CockpitApp() {
+  const market = useMarketStatus();
+  const { signals, paused, pendingCount, connState, metricsCache, togglePause, clearSignals } = useSignals();
+  const { notes, saveNote } = useNotes();
+  const history = useHistory();
+
+  const [view,       setView]       = useState<AppView>('live');
+  const [category,   setCategory]   = useState<SignalCategory>('ALL');
+  const [minAdvCr,   setMinAdvCr]   = useState(0);
+  const [viewMode,   setViewMode]   = useState<'card' | 'table'>('card');
+  const [histViewMode, setHistViewMode] = useState<'card' | 'table'>('card');
+
+  // Lazy-load history data when switching to history view
+  useEffect(() => {
+    if (view === 'history' && history.signals.length === 0 && !history.loading) {
+      history.loadHistory(history.date);
+    }
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Prefetch metrics for history signals
+  useEffect(() => {
+    if (history.signals.length > 0) {
+      const syms = [...new Set(history.signals.map(s => s.symbol))];
+      syms.forEach(sym => {
+        if (!(sym in metricsCache)) {
+          fetch(`/api/v1/instrument/${encodeURIComponent(sym)}/metrics`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+        }
+      });
+    }
+  }, [history.signals.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Blink tab title on background signal
+  const blinkTab = (symbol: string) => {
+    if (typeof document === 'undefined') return;
+    const orig = document.title;
+    let n = 0;
+    const iv = setInterval(() => {
+      document.title = n++ % 2 === 0 ? `⚡ ${symbol}` : orig;
+      if (n > 8) { clearInterval(iv); document.title = orig; }
+    }, 600);
+  };
+  void blinkTab; // suppress unused warning — wired in signal push
+
+  const currentSignals   = view === 'history' ? history.signals : signals;
+  const currentViewMode  = view === 'history' ? histViewMode : viewMode;
+  const onCurrentViewMode = view === 'history' ? setHistViewMode : setViewMode;
+
+  const filteredCount = filterSignals(currentSignals, category, minAdvCr, metricsCache).length;
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden bg-base text-fg text-sm">
+      <Header phase={market.phase} bias={market.bias} clock={market.clock} />
+
+      <SignalToolbar
+        category={category}   onCategory={setCategory}
+        minAdvCr={minAdvCr}   onMinAdv={setMinAdvCr}
+        signals={currentSignals}
+        metricsCache={metricsCache}
+        paused={paused}
+        pendingCount={pendingCount}
+        onTogglePause={togglePause}
+        onClear={clearSignals}
+        viewMode={currentViewMode}
+        onViewMode={onCurrentViewMode}
+        activeView={view}
+        onViewChange={setView}
+      />
+
+      {/* History date picker */}
+      {view === 'history' && (
+        <HistoryBar
+          date={history.date}
+          dates={history.availableDates}
+          loading={history.loading}
+          onDate={history.loadHistory}
+        />
+      )}
+
+      {/* Main content area */}
+      {view === 'screener' ? (
+        <ScreenerPanel active={view === 'screener'} />
+      ) : (
+        <SignalFeed
+          signals={currentSignals}
+          metricsCache={metricsCache}
+          notes={notes}
+          onSaveNote={saveNote}
+          category={category}
+          minAdvCr={minAdvCr}
+          viewMode={currentViewMode}
+          emptyLabel={
+            view === 'live'
+              ? 'Waiting for signals — market opens at 09:15 IST'
+              : `No signals for ${history.date}`
+          }
+        />
+      )}
+
+      {/* Footer: filtered count + connection indicator */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-1 bg-panel border-t border-border" style={{ color: '#2a3f58', fontSize: '10px' }}>
+        <span className="num tabular-nums">
+          {filteredCount}/{currentSignals.length} signals
+        </span>
+      </div>
+
+      <ConnectionDot state={connState} />
+    </div>
+  );
+}

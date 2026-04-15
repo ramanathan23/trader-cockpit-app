@@ -129,6 +129,22 @@ async def instrument_metrics(symbol: str, request: Request):
     return data
 
 
+# ── Watchlist screener — all instruments with daily metrics ───────────────────
+
+@router.get("/screener", summary="All instruments with pre-computed daily metrics for screening")
+async def screener(request: Request):
+    """
+    Returns every tracked instrument with its pre-computed daily metrics
+    (ADV-20, ATR-14, 52-week H/L, prev day/week/month H/L/C) from the
+    in-memory MetricsService cache — zero database cost per call.
+
+    Clients can compute derived columns (distance from 52H, 52L range
+    position, etc.) client-side and filter/sort accordingly.
+    """
+    rows = request.app.state.metrics.all_daily()
+    return {"count": len(rows), "symbols": rows}
+
+
 # ── Signal history (daily review) ────────────────────────────────────────────
 
 import re as _re

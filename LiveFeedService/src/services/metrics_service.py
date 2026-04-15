@@ -103,6 +103,10 @@ class MetricsService:
         """Instant lookup — no I/O. Returns None if symbol not in daily data."""
         return self._daily.get(symbol)
 
+    def all_daily(self) -> list[dict]:
+        """Return all symbols with their daily metrics (in-memory, zero I/O)."""
+        return [{"symbol": s, **m} for s, m in self._daily.items()]
+
     async def get_with_intraday(self, symbol: str) -> Optional[dict]:
         """
         Returns daily metrics merged with today's intraday range.

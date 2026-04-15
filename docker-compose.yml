@@ -93,7 +93,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
       DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
-      DHAN_WS_BATCH_SIZE: ${DHAN_WS_BATCH_SIZE:-1000}
+      DHAN_WS_BATCH_SIZE: ${DHAN_WS_BATCH_SIZE:-500}
       DHAN_RECONNECT_DELAY_S: ${DHAN_RECONNECT_DELAY_S:-5.0}
       CANDLE_WRITE_BATCH_SIZE: ${CANDLE_WRITE_BATCH_SIZE:-100}
       CANDLE_WRITE_FLUSH_S: ${CANDLE_WRITE_FLUSH_S:-5.0}
@@ -106,6 +106,19 @@ services:
         condition: service_healthy
     volumes:
       - ./LiveFeedService/src:/app/src:ro
+    restart: unless-stopped
+
+  cockpit-ui:
+    build:
+      context: ./CockpitUI
+      dockerfile: Dockerfile
+      args:
+        LIVE_FEED_URL: http://live-feed:8000
+    container_name: trader_cockpit_ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - live-feed
     restart: unless-stopped
 
   notebooks:

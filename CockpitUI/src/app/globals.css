@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1e2e4a transparent;
+  }
+  *::-webkit-scrollbar       { width: 3px; height: 3px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: #1e2e4a; border-radius: 99px; }
+  *::-webkit-scrollbar-thumb:hover { background: #2a3f5a; }
+
+  body {
+    background: #050c18;
+    color: #c5d8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'tnum' 1; /* tabular numbers everywhere */
+  }
+
+  /* Remove number input spinners */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type='number'] { appearance: textfield; }
+
+  /* Segmented control shared style */
+  .seg-group {
+    display: flex;
+    background: #080f1e;
+    border: 1px solid #172035;
+    border-radius: 6px;
+    padding: 2px;
+    gap: 1px;
+  }
+  .seg-btn {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    transition: background 0.12s, color 0.12s;
+    color: #5a7796;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .seg-btn:hover  { color: #c5d8f0; background: #111d33; }
+  .seg-btn.active { color: #c5d8f0; background: #172035; }
+
+  /* Monospace numeric utility */
+  .num { font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace; }
+}

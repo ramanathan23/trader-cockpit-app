@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     dhan_client_id:    str   = Field(default="")
     dhan_access_token: str   = Field(default="")
     # Max instruments per WebSocket connection (Dhan limit).
-    dhan_ws_batch_size: int  = Field(default=1000)
+    dhan_ws_batch_size: int  = Field(default=500)
     # Seconds to wait before reconnecting after a WebSocket drop.
     dhan_reconnect_delay_s: float = Field(default=5.0)
 

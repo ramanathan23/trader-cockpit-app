@@ -27,15 +27,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from typing import Awaitable, Callable, Sequence
 
 from dhanhq import marketfeed as mf
 
 logger = logging.getLogger(__name__)
 
-_QUEUE_MAXSIZE     = 100_000   # ~100 k ticks buffered before drops
-_MIN_RECONNECT_S   = 2.0
-_MAX_RECONNECT_S   = 60.0
+_QUEUE_MAXSIZE       = 100_000   # ~100 k ticks buffered before drops
+_MIN_RECONNECT_S     = 2.0
+_MAX_RECONNECT_S     = 120.0
+_429_MIN_DELAY_S     = 60.0    # Dhan rate-limit: back off at least 60 s
 
 
 class DhanWebSocketClient:
@@ -66,6 +68,7 @@ class DhanWebSocketClient:
         self._reconnect_delay_s = reconnect_delay_s
         self._queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
         self._running = False
+        self.connected = asyncio.Event()   # set when feed.connect() succeeds
 
     # ── Public interface ───────────────────────────────────────────────────────
 
@@ -96,6 +99,7 @@ class DhanWebSocketClient:
                 )
                 await feed.connect()
                 logger.info("Dhan feed connected — receiving ticks")
+                self.connected.set()
                 delay = self._reconnect_delay_s   # reset on clean connect
 
                 while self._running:
@@ -104,13 +108,25 @@ class DhanWebSocketClient:
                         self._on_ticks(data)
 
             except asyncio.CancelledError:
+                self.connected.clear()
                 logger.info("Dhan WebSocket client cancelled")
                 break
             except Exception as exc:
+                self.connected.clear()
+                is_rate_limited = "429" in str(exc)
+                if is_rate_limited:
+                    # Server rejected the connection — give the rate-limiter
+                    # enough headroom before the next attempt.
+                    delay = max(delay, _429_MIN_DELAY_S)
+                # Add ±20 % jitter so multiple clients don't reconnect in sync.
+                jitter = delay * 0.20 * (2.0 * random.random() - 1.0)
+                effective_delay = delay + jitter
                 logger.warning(
-                    "Dhan feed error: %s — reconnecting in %.0fs", exc, delay
+                    "Dhan feed error: %s — reconnecting in %.0fs%s",
+                    exc, effective_delay,
+                    " (rate-limited, backing off)" if is_rate_limited else "",
                 )
-                await asyncio.sleep(delay)
+                await asyncio.sleep(effective_delay)
                 delay = min(delay * 2, _MAX_RECONNECT_S)
 
         self._running = False

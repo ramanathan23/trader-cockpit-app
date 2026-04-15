@@ -45,3 +45,9 @@ Thumbs.db
 
 # TimescaleDB / Postgres local data (if running locally)
 infra/db/data/
+
+#node
+node_modules/
+dist/
+.next/
+out/

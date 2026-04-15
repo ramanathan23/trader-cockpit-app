@@ -104,21 +104,29 @@ class SubscriptionManager:
     # ── Public interface ───────────────────────────────────────────────────────
 
     async def start(self) -> None:
-        """Launch all WebSocket clients and drain tasks, staggered to avoid 429s."""
+        """Launch WebSocket clients one by one, waiting for each to connect before starting the next."""
         for idx, client in enumerate(self._clients):
-            stagger = idx * self._connection_stagger_s
-            ws_task = asyncio.create_task(
-                self._delayed_run(client, stagger), name=f"dhan-ws-{idx}"
-            )
             drain_task = asyncio.create_task(
                 self._drain(client.queue), name=f"dhan-drain-{idx}"
             )
+            ws_task = asyncio.create_task(
+                client.run(), name=f"dhan-ws-{idx}"
+            )
             self._tasks.extend([ws_task, drain_task])
 
+            logger.info(
+                "SubscriptionManager: waiting for connection %d/%d to establish…",
+                idx + 1, len(self._clients),
+            )
+            await client.connected.wait()
+            logger.info(
+                "SubscriptionManager: connection %d/%d established",
+                idx + 1, len(self._clients),
+            )
+
         logger.info(
-            "SubscriptionManager: %d WebSocket connection(s) started "
-            "(staggered %.1fs apart)",
-            len(self._clients), self._connection_stagger_s,
+            "SubscriptionManager: all %d WebSocket connection(s) established",
+            len(self._clients),
         )
 
     async def stop(self) -> None:
@@ -145,16 +153,24 @@ class SubscriptionManager:
         self._tasks = [t for t in self._tasks if not t.get_name().startswith("dhan-ws-")]
 
         for idx, client in enumerate(self._clients):
-            stagger = idx * self._connection_stagger_s
             ws_task = asyncio.create_task(
-                self._delayed_run(client, stagger), name=f"dhan-ws-{idx}"
+                client.run(), name=f"dhan-ws-{idx}"
             )
             self._tasks.append(ws_task)
 
+            logger.info(
+                "SubscriptionManager: waiting for connection %d/%d to re-establish…",
+                idx + 1, len(self._clients),
+            )
+            await client.connected.wait()
+            logger.info(
+                "SubscriptionManager: connection %d/%d re-established",
+                idx + 1, len(self._clients),
+            )
+
         logger.info(
-            "SubscriptionManager: %d WebSocket connection(s) reconnecting with fresh token "
-            "(staggered %.1fs apart)",
-            len(self._clients), self._connection_stagger_s,
+            "SubscriptionManager: all %d WebSocket connection(s) reconnected with fresh token",
+            len(self._clients),
         )
 
     def connection_count(self) -> int:

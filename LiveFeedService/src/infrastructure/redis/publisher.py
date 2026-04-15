@@ -129,11 +129,14 @@ class SignalPublisher:
     async def recent_signals(self) -> list[dict]:
         """
         Recent signals for SSE catch-up (chronological, oldest first).
+        Reads from today's IST-date daily key so yesterday's signals are
+        never replayed when the service restarts on a new trading day.
         Tagged with _catchup=True so the browser skips dedup and sound.
         """
         if self._redis is None:
             return []
-        raw = await self._redis.lrange(_HISTORY_KEY, 0, HISTORY_MAX - 1)
+        today_key = f"{_DAILY_PREFIX}{_ist_date()}"
+        raw = await self._redis.lrange(today_key, 0, -1)
         signals = []
         for item in reversed(raw):   # lrange is newest-first; reverse to chronological
             try:
