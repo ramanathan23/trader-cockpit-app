@@ -4,6 +4,7 @@ LiveFeedService API routes.
 GET  /api/v1/status          — feed health, instrument count, index bias
 POST /api/v1/token           — update Dhan access token + reconnect feeds
 GET  /api/v1/signals/stream  — SSE stream of Signal events
+WS   /api/v1/signals/ws      — WebSocket stream of Signal events
 GET  /api/v1/ui              — serve index.html (trading dashboard)
 """
 
@@ -13,7 +14,7 @@ import logging
 from pathlib import Path
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -25,6 +26,16 @@ _UI_FILE  = Path(__file__).parent.parent / "ui" / "index.html"
 _JS_FILE  = Path(__file__).parent.parent / "ui" / "cockpit.js"
 _CHANNEL  = "signals"
 _KEEPALIVE_S = 25   # send a SSE comment every N seconds to keep connection alive
+
+
+def _open_signal_pubsub(redis_url: str):
+    redis_client = aioredis.from_url(
+        redis_url,
+        encoding         = "utf-8",
+        decode_responses = True,
+    )
+    pubsub = redis_client.pubsub()
+    return redis_client, pubsub
 
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -66,40 +77,56 @@ async def signal_stream(request: Request, publisher: PublisherDep):
     SSE format:   data: {json}\n\n
     Keep-alive:   : ping\n\n  (every 25 s)
     """
-    redis_url = request.app.state.pool   # we store redis url via publisher
     # We create a fresh pub/sub connection per SSE client so they are independent.
 
     async def event_generator():
-        # 1. Catch-up: replay recent signals from Redis history.
-        for sig_dict in await publisher.recent_signals():
-            yield f"data: {json.dumps(sig_dict)}\n\n"
-
-        # 2. Subscribe to live signals.
-        redis_client = aioredis.from_url(
-            request.app.state.publisher._url,
-            encoding         = "utf-8",
-            decode_responses = True,
-        )
-        pubsub = redis_client.pubsub()
+        redis_client, pubsub = _open_signal_pubsub(publisher._url)
         await pubsub.subscribe(_CHANNEL)
 
+        # Background task: reads from Redis pub/sub and puts payloads onto a
+        # queue.  Running it as a separate asyncio Task means it is driven by
+        # the event loop independently of Starlette's ASGI send loop, which
+        # would otherwise starve the socket read when the generator is
+        # suspended between yields.
+        queue: asyncio.Queue[str] = asyncio.Queue()
+
+        async def _redis_reader():
+            try:
+                async for msg in pubsub.listen():
+                    if msg and msg["type"] == "message":
+                        await queue.put(msg["data"])
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                logger.warning("SSE reader task crashed: %s", exc)
+
+        reader_task = asyncio.create_task(_redis_reader())
+
         try:
-            keepalive_task = asyncio.create_task(_keepalive_ticker())
-            async for message in pubsub.listen():
+            # 1. Catch-up: replay recent signals from Redis history.
+            #    Subscribe is already active above, so live messages published
+            #    during catch-up are queued and will be delivered after replay.
+            for sig_dict in await publisher.recent_signals():
+                if await request.is_disconnected():
+                    return
+                yield f"data: {json.dumps(sig_dict)}\n\n"
+
+            # 2. Stream live signals from the background reader queue.
+            keepalive_ticks = 0
+            while True:
                 if await request.is_disconnected():
                     break
-                if message["type"] == "message":
-                    yield f"data: {message['data']}\n\n"
-                else:
-                    # Check for keepalive tick.
-                    try:
-                        keepalive_task.result()   # raises if done
-                        keepalive_task = asyncio.create_task(_keepalive_ticker())
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=1.0)
+                    yield f"data: {data}\n\n"
+                    keepalive_ticks = 0
+                except asyncio.TimeoutError:
+                    keepalive_ticks += 1
+                    if keepalive_ticks >= _KEEPALIVE_S:
                         yield ": ping\n\n"
-                    except (asyncio.InvalidStateError, asyncio.CancelledError):
-                        pass
+                        keepalive_ticks = 0
         finally:
-            keepalive_task.cancel()
+            reader_task.cancel()
             await pubsub.unsubscribe(_CHANNEL)
             await redis_client.aclose()
 
@@ -111,6 +138,66 @@ async def signal_stream(request: Request, publisher: PublisherDep):
             "X-Accel-Buffering": "no",   # disable nginx buffering
         },
     )
+
+
+@router.websocket("/signals/ws")
+async def signal_websocket(websocket: WebSocket, publisher: PublisherDep):
+    """
+    WebSocket endpoint for trading signals.
+
+    On connect:
+      - Replays recent signals (catch-up) so the UI is not blank.
+      - Then streams new signals in real-time from Redis pub/sub.
+    """
+    await websocket.accept()
+
+    redis_client, pubsub = _open_signal_pubsub(publisher._url)
+    await pubsub.subscribe(_CHANNEL)
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    disconnected = asyncio.Event()
+
+    async def _redis_reader():
+        try:
+            async for msg in pubsub.listen():
+                if msg and msg["type"] == "message":
+                    await queue.put(msg["data"])
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.warning("WebSocket reader task crashed: %s", exc)
+
+    async def _disconnect_watcher():
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            disconnected.set()
+        except RuntimeError:
+            disconnected.set()
+
+    reader_task = asyncio.create_task(_redis_reader())
+    disconnect_task = asyncio.create_task(_disconnect_watcher())
+
+    try:
+        for sig_dict in await publisher.recent_signals():
+            if disconnected.is_set():
+                return
+            await websocket.send_text(json.dumps(sig_dict))
+
+        while not disconnected.is_set():
+            try:
+                data = await asyncio.wait_for(queue.get(), timeout=1.0)
+                await websocket.send_text(data)
+            except asyncio.TimeoutError:
+                continue
+    except WebSocketDisconnect:
+        pass
+    finally:
+        reader_task.cancel()
+        disconnect_task.cancel()
+        await pubsub.unsubscribe(_CHANNEL)
+        await redis_client.aclose()
 
 
 # ── Instrument metrics ────────────────────────────────────────────────────────
@@ -187,7 +274,3 @@ async def serve_cockpit_js():
     )
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
-
-async def _keepalive_ticker():
-    await asyncio.sleep(_KEEPALIVE_S)

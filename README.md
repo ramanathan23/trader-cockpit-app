@@ -9,8 +9,8 @@ NSE trading analytics platform. Ingests OHLCV data for all NSE equities, compute
 | `DataSyncService` | 8001 | Fetch and persist OHLCV data (yfinance daily + Dhan 1-min) |
 | `MomentumScorerService` | 8002 | Compute and serve momentum scores |
 | `notebooks` | 8888 | Jupyter environment for backtesting and research |
-| `timescaledb` | 5432 | TimescaleDB (PostgreSQL + time-series extensions) |
 | `redis` | 6379 | Cache layer (reserved for rate limiting / session state) |
+| external PostgreSQL / TimescaleDB | 5432 | Persistent database reached from containers via `POSTGRES_HOST` |
 
 ## Architecture
 
@@ -45,7 +45,7 @@ NSE trading analytics platform. Ingests OHLCV data for all NSE equities, compute
 # copy and fill in credentials
 cp .env.example .env
 
-# start all services
+# start all services on the shared Docker bridge network
 docker compose up -d
 
 # seed symbols and run initial 5yr daily + 90d 1-min backfill
@@ -58,11 +58,36 @@ curl -X POST http://localhost:8002/api/v1/scores/compute
 curl http://localhost:8002/api/v1/scores
 ```
 
+All containers communicate with each other over the compose-managed `trader-bridge`
+network. The database remains external to Compose and is reached through
+`POSTGRES_HOST` and `POSTGRES_PORT`.
+
+## Tests
+
+The Python services are tested in isolation because each one exposes its code as a
+top-level `src` package. A single repo-wide pytest process would collide on imports,
+so the repo test harness runs one pytest session per service and then combines
+coverage.
+
+```bash
+# run all Python unit tests
+make test-python
+
+# run tests and print combined coverage
+make coverage-python
+```
+
+Coverage is reported for the repo's business-logic modules. Startup wiring,
+framework glue, DB bootstrap code, and external integration adapters are omitted
+from the target coverage set.
+
 ## Environment variables
 
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | PostgreSQL DSN |
+| `POSTGRES_HOST` | Hostname/IP for the external PostgreSQL / TimescaleDB instance |
+| `POSTGRES_PORT` | Port for the external PostgreSQL / TimescaleDB instance |
 | `REDIS_URL` | Redis DSN |
 | `DHAN_CLIENT_ID` | Dhan brokerage client ID |
 | `DHAN_ACCESS_TOKEN` | Dhan API access token |

@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next';
 
-const LIVE_FEED_URL = process.env.LIVE_FEED_URL ?? 'http://localhost:8003';
+const LIVE_FEED_URL = process.env.LIVE_FEED_URL ?? 'http://localhost:8000';
 
 const nextConfig: NextConfig = {
   output: 'standalone',

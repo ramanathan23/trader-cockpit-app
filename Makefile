@@ -1,7 +1,9 @@
-.PHONY: up down build logs shell-db sync scores-top scores-compute feed-status dhan-map dhan-status ui
+PYTHON ?= python
+
+.PHONY: up down build logs shell-db sync scores-top scores-compute feed-status dhan-map dhan-status ui test-python coverage-python
 
 up:
-	docker compose up -d --build
+	docker compose up -d --build --remove-orphans
 
 down:
 	docker compose down
@@ -14,7 +16,7 @@ logs:
 
 # Database shell
 shell-db:
-	docker compose exec timescaledb psql -U trader -d trader_cockpit
+	docker compose run --rm --entrypoint sh db-init -lc 'psql -h "$${PGHOST}" -p "$${PGPORT}" -U "$${DB_USER}" -d "$${DB_NAME}"'
 
 # Unified sync — auto-classifies every symbol (initial pull / gap fill / skip)
 sync:
@@ -57,3 +59,9 @@ feed-status:
 # Open trading dashboard in default browser (Windows)
 ui:
 	start http://localhost:8003/api/v1/ui
+
+test-python:
+	$(PYTHON) scripts/run_python_tests.py --no-report
+
+coverage-python:
+	$(PYTHON) scripts/run_python_tests.py

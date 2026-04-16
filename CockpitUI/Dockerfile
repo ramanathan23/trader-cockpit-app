@@ -8,7 +8,9 @@ RUN npm ci --prefer-offline
 COPY . .
 
 ARG LIVE_FEED_URL=http://live-feed:8000
+ARG NEXT_PUBLIC_LIVE_FEED_URL=http://localhost:8003
 ENV LIVE_FEED_URL=${LIVE_FEED_URL}
+ENV NEXT_PUBLIC_LIVE_FEED_URL=${NEXT_PUBLIC_LIVE_FEED_URL}
 
 RUN npm run build && mkdir -p /app/public
 

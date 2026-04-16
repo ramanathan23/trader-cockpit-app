@@ -11,6 +11,30 @@ const METRICS_CONCURRENCY = 6;   // max parallel metrics HTTP requests
 const ALWAYS_NEW    = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 const ALWAYS_NEW_CU = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 
+function toWebSocketUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
+function getDefaultLiveFeedBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:8003';
+  }
+
+  const url = new URL(window.location.origin);
+  if (url.port === '3000') {
+    url.port = '8003';
+  }
+  return url.toString();
+}
+
+function getSignalsWebSocketUrl(): string {
+  const liveFeedBaseUrl = process.env.NEXT_PUBLIC_LIVE_FEED_URL ?? getDefaultLiveFeedBaseUrl();
+  const normalizedBaseUrl = liveFeedBaseUrl.endsWith('/') ? liveFeedBaseUrl.slice(0, -1) : liveFeedBaseUrl;
+  return toWebSocketUrl(`${normalizedBaseUrl}/api/v1/signals/ws`);
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSignals() {
@@ -20,7 +44,7 @@ export function useSignals() {
   const [connState,    setConnState]    = useState<ConnState>('connecting');
   const [metricsCache, setMetricsCache] = useState<Record<string, InstrumentMetrics | null>>({});
 
-  // Refs allow SSE handler to always see latest state without re-subscribing.
+  // Refs allow the connection handler to always see latest state without re-subscribing.
   const pausedRef  = useRef(false);
   const pendingRef = useRef<Signal[]>([]);
   // Tracks which symbols are already fetching/fetched — prevents duplicate requests.
@@ -72,7 +96,7 @@ export function useSignals() {
   // ── Signal ingestion — stable ref, always current ─────────────────────────
 
   // This ref holds the latest version of the push logic without needing
-  // to be in deps of the SSE useEffect (which would cause reconnects).
+  // to be in deps of the connection useEffect (which would cause reconnects).
   const pushSignalRef = useRef<(s: Signal) => void>(null!);
 
   // Re-assign on every render so the closure is always fresh.
@@ -137,21 +161,26 @@ export function useSignals() {
     queueMetrics(s.symbol);
   };
 
-  // ── SSE connection — stable effect on mount only ───────────────────────────
+  // ── WebSocket connection — stable effect on mount only ─────────────────────
 
   useEffect(() => {
-    let src: EventSource | null = null;
+    let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let destroyed = false;
 
     const connect = () => {
       if (destroyed) return;
-      src = new EventSource('/api/v1/signals/stream');
+      const nextSocket = new WebSocket(getSignalsWebSocketUrl());
+      socket = nextSocket;
 
-      src.onopen = () => setConnState('connected');
+      nextSocket.onopen = () => {
+        if (socket !== nextSocket) return;
+        setConnState('connected');
+      };
 
-      src.onmessage = (e) => {
+      nextSocket.onmessage = (e) => {
         try {
+          if (typeof e.data !== 'string') return;
           const s: Signal = JSON.parse(e.data);
           if (pausedRef.current) {
             pendingRef.current.push(s);
@@ -162,10 +191,16 @@ export function useSignals() {
         } catch { /* ignore malformed JSON */ }
       };
 
-      src.onerror = () => {
+      nextSocket.onerror = () => {
+        if (socket === nextSocket) {
+          nextSocket.close();
+        }
+      };
+
+      nextSocket.onclose = () => {
+        if (socket !== nextSocket || destroyed) return;
         setConnState('disconnected');
-        src?.close();
-        src = null;
+        socket = null;
         retryTimer = setTimeout(() => {
           setConnState('connecting');
           connect();
@@ -176,10 +211,10 @@ export function useSignals() {
     connect();
     return () => {
       destroyed = true;
-      src?.close();
+      socket?.close();
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, []); // intentionally empty — SSE lifecycle is independent of React state
+  }, []); // intentionally empty — socket lifecycle is independent of React state
 
   // ── Controls ───────────────────────────────────────────────────────────────
 

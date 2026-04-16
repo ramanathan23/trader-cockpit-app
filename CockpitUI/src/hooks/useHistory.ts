@@ -35,10 +35,11 @@ export function useHistory() {
       const r = await fetch(`/api/v1/signals/history?date=${date}`);
       if (r.ok) {
         const d = await r.json();
+        const newestFirst = [...(d.signals ?? [])].reverse();
         setState(s => ({
           ...s,
           loading:        false,
-          signals:        d.signals ?? [],
+          signals:        newestFirst,
           availableDates: d.available_dates ?? s.availableDates,
         }));
       } else {

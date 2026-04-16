@@ -2,7 +2,7 @@
 SignalPublisher: publishes Signal objects to Redis pub/sub and maintains
 two levels of signal history:
 
-  signals:history          — rolling last-200 list for SSE catch-up (live session)
+    signals:history          — rolling last-200 list for stream catch-up (live session)
   signals:daily:YYYY-MM-DD — per-IST-date list for later review, 7-day TTL
 
 Both lists store JSON blobs newest-first (LPUSH).
@@ -25,6 +25,7 @@ _CHANNEL_PREFIX = "signals:"
 _HISTORY_KEY    = "signals:history"
 _DAILY_PREFIX   = "signals:daily:"
 HISTORY_MAX     = 200           # rolling catch-up list length
+CATCHUP_MAX     = 50            # replay window for new streaming subscribers
 DAILY_TTL_S     = 7 * 24 * 3600  # keep daily lists for 7 days
 
 # IST = UTC+05:30 (no pytz needed)
@@ -128,15 +129,16 @@ class SignalPublisher:
 
     async def recent_signals(self) -> list[dict]:
         """
-        Recent signals for SSE catch-up (chronological, oldest first).
-        Reads from today's IST-date daily key so yesterday's signals are
-        never replayed when the service restarts on a new trading day.
+        Recent signals for stream catch-up (chronological, oldest first).
+        Reads only the most recent CATCHUP_MAX items from today's IST-date
+        daily key so a mid-session subscriber does not have to drain the
+        entire day's backlog before reaching live pub/sub.
         Tagged with _catchup=True so the browser skips dedup and sound.
         """
         if self._redis is None:
             return []
         today_key = f"{_DAILY_PREFIX}{_ist_date()}"
-        raw = await self._redis.lrange(today_key, 0, -1)
+        raw = await self._redis.lrange(today_key, 0, CATCHUP_MAX - 1)
         signals = []
         for item in reversed(raw):   # lrange is newest-first; reverse to chronological
             try:

@@ -5,12 +5,16 @@ services:
     environment:
       PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-}
       PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGHOST: ${POSTGRES_HOST:-host.docker.internal}
+      PGPORT: ${POSTGRES_PORT:-5432}
       DB_USER: ${DB_USER:-trader}
       DB_PASSWORD: ${DB_PASSWORD:-trader_secret}
       DB_NAME: ${DB_NAME:-trader_cockpit}
     volumes:
       - ./infra/db/setup.sh:/setup.sh:ro
     entrypoint: ["/bin/sh", "/setup.sh"]
+    networks:
+      - trader-bridge
     restart: "no"
 
   redis:
@@ -25,6 +29,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    networks:
+      - trader-bridge
     restart: unless-stopped
 
   data-sync:
@@ -33,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: trader_data_sync
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@host.docker.internal:5432/${DB_NAME:-trader_cockpit}
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
@@ -52,6 +58,8 @@ services:
         condition: service_healthy
     volumes:
       - ./DataSyncService/src:/app/src:ro
+    networks:
+      - trader-bridge
     restart: unless-stopped
 
   momentum-scorer:
@@ -60,7 +68,7 @@ services:
       dockerfile: Dockerfile
     container_name: trader_momentum_scorer
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@host.docker.internal:5432/${DB_NAME:-trader_cockpit}
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SCORE_LOOKBACK_BARS: ${SCORE_LOOKBACK_BARS:-200}
@@ -80,6 +88,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    networks:
+      - trader-bridge
     restart: unless-stopped
 
   live-feed:
@@ -88,7 +98,7 @@ services:
       dockerfile: Dockerfile
     container_name: trader_live_feed
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@host.docker.internal:5432/${DB_NAME:-trader_cockpit}
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
@@ -104,8 +114,22 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/status', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     volumes:
       - ./LiveFeedService/src:/app/src:ro
+    networks:
+      - trader-bridge
     restart: unless-stopped
 
   cockpit-ui:
@@ -114,11 +138,15 @@ services:
       dockerfile: Dockerfile
       args:
         LIVE_FEED_URL: http://live-feed:8000
+        NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     container_name: trader_cockpit_ui
     ports:
       - "3000:3000"
     depends_on:
-      - live-feed
+      live-feed:
+        condition: service_healthy
+    networks:
+      - trader-bridge
     restart: unless-stopped
 
   notebooks:
@@ -127,7 +155,7 @@ services:
       dockerfile: Dockerfile
     container_name: trader_notebooks
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@host.docker.internal:5432/${DB_NAME:-trader_cockpit}
+      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
     ports:
       - "8888:8888"
     depends_on:
@@ -135,4 +163,10 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./notebooks:/app/notebooks
+    networks:
+      - trader-bridge
     restart: unless-stopped
+
+networks:
+  trader-bridge:
+    driver: bridge

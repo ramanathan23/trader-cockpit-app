@@ -7,6 +7,7 @@ No classification or fetch logic lives here.
 """
 import logging
 from datetime import datetime
+from datetime import timezone
 
 import asyncpg
 
@@ -22,7 +23,7 @@ def _to_utc_datetime(ts) -> datetime:
     """Convert a pandas Timestamp to a UTC-aware Python datetime."""
     if hasattr(ts, "tzinfo") and ts.tzinfo is None:
         return ts.tz_localize("UTC").to_pydatetime()
-    return ts.to_pydatetime()
+    return ts.tz_convert("UTC").to_pydatetime().astimezone(timezone.utc)
 
 
 class SyncStateWriter:

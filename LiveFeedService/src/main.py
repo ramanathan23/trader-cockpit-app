@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="LiveFeedService",
-    description="Real-time tick aggregation, signal detection, and SSE alerts for NSE instruments",
+    description="Real-time tick aggregation, signal detection, and WebSocket alerts for NSE instruments",
     version="0.1.0",
     lifespan=lifespan,
 )

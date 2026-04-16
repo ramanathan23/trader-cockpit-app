@@ -229,6 +229,5 @@ export function filterSignals(
         if (m && (m.adv_20_cr ?? 0) < minAdvCr) return false;
       }
       return true;
-    })
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    });
 }

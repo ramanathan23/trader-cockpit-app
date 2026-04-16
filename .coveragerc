@@ -1,0 +1,29 @@
+[run]
+branch = True
+
+[report]
+show_missing = True
+skip_covered = True
+omit =
+    */tests/*
+    */__init__.py
+    */main.py
+    */config.py
+    */api/*
+    */db/*
+    */repositories/*
+    */infrastructure/*
+    */models/*
+    */services/daily_fetcher.py
+    */services/sync_service.py
+    */services/feed_service.py
+    */services/instrument_loader.py
+    */services/metrics_service.py
+    */core/tick_router.py
+    */signals/engine.py
+    */signals/exhaustion_reversal.py
+    */signals/trail_tracker.py
+    */signals/signal_factory.py
+
+[html]
+directory = coverage_html_report
