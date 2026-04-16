@@ -28,7 +28,7 @@ DataSyncService/src/
 ├── data/symbols.csv                # NSE symbol list
 ├── db/
 │   ├── connection.py               # asyncpg pool factory
-│   └── migrations/001_schema.sql  # DB schema
+│   └── migrations/001_baseline.sql # consolidated DB baseline
 ├── domain/models.py                # Price, Symbol value objects
 ├── infrastructure/
 │   └── fetchers/
