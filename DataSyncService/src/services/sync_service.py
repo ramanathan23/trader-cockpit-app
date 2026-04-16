@@ -46,7 +46,10 @@ class SyncService:
         self._state   = SyncStateRepository(pool)
         writer        = SyncStateWriter(pool, self._prices, self._state)
         self._fetcher = DailyFetcher(YFinanceFetcher(), writer)
-        self._metrics = MetricsComputeService(pool)
+        self._metrics = MetricsComputeService(
+            pool,
+            timeout_s=settings.db_metrics_recompute_timeout,
+        )
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())

@@ -22,6 +22,15 @@ class Settings(BaseSettings):
             "Set to a positive value only if you want a hard cap per statement."
         ),
     )
+    db_metrics_recompute_timeout: int = Field(
+        default=0,
+        description=(
+            "Timeout in seconds for the symbol_metrics recompute query. "
+            "0 (default) disables the asyncpg command timeout for this query by using "
+            "an explicit long-running sentinel, since full-table metric refreshes can "
+            "legitimately exceed the pool-wide command timeout."
+        ),
+    )
 
     # ── Redis ─────────────────────────────────────────────────────────────────
     redis_url: str = Field(
