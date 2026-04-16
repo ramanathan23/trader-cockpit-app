@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { InstrumentMetrics, Signal } from '@/domain/signal';
+import type { Signal } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { alertSound } from '@/lib/audio';
 
 export type ConnState = 'connecting' | 'connected' | 'disconnected';
 
 const MAX_SIGNALS         = 200;
-const METRICS_CONCURRENCY = 6;   // max parallel metrics HTTP requests
+const METRICS_BATCH_DELAY = 150; // ms — collect symbols then fire one POST
 const ALWAYS_NEW    = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 const ALWAYS_NEW_CU = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 
@@ -54,44 +55,37 @@ export function useSignals() {
   pausedRef.current = paused;
 
   // ── Batch metrics fetching ─────────────────────────────────────────────────
-  // Max METRICS_CONCURRENCY parallel requests. Results accumulate in metricsAccRef
-  // and flush into a single setMetricsCache after an 80ms debounce — prevents the
-  // render storm (was: 2 setState calls per symbol → N×2 re-renders on catchup).
-  const metricsQueueRef  = useRef<string[]>([]);
-  const metricsActiveRef = useRef(0);
-  const metricsAccRef    = useRef<Record<string, InstrumentMetrics>>({});
-  const metricsTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Symbols are collected for METRICS_BATCH_DELAY ms, then fetched in a single
+  // POST to /api/v1/instruments/metrics — eliminates N individual HTTP requests.
+  const metricsPendingRef = useRef<Set<string>>(new Set());
+  const metricsTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Held in a ref so the drain loop can recurse without stale closures or useCallback deps.
-  const drainMetricsRef = useRef<() => void>(null!);
-  drainMetricsRef.current = () => {
-    while (metricsActiveRef.current < METRICS_CONCURRENCY && metricsQueueRef.current.length > 0) {
-      const sym = metricsQueueRef.current.shift()!;
-      metricsActiveRef.current++;
-      fetch(`/api/v1/instrument/${encodeURIComponent(sym)}/metrics`)
-        .then(r => r.ok ? r.json() : null)
-        .then((data: InstrumentMetrics | null) => {
-          if (data) metricsAccRef.current[sym] = data;
-          metricsActiveRef.current--;
-          // Debounce: collect concurrent completions into one setState
-          if (metricsTimerRef.current) clearTimeout(metricsTimerRef.current);
-          metricsTimerRef.current = setTimeout(() => {
-            const upd = metricsAccRef.current;
-            metricsAccRef.current = {};
-            if (Object.keys(upd).length > 0) setMetricsCache(c => ({ ...c, ...upd }));
-          }, 80);
-          drainMetricsRef.current();
-        })
-        .catch(() => { metricsActiveRef.current--; drainMetricsRef.current(); });
-    }
-  };
+  const flushMetricsBatch = useCallback(() => {
+    const symbols = [...metricsPendingRef.current];
+    metricsPendingRef.current.clear();
+    if (symbols.length === 0) return;
 
-  const queueMetrics = (symbol: string) => {
+    fetch('/api/v1/instruments/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: Record<string, InstrumentMetrics> | null) => {
+        if (data && Object.keys(data).length > 0) {
+          setMetricsCache(c => ({ ...c, ...data }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const queueMetrics = useCallback((symbol: string) => {
     if (fetchingRef.current.has(symbol)) return;
     fetchingRef.current.add(symbol);
-    metricsQueueRef.current.push(symbol);
-    drainMetricsRef.current();
-  };
+    metricsPendingRef.current.add(symbol);
+    if (metricsTimerRef.current) clearTimeout(metricsTimerRef.current);
+    metricsTimerRef.current = setTimeout(flushMetricsBatch, METRICS_BATCH_DELAY);
+  }, [flushMetricsBatch]);
 
   // ── Signal ingestion — stable ref, always current ─────────────────────────
 

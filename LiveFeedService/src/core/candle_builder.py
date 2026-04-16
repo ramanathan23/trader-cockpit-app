@@ -21,7 +21,8 @@ from datetime import datetime, time
 from zoneinfo import ZoneInfo
 from typing import Optional
 
-from ..domain.models import Candle, Direction
+from ..domain.candle import Candle
+from ..domain.direction import Direction
 
 _IST = ZoneInfo("Asia/Kolkata")
 

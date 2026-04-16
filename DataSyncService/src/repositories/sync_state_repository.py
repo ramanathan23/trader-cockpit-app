@@ -3,23 +3,15 @@ Reads and writes the sync_state table: per-(symbol, timeframe) sync metadata.
 """
 
 import logging
-from dataclasses import dataclass
 from datetime import datetime
 
 import asyncpg
 
+from ..domain.sync_state_snapshot import SyncStateSnapshot
+
 logger = logging.getLogger(__name__)
 
 _ACQUIRE_TIMEOUT = 30  # seconds to wait for a pool connection before giving up
-
-
-@dataclass(frozen=True)
-class SyncStateSnapshot:
-    symbol: str
-    timeframe: str
-    last_synced_at: datetime | None
-    last_data_ts: datetime | None
-    status: str | None
 
 
 class SyncStateRepository:

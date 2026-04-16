@@ -23,7 +23,7 @@ from typing import Awaitable, Callable, Sequence
 
 from dhanhq import marketfeed as mf
 
-from ...domain.models import InstrumentMeta
+from ...domain.instrument_meta import InstrumentMeta
 from .websocket_client import DhanWebSocketClient
 
 logger = logging.getLogger(__name__)

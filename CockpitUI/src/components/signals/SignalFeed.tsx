@@ -1,7 +1,9 @@
 'use client';
 
-import { memo, useCallback, useMemo, useState } from 'react';
-import { filterSignals, type InstrumentMetrics, type Signal, type SignalCategory } from '@/domain/signal';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { filterSignals, type Signal, type SignalCategory } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { SignalCard } from './SignalCard';
 import { SignalRow } from './SignalRow';
 
@@ -72,6 +74,14 @@ export const SignalFeed = memo(({
   );
   const openNote = useCallback((id: string) => setNoteModalId(id), []);
 
+  const tableParentRef = useRef<HTMLDivElement>(null);
+  const tableVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableParentRef.current,
+    estimateSize: () => 34,
+    overscan: 15,
+  });
+
   if (filtered.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-xs gap-2" style={{ color: '#2a3f58' }}>
@@ -81,8 +91,10 @@ export const SignalFeed = memo(({
   }
 
   if (viewMode === 'table') {
+    const tvItems = tableVirtualizer.getVirtualItems();
+    const tvTotal = tableVirtualizer.getTotalSize();
     return (
-      <div className="flex-1 overflow-auto">
+      <div ref={tableParentRef} className="flex-1 overflow-auto">
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-panel z-10">
             <tr className="border-b border-border">
@@ -94,15 +106,21 @@ export const SignalFeed = memo(({
             </tr>
           </thead>
           <tbody>
-            {filtered.map(s => (
+            {tvItems.length > 0 && (
+              <tr><td colSpan={TABLE_HEADERS.length} style={{ height: tvItems[0].start, padding: 0, border: 'none' }} /></tr>
+            )}
+            {tvItems.map(vi => (
               <SignalRow
-                key={s.id}
-                signal={s}
-                metrics={metricsCache[s.symbol]}
-                note={notes[s.id]}
+                key={filtered[vi.index].id}
+                signal={filtered[vi.index]}
+                metrics={metricsCache[filtered[vi.index].symbol]}
+                note={notes[filtered[vi.index].id]}
                 onNoteClick={openNote}
               />
             ))}
+            {tvItems.length > 0 && (
+              <tr><td colSpan={TABLE_HEADERS.length} style={{ height: tvTotal - tvItems[tvItems.length - 1].end, padding: 0, border: 'none' }} /></tr>
+            )}
           </tbody>
         </table>
 

@@ -1,13 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
-
-
-class ScoreBreakdown(NamedTuple):
-    score:      float
-    rsi:        float
-    macd_score: float
-    roc_score:  float
-    vol_score:  float
+from typing import Literal
 
 
 @dataclass(frozen=True)

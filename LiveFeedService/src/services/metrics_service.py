@@ -163,3 +163,27 @@ class MetricsService:
 
         self._intraday_cache[symbol] = {"data": data, "ts": time.monotonic()}
         return data
+
+    async def get_batch_with_intraday(self, symbols: list[str]) -> dict[str, dict]:
+        """Return metrics for multiple symbols in a single call."""
+        results: dict[str, dict] = {}
+        to_fetch: list[str] = []
+
+        for sym in symbols:
+            daily = self._daily.get(sym)
+            if daily is None:
+                continue
+            cached = self._intraday_cache.get(sym)
+            if cached and time.monotonic() - cached["ts"] < _INTRADAY_TTL:
+                results[sym] = {**daily, **cached["data"], "symbol": sym}
+            else:
+                to_fetch.append(sym)
+
+        if to_fetch:
+            tasks = [self._get_intraday(sym) for sym in to_fetch]
+            intraday_results = await asyncio.gather(*tasks)
+            for sym, intraday in zip(to_fetch, intraday_results):
+                daily = self._daily[sym]
+                results[sym] = {**daily, **intraday, "symbol": sym}
+
+        return results

@@ -61,7 +61,7 @@ export function useScreener() {
 
   const filteredRows = useMemo(() => {
     const filtered = applyFilters(rows, query, range, presets);
-    return sortRows(filtered, sortCol, sortAsc).slice(0, 500);
+    return sortRows(filtered, sortCol, sortAsc);
   }, [rows, query, range, presets, sortCol, sortAsc]);
 
   return {

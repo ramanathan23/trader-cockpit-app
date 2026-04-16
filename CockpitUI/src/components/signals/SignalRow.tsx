@@ -3,8 +3,9 @@
 import { memo } from 'react';
 import {
   advColor, dirColor, pctColor, signalColor, signalShort,
-  type InstrumentMetrics, type Signal,
+  type Signal,
 } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { fmt2, fmtAdv, spct, timeStr } from '@/lib/fmt';
 
 interface SignalRowProps {

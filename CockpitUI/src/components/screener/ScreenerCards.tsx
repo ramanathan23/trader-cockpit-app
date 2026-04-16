@@ -1,6 +1,7 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useRef, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
@@ -103,6 +104,27 @@ const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
 ScreenerCard.displayName = 'ScreenerCard';
 
 export const ScreenerCards = memo(({ rows, loading }: ScreenerCardsProps) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Approximate cards per row: container ~full width, card ~176px + 12px gap
+  const COLS_PER_ROW = 8;
+  const ROW_HEIGHT = 220;
+
+  const chunkedRows = useMemo(() => {
+    const chunks: ScreenerRow[][] = [];
+    for (let i = 0; i < rows.length; i += COLS_PER_ROW) {
+      chunks.push(rows.slice(i, i + COLS_PER_ROW));
+    }
+    return chunks;
+  }, [rows]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: chunkedRows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 3,
+  });
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-xs animate-blink" style={{ color: '#2a3f58' }}>
@@ -118,10 +140,27 @@ export const ScreenerCards = memo(({ rows, loading }: ScreenerCardsProps) => {
       </div>
     );
   }
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
   return (
-    <div className="flex-1 overflow-y-auto p-4">
-      <div className="flex flex-wrap gap-3 content-start">
-        {rows.map(r => <ScreenerCard key={r.symbol} row={r} />)}
+    <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
+      <div style={{ height: totalSize, position: 'relative' }}>
+        {virtualItems.map(vi => (
+          <div
+            key={vi.index}
+            style={{
+              position: 'absolute',
+              top: vi.start,
+              left: 0,
+              right: 0,
+            }}
+            className="flex flex-wrap gap-3"
+          >
+            {chunkedRows[vi.index].map(r => <ScreenerCard key={r.symbol} row={r} />)}
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -3,8 +3,9 @@
 import { memo, useState } from 'react';
 import {
   dirColor, pctColor, signalColor, signalDesc, signalShort, advColor,
-  type Direction, type InstrumentMetrics, type Signal,
+  type Direction, type Signal,
 } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { fmt2, fmtAdv, spct, timeStr } from '@/lib/fmt';
 
 // ── Sub-components ────────────────────────────────────────────────────────────

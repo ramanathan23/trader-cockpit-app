@@ -1,8 +1,8 @@
 import pytest
+import numpy as np
 import pandas as pd
 from unittest.mock import AsyncMock
 
-from src.domain.models import ScoreBreakdown
 from src.services.score_service import ScoreService
 
 
@@ -38,52 +38,69 @@ class _Pool:
         return _AcquireContext(self.conn)
 
 
-@pytest.mark.asyncio
-async def test_compute_all_replaces_previous_day_scores(monkeypatch):
-    service = ScoreService(_Pool())
+def _make_ohlcv(n: int = 200) -> pd.DataFrame:
+    """Generate synthetic OHLCV data for testing."""
+    rng = np.random.default_rng(42)
+    close = 100 + np.cumsum(rng.normal(0, 1, n))
+    return pd.DataFrame({
+        "open":   close - rng.uniform(0.2, 1.0, n),
+        "high":   close + rng.uniform(0.5, 2.0, n),
+        "low":    close - rng.uniform(0.5, 2.0, n),
+        "close":  close,
+        "volume": rng.uniform(100_000, 1_000_000, n),
+    })
 
+
+@pytest.mark.asyncio
+async def test_compute_unified_scores_and_persists():
+    service = ScoreService(_Pool())
     service._prices = AsyncMock()
     service._scores = AsyncMock()
 
-    service._prices.fetch_synced_symbols.return_value = ["ABC"]
+    service._prices.fetch_synced_symbols.return_value = ["ABC", "XYZ"]
     service._prices.fetch_ohlcv_batch.return_value = {
-        "ABC": pd.DataFrame(
-            {
-                "close": [100.0] * 30,
-                "volume": [200000.0] * 30,
-                "high": [101.0] * 30,
-                "low": [99.0] * 30,
-            }
-        )
+        "ABC": _make_ohlcv(),
+        "XYZ": _make_ohlcv(),
     }
-    service._scores.delete_by_timeframe.return_value = 1
 
-    breakdown = ScoreBreakdown(81.5, 72.0, 80.0, 79.0, 85.0)
+    scored = await service.compute_unified()
 
-    async def fake_to_thread(func, df, **kwargs):
-        return breakdown
-
-    monkeypatch.setattr("src.services.score_service.asyncio.to_thread", fake_to_thread)
-
-    scored = await service.compute_all("1d")
-
-    assert scored == 1
-    service._scores.delete_by_timeframe.assert_awaited_once_with(service._pool.conn, "1d")
-    service._scores.insert.assert_awaited_once_with(service._pool.conn, "ABC", "1d", breakdown)
+    assert scored == 2
+    assert service._scores.upsert_daily_score.await_count == 2
+    assert service._scores.update_symbol_metrics_indicators.await_count == 2
 
 
 @pytest.mark.asyncio
-async def test_compute_all_returns_zero_when_no_symbols_exist():
+async def test_compute_unified_returns_zero_when_no_symbols():
     service = ScoreService(_Pool())
     service._prices = AsyncMock()
     service._scores = AsyncMock()
     service._prices.fetch_synced_symbols.return_value = []
 
-    scored = await service.compute_all("1d")
+    scored = await service.compute_unified()
 
     assert scored == 0
     service._prices.fetch_ohlcv_batch.assert_not_called()
-    service._scores.delete_by_timeframe.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_compute_unified_marks_top_50_as_watchlist():
+    service = ScoreService(_Pool())
+    service._prices = AsyncMock()
+    service._scores = AsyncMock()
+
+    symbols = [f"SYM{i:03d}" for i in range(60)]
+    service._prices.fetch_synced_symbols.return_value = symbols
+    service._prices.fetch_ohlcv_batch.return_value = {
+        sym: _make_ohlcv() for sym in symbols
+    }
+
+    scored = await service.compute_unified()
+
+    assert scored == 60
+    calls = service._scores.upsert_daily_score.call_args_list
+    assert sum(1 for c in calls if c.args[5] is True) == 50
+    assert sum(1 for c in calls if c.args[5] is False) == 10
 
 
 def test_extract_benchmark_roc_pops_benchmark_and_returns_value():

@@ -19,7 +19,8 @@ from zoneinfo import ZoneInfo
 
 from ..core.candle_builder import CandleBuilder
 from ..core.session_manager import SessionManager
-from ..domain.models import Candle, InstrumentMeta
+from ..domain.candle import Candle
+from ..domain.instrument_meta import InstrumentMeta
 
 logger = logging.getLogger(__name__)
 

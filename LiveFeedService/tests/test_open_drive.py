@@ -1,4 +1,5 @@
-from src.domain.models import Direction, DriveStatus
+from src.domain.direction import Direction
+from src.domain.drive_status import DriveStatus
 from src.signals.open_drive import evaluate
 
 

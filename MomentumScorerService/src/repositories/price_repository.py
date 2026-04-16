@@ -28,6 +28,14 @@ class PriceRepository:
             )
         return [r["symbol"] for r in rows]
 
+    async def fetch_fno_set(self) -> set[str]:
+        """Return the set of symbols where is_fno = TRUE."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT symbol FROM symbols WHERE is_fno = TRUE"
+            )
+        return {r["symbol"] for r in rows}
+
     async def fetch_synced_symbol_details(self) -> list[dict]:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""

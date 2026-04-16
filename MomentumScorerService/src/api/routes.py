@@ -1,6 +1,7 @@
 import logging
+from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from .deps import ScoreRepoDep, ScoreServiceDep
 
@@ -8,25 +9,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/scores/compute", summary="Trigger momentum score computation (background)")
+@router.post("/scores/compute", summary="Trigger unified daily scoring (background)")
 async def trigger_compute(
     background_tasks: BackgroundTasks,
     svc: ScoreServiceDep,
-    timeframe: str = Query(default="1d", pattern="^1d$"),
 ):
-    background_tasks.add_task(svc.compute_all, timeframe)
-    return {"status": "started", "timeframe": timeframe}
+    background_tasks.add_task(svc.compute_unified)
+    return {"status": "started", "scorer": "unified"}
 
 
-@router.get("/scores", summary="Top-N symbols by momentum score")
-async def get_scores(
+# ── Dashboard endpoints ───────────────────────────────────────────────────────
+
+@router.get("/dashboard", summary="Scoring dashboard: stats + scored symbols")
+async def get_dashboard(
     repo: ScoreRepoDep,
-    timeframe:  str   = Query(default="1d", pattern="^1d$"),
-    limit:      int   = Query(default=50, ge=1, le=500),
-    min_score:  float = Query(default=0.0, ge=0.0, le=100.0),
+    score_date: date | None = Query(default=None, description="YYYY-MM-DD, latest if omitted"),
+    limit: int = Query(default=500, ge=1, le=1000),
+    watchlist_only: bool = Query(default=False),
+    segment: str | None = Query(default=None, pattern="^(fno|equity)$", description="fno | equity — omit for all"),
 ):
-    return await repo.get_top(timeframe, limit, min_score)
+    is_fno: bool | None = None
+    if segment == "fno":
+        is_fno = True
+    elif segment == "equity":
+        is_fno = False
 
+    stats = await repo.get_dashboard_stats(score_date)
+    scores = await repo.get_daily_scores(score_date, limit, watchlist_only, is_fno)
+    return {"stats": stats, "scores": scores}
+
+
+@router.get("/dashboard/watchlist", summary="Current watchlist symbols for live feed subscription")
+async def get_watchlist(
+    repo: ScoreRepoDep,
+    score_date: date | None = Query(default=None),
+):
+    symbols = await repo.get_watchlist_symbols(score_date)
+    return {"count": len(symbols), "symbols": symbols}
+
+
+# ── Watchlist patterns ────────────────────────────────────────────────────────
 
 @router.get("/watchlist/run-tight-base", summary="Watchlist for 4-5 day runs followed by tight consolidation")
 async def get_run_tight_base_watchlist(
@@ -48,22 +70,3 @@ async def get_run_tight_base_watchlist(
         max_base_range_pct=max_base_range_pct,
         max_retracement_pct=max_retracement_pct,
     )
-
-
-# NOTE: /scores/summary/distribution must be declared before /scores/{symbol}
-# to prevent FastAPI matching "summary" as a symbol path parameter.
-@router.get("/scores/summary/distribution", summary="Score distribution histogram")
-async def score_distribution(
-    repo: ScoreRepoDep,
-    timeframe: str = Query(default="1d", pattern="^1d$"),
-    buckets:   int = Query(default=10, ge=2, le=20),
-):
-    return await repo.get_distribution(timeframe, buckets)
-
-
-@router.get("/scores/{symbol}", summary="Full score breakdown for a symbol")
-async def get_symbol_score(symbol: str, repo: ScoreRepoDep):
-    rows = await repo.get_for_symbol(symbol.upper())
-    if not rows:
-        raise HTTPException(404, f"No scores found for '{symbol}' — run /scores/compute first")
-    return rows

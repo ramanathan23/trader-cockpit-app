@@ -11,7 +11,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from src.core.candle_builder import CandleBuilder
-from src.domain.models import Candle, Direction
+from src.domain.candle import Candle
+from src.domain.direction import Direction
 
 _IST = ZoneInfo("Asia/Kolkata")
 

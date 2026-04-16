@@ -1,7 +1,8 @@
 'use client';
 
 import { memo } from 'react';
-import { filterSignals, signalColor, type InstrumentMetrics, type Signal, type SignalCategory } from '@/domain/signal';
+import { filterSignals, signalColor, type Signal, type SignalCategory } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 
 // Representative signal type per category — used to pick a highlight color
@@ -56,8 +57,8 @@ interface SignalToolbarProps {
   viewMode: 'card' | 'table';
   onViewMode: (v: 'card' | 'table') => void;
   // Navigation
-  activeView: 'live' | 'history' | 'screener';
-  onViewChange: (v: 'live' | 'history' | 'screener') => void;
+  activeView: 'dashboard' | 'live' | 'history' | 'screener';
+  onViewChange: (v: 'dashboard' | 'live' | 'history' | 'screener') => void;
   // Help legend
   showHelp: boolean;
   onToggleHelp: () => void;
@@ -78,14 +79,14 @@ export const SignalToolbar = memo(({
 
       {/* ── View navigation (left-most) ─────────────────────────── */}
       <div className="seg-group">
-        {(['live', 'history', 'screener'] as const).map(v => (
+        {(['dashboard', 'live', 'history', 'screener'] as const).map(v => (
           <button
             key={v}
             onClick={() => onViewChange(v)}
             className={`seg-btn ${activeView === v ? 'active' : ''}`}
             style={activeView === v ? { color: '#2d7ee8' } : undefined}
           >
-            {v === 'live' ? 'LIVE' : v === 'history' ? 'HISTORY' : 'SCREENER'}
+            {v === 'dashboard' ? 'DASHBOARD' : v === 'live' ? 'LIVE' : v === 'history' ? 'HISTORY' : 'SCREENER'}
           </button>
         ))}
       </div>

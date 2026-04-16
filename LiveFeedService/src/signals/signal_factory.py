@@ -7,10 +7,15 @@ making each constructor independently testable.
 """
 from __future__ import annotations
 
-from ..domain.models import (
-    Candle, Direction, DriveState, IndexBias, Signal,
-    SessionPhase, SignalType, SpikeState, Strength,
-)
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.drive_state import DriveState
+from ..domain.index_bias import IndexBias
+from ..domain.session_phase import SessionPhase
+from ..domain.signal import Signal
+from ..domain.signal_type import SignalType
+from ..domain.spike_state import SpikeState
+from ..domain.strength import Strength
 from ..signals import exhaustion_reversal as _er
 
 
@@ -470,18 +475,23 @@ def make_camarilla_signal(
     margin    = candle.close * 0.005
 
     label_map = {
-        SignalType.CAM_H3_REVERSAL:  "Cam H3 Reversal ↓",
-        SignalType.CAM_H4_BREAKOUT:  "Cam H4 Breakout ↑",
-        SignalType.CAM_L3_REVERSAL:  "Cam L3 Reversal ↑",
-        SignalType.CAM_L4_BREAKDOWN: "Cam L4 Breakdown ↓",
+        SignalType.CAM_H3_REVERSAL:  "⚡ Cam H3 Reversal ↓",
+        SignalType.CAM_H4_BREAKOUT:  "⚡ Cam H4 Breakout ↑",
+        SignalType.CAM_L3_REVERSAL:  "⚡ Cam L3 Reversal ↑",
+        SignalType.CAM_L4_BREAKDOWN: "⚡ Cam L4 Breakdown ↓",
     }
+
+    # Camarilla signals get boosted scoring — these are key levels.
+    # H4/L4 breakouts are high-conviction; H3/L3 reversals are medium.
+    base_score = 1.5 if not is_reversal else 1.0
+    index_aligned = bias.majority() in (direction, Direction.NEUTRAL)
 
     return Signal(
         symbol        = symbol,
         signal_type   = signal_type,
         direction     = direction,
-        strength      = Strength.LOW if is_reversal else Strength.MEDIUM,
-        score         = round(0.8 + vol_ratio * 0.1, 2),
+        strength      = Strength.MEDIUM if is_reversal else Strength.HIGH,
+        score         = round(base_score + vol_ratio * 0.15 + (0.5 if index_aligned else 0.0), 2),
         session_phase = phase,
         index_bias    = bias.majority(),
         price         = candle.close,
@@ -491,5 +501,5 @@ def make_camarilla_signal(
         target_1      = round(candle.close * (1.01 if is_long else 0.99), 2),
         target_2      = round(candle.close * (1.02 if is_long else 0.98), 2),
         volume_ratio  = round(vol_ratio, 2),
-        message       = f"{label_map.get(signal_type, signal_type.value)} | Level {level:.2f}",
+        message       = f"{label_map.get(signal_type, signal_type.value)} | Level {level:.2f} | Vol {vol_ratio:.1f}×",
     )

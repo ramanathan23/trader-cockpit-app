@@ -41,6 +41,24 @@ class Settings(BaseSettings):
     spike_window:           int   = Field(default=20,   description="Rolling window (candles) for spike baselines")
     spike_vol_ratio:        float = Field(default=3.0,  description="volume / avg_volume threshold for spike")
     spike_price_pct:        float = Field(default=1.5,  description="% price move threshold for shock")
+    spike_cooldown:         int   = Field(default=5,    description="Candles of cooldown between spike signals per symbol")
+    absorption_cooldown:    int   = Field(default=10,   description="Candles of cooldown between absorption signals per symbol")
+    absorption_near_pct:    float = Field(default=0.008, description="Price must be within this % of key level for absorption")
+
+    # ── Exhaustion reversal ───────────────────────────────────────────────────
+    exhaustion_downtrend_candles: int   = Field(default=4,   description="Candles that must show falling lows before climax")
+    exhaustion_vol_ratio_min:    float = Field(default=6.0,  description="Climax volume vs 20-candle average")
+    exhaustion_lower_lows:       int   = Field(default=3,    description="Min falling low candles within downtrend window")
+
+    # ── Level breakout vol ratios ─────────────────────────────────────────────
+    orb_vol_ratio:          float = Field(default=1.3,  description="ORB volume / median for confirmation")
+    week52_vol_ratio:       float = Field(default=2.0,  description="52-week breakout volume / median for confirmation")
+    camarilla_vol_ratio:    float = Field(default=1.3,  description="Camarilla volume / median for confirmation")
+    vwap_vol_ratio:         float = Field(default=1.3,  description="VWAP cross volume / median for confirmation")
+    vwap_hysteresis_min:    int   = Field(default=2,    description="Consecutive candles on one side before VWAP cross fires")
+    range_lookback:         int   = Field(default=5,    description="Candles for rectangle consolidation detection")
+    range_vol_ratio:        float = Field(default=1.5,  description="Range breakout volume / median for confirmation")
+    range_max_pct:          float = Field(default=0.02, description="Max range width % for valid consolidation")
 
     # ── Noise filters ─────────────────────────────────────────────────────────
     # Instruments with ADV below this (in Cr) are skipped for ALL spike/breakout signals.

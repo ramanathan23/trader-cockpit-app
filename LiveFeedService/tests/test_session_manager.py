@@ -2,7 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from src.core.session_manager import SessionManager
-from src.domain.models import SessionPhase
+from src.domain.session_phase import SessionPhase
 
 
 IST = ZoneInfo("Asia/Kolkata")

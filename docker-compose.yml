@@ -138,6 +138,7 @@ services:
       dockerfile: Dockerfile
       args:
         LIVE_FEED_URL: http://live-feed:8000
+        SCORER_URL: http://momentum-scorer:8000
         NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     container_name: trader_cockpit_ui
     ports:

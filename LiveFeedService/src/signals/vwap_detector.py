@@ -24,8 +24,9 @@ import statistics
 from dataclasses import dataclass
 from typing import Optional
 
-from ..domain.models import Candle, Direction
-from ..domain.enums import SignalType
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.signal_type import SignalType
 
 
 @dataclass

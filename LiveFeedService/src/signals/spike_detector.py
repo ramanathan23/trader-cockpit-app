@@ -20,7 +20,11 @@ from __future__ import annotations
 
 from statistics import median
 
-from ..domain.models import Candle, Direction, SpikeState, SpikeType, SessionPhase
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.session_phase import SessionPhase
+from ..domain.spike_state import SpikeState
+from ..domain.spike_type import SpikeType
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
 WINDOW           = 20      # rolling candle window for baselines

@@ -22,10 +22,16 @@ from typing import Optional
 
 from ..core.candle_builder import CandleBuilder
 from ..core.session_manager import SessionManager
-from ..domain.models import (
-    Candle, Direction, DriveState, DriveStatus,
-    IndexBias, Signal, SignalType, SessionPhase, SpikeType, Strength,
-)
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.drive_state import DriveState
+from ..domain.drive_status import DriveStatus
+from ..domain.index_bias import IndexBias
+from ..domain.session_phase import SessionPhase
+from ..domain.signal import Signal
+from ..domain.signal_type import SignalType
+from ..domain.spike_type import SpikeType
+from ..domain.strength import Strength
 from ..core import mtf_bias as _mtf
 from ..signals import (
     open_drive, spike_detector, signal_factory, exhaustion_reversal,
@@ -36,9 +42,9 @@ from ..signals.vwap_detector import VwapState
 
 logger = logging.getLogger(__name__)
 
-_SPIKE_COOLDOWN       = 5
-_ABSORPTION_COOLDOWN  = 10   # 10 × 5-min = 50 min between absorption alerts
-_ABSORPTION_NEAR_PCT  = 0.008  # price must be within 0.8% of a key level
+_SPIKE_COOLDOWN       = 5    # default; prefer config.settings values
+_ABSORPTION_COOLDOWN  = 10
+_ABSORPTION_NEAR_PCT  = 0.008
 
 
 @dataclass
@@ -77,11 +83,21 @@ class SignalEngine:
         min_body_ratio:   float = 0.6,
         confirmed_thresh: float = 0.70,
         weak_thresh:      float = 0.50,
-        spike_window:       int   = 20,
-        min_adv_cr:         float = 5.0,
-        confluence_15m:     int   = 3,
-        confluence_1h:      int   = 12,
-        daily_metrics:      Optional[dict] = None,
+        spike_window:          int   = 20,
+        spike_cooldown:        int   = _SPIKE_COOLDOWN,
+        absorption_cooldown:   int   = _ABSORPTION_COOLDOWN,
+        absorption_near_pct:   float = _ABSORPTION_NEAR_PCT,
+        exhaustion_downtrend_candles: int   = 4,
+        exhaustion_vol_ratio_min:    float = 6.0,
+        exhaustion_lower_lows:       int   = 3,
+        range_lookback:        int   = 5,
+        range_vol_ratio:       float = 1.5,
+        range_max_pct:         float = 0.02,
+        vwap_hysteresis_min:   int   = 2,
+        min_adv_cr:            float = 5.0,
+        confluence_15m:        int   = 3,
+        confluence_1h:         int   = 12,
+        daily_metrics:         Optional[dict] = None,
     ) -> None:
         self.symbol        = symbol
         self._builder      = builder
@@ -91,6 +107,16 @@ class SignalEngine:
         self._ct           = confirmed_thresh
         self._wt           = weak_thresh
         self._sw           = spike_window
+        self._spike_cooldown      = spike_cooldown
+        self._absorption_cooldown = absorption_cooldown
+        self._absorption_near_pct = absorption_near_pct
+        self._exhaust_dt    = exhaustion_downtrend_candles
+        self._exhaust_vr    = exhaustion_vol_ratio_min
+        self._exhaust_ll    = exhaustion_lower_lows
+        self._range_lb      = range_lookback
+        self._range_vr      = range_vol_ratio
+        self._range_max     = range_max_pct
+        self._vwap_hyst     = vwap_hysteresis_min
         self._min_adv_cr    = min_adv_cr
         self._conf_15m      = confluence_15m
         self._conf_1h       = confluence_1h
@@ -153,11 +179,17 @@ class SignalEngine:
 
     # Signal types exempt from confluence (session-management or counter-directional).
     # ABSORPTION is intentionally NOT exempt — MTF confirmation required for tradable signals.
+    # Camarilla reversals are counter-trend by design; blocking on 15-min bias would
+    # suppress H3/L3 reversals almost every time.  Exempt all Camarilla types.
     _CONFLUENCE_EXEMPT = frozenset({
         SignalType.TRAIL_UPDATE,
         SignalType.EXIT,
         SignalType.DRIVE_FAILED,
         SignalType.FADE_ALERT,
+        SignalType.CAM_H3_REVERSAL,
+        SignalType.CAM_H4_BREAKOUT,
+        SignalType.CAM_L3_REVERSAL,
+        SignalType.CAM_L4_BREAKDOWN,
     })
 
     def _apply_confluence(
@@ -316,7 +348,7 @@ class SignalEngine:
         vwap = state.vwap.vwap
         if vwap:
             levels.append(vwap)
-        return any(abs(price - lvl) / lvl <= _ABSORPTION_NEAR_PCT for lvl in levels)
+        return any(abs(price - lvl) / lvl <= self._absorption_near_pct for lvl in levels)
 
     def _evaluate_spike(
         self,
@@ -351,20 +383,20 @@ class SignalEngine:
                     out.append(signal_factory.make_spike_signal(
                         self.symbol, candle, spike, SignalType.SPIKE_BREAKOUT, strength, phase, bias
                     ))
-                    state.spike_cooldown[SpikeType.BREAKOUT_SHOCK] = _SPIKE_COOLDOWN
+                    state.spike_cooldown[SpikeType.BREAKOUT_SHOCK] = self._spike_cooldown
             elif spike.spike_type == SpikeType.ABSORPTION:
                 if (SpikeType.ABSORPTION not in state.spike_cooldown
                         and self._near_key_level(candle.close, state)):
                     out.append(signal_factory.make_spike_signal(
                         self.symbol, candle, spike, SignalType.ABSORPTION, Strength.MEDIUM, phase, bias
                     ))
-                    state.spike_cooldown[SpikeType.ABSORPTION] = _ABSORPTION_COOLDOWN
+                    state.spike_cooldown[SpikeType.ABSORPTION] = self._absorption_cooldown
             elif spike.spike_type == SpikeType.WEAK_SHOCK:
                 if SpikeType.WEAK_SHOCK not in state.spike_cooldown:
                     out.append(signal_factory.make_fade_alert(
                         self.symbol, candle, spike, phase, bias
                     ))
-                    state.spike_cooldown[SpikeType.WEAK_SHOCK] = _SPIKE_COOLDOWN
+                    state.spike_cooldown[SpikeType.WEAK_SHOCK] = self._spike_cooldown
 
         if state.exhaustion_candidate is not None:
             confirmed = exhaustion_reversal.confirm(candle, state.exhaustion_candidate)
@@ -376,6 +408,9 @@ class SignalEngine:
 
         candidate = exhaustion_reversal.detect_candidate(
             candle, prior, state.day_open,
+            downtrend_candles=self._exhaust_dt,
+            vol_ratio_min=self._exhaust_vr,
+            lower_lows_needed=self._exhaust_ll,
         )
         if candidate is not None:
             state.exhaustion_candidate = candidate
@@ -455,7 +490,8 @@ class SignalEngine:
 
         # ── VWAP cross ───────────────────────────────────────────────────────
         vwap_state_before = state.vwap   # capture before update (update happens in on_candle)
-        sig = vwap_detector.detect_cross(candle, vwap_state_before, prior)
+        sig = vwap_detector.detect_cross(candle, vwap_state_before, prior,
+                                          hysteresis_min=self._vwap_hyst)
         if sig is not None:
             vwap_val = vwap_state_before.vwap or candle.close
             out.append(signal_factory.make_vwap_signal(
@@ -474,10 +510,13 @@ class SignalEngine:
         # ── 5-candle range breakout ──────────────────────────────────────────
         boundary = candle.boundary
         if state.range_signalled_at != boundary:
-            sig = range_breakout.detect(candle, prior)
+            sig = range_breakout.detect(candle, prior,
+                                       lookback=self._range_lb,
+                                       max_range_pct=self._range_max,
+                                       min_vol_ratio=self._range_vr)
             if sig is not None:
                 state.range_signalled_at = boundary
-                rect = prior[-5:] if len(prior) >= 5 else prior
+                rect = prior[-self._range_lb:] if len(prior) >= self._range_lb else prior
                 r_high = max(c.high for c in rect) if rect else candle.high
                 r_low  = min(c.low  for c in rect) if rect else candle.low
                 out.append(signal_factory.make_range_signal(

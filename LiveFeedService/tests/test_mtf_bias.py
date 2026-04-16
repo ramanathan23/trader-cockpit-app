@@ -1,5 +1,5 @@
 from src.core.mtf_bias import compute
-from src.domain.models import Direction
+from src.domain.direction import Direction
 
 
 def test_compute_returns_neutral_when_history_is_too_short(make_candle) -> None:

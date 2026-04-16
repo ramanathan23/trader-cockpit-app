@@ -11,9 +11,10 @@ import { HelpLegend } from '@/components/HelpLegend';
 import { SignalToolbar } from '@/components/signals/SignalToolbar';
 import { SignalFeed } from '@/components/signals/SignalFeed';
 import { ScreenerPanel } from '@/components/screener/ScreenerPanel';
+import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { ConnectionDot } from '@/components/ui/ConnectionDot';
 
-type AppView = 'live' | 'history' | 'screener';
+type AppView = 'dashboard' | 'live' | 'history' | 'screener';
 type ThemeMode = 'dark' | 'light';
 
 // ── History date bar ─────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export function CockpitApp() {
   const { notes, saveNote } = useNotes();
   const history = useHistory();
 
-  const [view,       setView]       = useState<AppView>('live');
+  const [view,       setView]       = useState<AppView>('dashboard');
   const [category,   setCategory]   = useState<SignalCategory>('ALL');
   const [minAdvCr,   setMinAdvCr]   = useState(0);
   const [viewMode,   setViewMode]   = useState<'card' | 'table'>('card');
@@ -90,17 +91,17 @@ export function CockpitApp() {
     }
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Prefetch metrics for history signals
+  // Prefetch metrics for history signals (single batch call)
   useEffect(() => {
     if (history.signals.length > 0) {
-      const syms = [...new Set(history.signals.map(s => s.symbol))];
-      syms.forEach(sym => {
-        if (!(sym in metricsCache)) {
-          fetch(`/api/v1/instrument/${encodeURIComponent(sym)}/metrics`)
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null);
-        }
-      });
+      const syms = [...new Set(history.signals.map(s => s.symbol))]
+        .filter(sym => !(sym in metricsCache));
+      if (syms.length === 0) return;
+      fetch('/api/v1/instruments/metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: syms }),
+      }).catch(() => {});
     }
   }, [history.signals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -163,7 +164,9 @@ export function CockpitApp() {
       )}
 
       {/* Main content area */}
-      {view === 'screener' ? (
+      {view === 'dashboard' ? (
+        <DashboardPanel active={view === 'dashboard'} />
+      ) : view === 'screener' ? (
         <ScreenerPanel active={view === 'screener'} />
       ) : (
         <SignalFeed

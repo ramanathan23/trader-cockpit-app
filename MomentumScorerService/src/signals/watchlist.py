@@ -13,7 +13,7 @@ from dataclasses import asdict
 
 import pandas as pd
 
-from ..domain.models import WatchlistCandidate
+from ..domain.watchlist_candidate import WatchlistCandidate
 
 
 def detect_run_and_tight_base(

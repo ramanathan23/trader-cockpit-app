@@ -25,8 +25,8 @@ import statistics
 from dataclasses import dataclass
 from typing import Optional, NamedTuple
 
-from ..domain.models import Candle
-from ..domain.enums import SignalType
+from ..domain.candle import Candle
+from ..domain.signal_type import SignalType
 
 
 # ── ORB ──────────────────────────────────────────────────────────────────────

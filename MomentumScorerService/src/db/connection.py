@@ -5,7 +5,7 @@ import asyncpg
 
 logger = logging.getLogger(__name__)
 
-_MIGRATION = Path(__file__).parent / "migrations" / "001_schema.sql"
+_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
 async def create_pool(
@@ -26,8 +26,10 @@ async def create_pool(
 
 
 async def run_migrations(pool: asyncpg.Pool) -> None:
-    """Apply schema DDL. All statements use IF NOT EXISTS — safe to re-run."""
-    sql = _MIGRATION.read_text(encoding="utf-8")
-    async with pool.acquire() as conn:
-        await conn.execute(sql)
+    """Apply all schema migrations in order. All DDL uses IF NOT EXISTS — safe to re-run."""
+    for migration in sorted(_MIGRATIONS_DIR.glob("*.sql")):
+        sql = migration.read_text(encoding="utf-8")
+        async with pool.acquire() as conn:
+            await conn.execute(sql)
+        logger.info("Applied %s", migration.name)
     logger.info("Migrations applied")

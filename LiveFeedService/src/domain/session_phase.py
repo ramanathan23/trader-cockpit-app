@@ -1,0 +1,14 @@
+from enum import Enum
+
+
+class SessionPhase(str, Enum):
+    PRE_MARKET     = "PRE_MARKET"
+    PRE_SIGNAL     = "PRE_SIGNAL"
+    DRIVE_WINDOW   = "DRIVE_WINDOW"
+    EXECUTION      = "EXECUTION"
+    TRANSITION     = "TRANSITION"
+    MID_SESSION    = "MID_SESSION"
+    DEAD_ZONE      = "DEAD_ZONE"
+    CLOSE_MOMENTUM = "CLOSE_MOMENTUM"
+    SESSION_END    = "SESSION_END"
+    POST_MARKET    = "POST_MARKET"

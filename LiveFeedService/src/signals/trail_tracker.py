@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from typing import Callable
 
-from ..domain.models import Candle, Direction, DriveState, SessionPhase, Signal
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.drive_state import DriveState
+from ..domain.session_phase import SessionPhase
+from ..domain.signal import Signal
 from . import signal_factory
 
 

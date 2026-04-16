@@ -22,7 +22,10 @@ Invalidation (overrides scoring):
 
 from __future__ import annotations
 
-from ..domain.models import Candle, Direction, DriveState, DriveStatus
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.drive_state import DriveState
+from ..domain.drive_status import DriveStatus
 
 # Default thresholds — overridable via SignalEngine config
 DRIVE_CANDLES      = 5

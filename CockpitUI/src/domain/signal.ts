@@ -1,6 +1,8 @@
 // Signal domain — types, constants, and pure helper functions.
 // Single Responsibility: all signal-related type definitions live here.
 
+import type { InstrumentMetrics } from './instrument_metrics';
+
 export type SignalType =
   | 'OPEN_DRIVE_ENTRY' | 'DRIVE_FAILED' | 'EXIT' | 'TRAIL_UPDATE'
   | 'SPIKE_BREAKOUT'
@@ -41,25 +43,6 @@ export interface Signal {
   _dedupKey?: string;
   _fromCatchup?: boolean;
   _catchup?: boolean;
-}
-
-export interface InstrumentMetrics {
-  symbol: string;
-  day_high?: number;
-  day_low?: number;
-  day_open?: number;
-  day_chg_pct?: number;
-  week52_high?: number;
-  week52_low?: number;
-  prev_day_high?: number;
-  prev_day_low?: number;
-  prev_day_close?: number;
-  prev_week_high?: number;
-  prev_week_low?: number;
-  prev_month_high?: number;
-  prev_month_low?: number;
-  atr_14?: number;
-  adv_20_cr?: number;
 }
 
 // ── Category mapping ─────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ import logging
 
 import redis.asyncio as aioredis
 
-from ...domain.models import Signal
+from ...domain.signal import Signal
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +80,12 @@ class SignalPublisher:
         Drive-family signals (OPEN_DRIVE_ENTRY, TRAIL_UPDATE, EXIT) are
         never cluster-suppressed — they are stock-specific, not market-wide.
         """
-        from ...domain.enums import SignalType as _ST
+        from ...domain.signal_type import SignalType as _ST
         _EXEMPT = {
             _ST.OPEN_DRIVE_ENTRY, _ST.DRIVE_FAILED, _ST.TRAIL_UPDATE,
             _ST.EXIT, _ST.EXHAUSTION_REVERSAL,
+            _ST.CAM_H3_REVERSAL, _ST.CAM_H4_BREAKOUT,
+            _ST.CAM_L3_REVERSAL, _ST.CAM_L4_BREAKDOWN,
         }
         if signal.signal_type in _EXEMPT:
             return True

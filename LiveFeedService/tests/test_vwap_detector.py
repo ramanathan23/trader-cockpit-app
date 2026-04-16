@@ -1,4 +1,4 @@
-from src.domain.enums import SignalType
+from src.domain.signal_type import SignalType
 from src.signals.vwap_detector import VwapState, detect_cross, update
 
 

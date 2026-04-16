@@ -8,7 +8,7 @@ the 5-minute candle grid so callers can rely on phase not changing mid-candle.
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-from ..domain.models import SessionPhase
+from ..domain.session_phase import SessionPhase
 
 _IST = ZoneInfo("Asia/Kolkata")
 

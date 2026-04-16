@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from src.domain.models import Candle
+from src.domain.candle import Candle
 
 
 IST = ZoneInfo("Asia/Kolkata")

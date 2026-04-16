@@ -1,5 +1,5 @@
-from src.domain.models import Direction
-from src.domain.enums import SpikeType
+from src.domain.direction import Direction
+from src.domain.spike_type import SpikeType
 from src.signals.spike_detector import evaluate, is_volume_dry_up
 
 

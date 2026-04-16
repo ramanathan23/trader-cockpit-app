@@ -27,7 +27,12 @@ from zoneinfo import ZoneInfo
 from ..config import Settings
 from ..core.session_manager import SessionManager
 from ..core.tick_router import TickRouter
-from ..domain.models import Candle, Direction, IndexBias, InstrumentMeta, Signal, SessionPhase
+from ..domain.candle import Candle
+from ..domain.direction import Direction
+from ..domain.index_bias import IndexBias
+from ..domain.instrument_meta import InstrumentMeta
+from ..domain.session_phase import SessionPhase
+from ..domain.signal import Signal
 from ..infrastructure.dhan.subscription_manager import SubscriptionManager
 from ..infrastructure.redis.publisher import SignalPublisher
 from ..infrastructure.redis.token_store import TokenStore
@@ -265,6 +270,16 @@ class FeedService:
                 confirmed_thresh = s.drive_confirmed_thresh,
                 weak_thresh      = s.drive_weak_thresh,
                 spike_window     = s.spike_window,
+                spike_cooldown        = s.spike_cooldown,
+                absorption_cooldown   = s.absorption_cooldown,
+                absorption_near_pct   = s.absorption_near_pct,
+                exhaustion_downtrend_candles = s.exhaustion_downtrend_candles,
+                exhaustion_vol_ratio_min     = s.exhaustion_vol_ratio_min,
+                exhaustion_lower_lows        = s.exhaustion_lower_lows,
+                range_lookback   = s.range_lookback,
+                range_vol_ratio  = s.range_vol_ratio,
+                range_max_pct    = s.range_max_pct,
+                vwap_hysteresis_min = s.vwap_hysteresis_min,
                 min_adv_cr       = s.min_adv_cr,
                 confluence_15m   = s.confluence_15m_candles,
                 confluence_1h    = s.confluence_1h_candles,

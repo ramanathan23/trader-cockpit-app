@@ -87,10 +87,28 @@ def _split_sql_statements(sql: str) -> list[str]:
 
     # Trailing statement without a semicolon
     remaining = "".join(buf).strip()
-    if remaining:
+    if remaining and not _is_comment_only(remaining):
         statements.append(remaining)
 
     return statements
+
+
+def _is_comment_only(stmt: str) -> bool:
+    """Return True if *stmt* contains only SQL comments and whitespace."""
+    s = stmt
+    while s:
+        s = s.lstrip()
+        if not s:
+            return True
+        if s.startswith("--"):
+            nl = s.find("\n")
+            s = s[nl + 1 :] if nl != -1 else ""
+        elif s.startswith("/*"):
+            end = s.find("*/", 2)
+            s = s[end + 2 :] if end != -1 else ""
+        else:
+            return False
+    return True
 
 
 async def create_pool(

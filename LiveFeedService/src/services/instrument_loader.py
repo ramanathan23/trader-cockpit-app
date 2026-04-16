@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 from ..core.tick_router import TickRouter
-from ..domain.models import InstrumentMeta
+from ..domain.instrument_meta import InstrumentMeta
 from ..repositories.candle_repository import CandleRepository
 from ..repositories.symbol_repository import SymbolRepository
 

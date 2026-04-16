@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,7 +38,6 @@ class Settings(BaseSettings):
     macd_fast: int = Field(default=12, description="MACD fast EMA period")
     macd_slow: int = Field(default=26, description="MACD slow EMA period")
     macd_signal: int = Field(default=9, description="MACD signal EMA period")
-    roc_period: int = Field(default=10, description="Rate-of-Change lookback window")
     vol_avg_period: int = Field(default=20, description="Volume ratio rolling average window")
 
     # ── Benchmark ─────────────────────────────────────────────────────────────
@@ -48,35 +47,10 @@ class Settings(BaseSettings):
     )
 
     # ── Quality filters ───────────────────────────────────────────────────────
-    trend_lookback_bars: int = Field(
-        default=60,
-        description="Long-term ROC lookback (bars) for trend-context multiplier",
-    )
-    atr_period: int = Field(default=14, description="ATR period for volatility penalty")
-    atr_pct_max: float = Field(
-        default=5.0,
-        description="Max ATR% of price before volatility penalty kicks in",
-    )
     min_avg_daily_turnover: float = Field(
         default=10_000_000,
         description="Min 20-day avg daily turnover (INR) — symbols below this are skipped",
     )
-
-    # ── Score weights (must sum to 1.0) ───────────────────────────────────────
-    weight_rsi: float = Field(default=0.30, description="RSI component weight")
-    weight_macd: float = Field(default=0.30, description="MACD component weight")
-    weight_roc: float = Field(default=0.25, description="ROC component weight")
-    weight_vol: float = Field(default=0.15, description="Volume ratio component weight")
-
-    @model_validator(mode="after")
-    def _weights_sum_to_one(self) -> "Settings":
-        total = self.weight_rsi + self.weight_macd + self.weight_roc + self.weight_vol
-        if abs(total - 1.0) > 1e-6:
-            raise ValueError(
-                f"Score weights must sum to 1.0, got {total:.4f}. "
-                "Check WEIGHT_RSI, WEIGHT_MACD, WEIGHT_ROC, WEIGHT_VOL."
-            )
-        return self
 
 
 settings = Settings()

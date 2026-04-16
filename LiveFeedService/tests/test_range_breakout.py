@@ -1,4 +1,4 @@
-from src.domain.enums import SignalType
+from src.domain.signal_type import SignalType
 from src.signals.range_breakout import detect
 
 

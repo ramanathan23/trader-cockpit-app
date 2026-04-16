@@ -1,6 +1,7 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
@@ -47,6 +48,14 @@ function pctText(value?: number | null, forcePlus = false): string {
 }
 
 export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: ScreenerTableProps) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 32,
+    overscan: 20,
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40 text-[11px] animate-blink" style={{ color: '#2a3f58' }}>
@@ -63,8 +72,11 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: 
     );
   }
 
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
   return (
-    <div className="flex-1 overflow-auto">
+    <div ref={parentRef} className="flex-1 overflow-auto">
       <table className="w-full text-[11px] border-collapse">
         <thead className="sticky top-0 bg-panel z-10">
           <tr className="border-b border-border">
@@ -85,9 +97,15 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: 
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
-            <ScreenerTableRow key={r.symbol} row={r} />
+          {virtualItems.length > 0 && (
+            <tr><td colSpan={COLS.length} style={{ height: virtualItems[0].start, padding: 0, border: 'none' }} /></tr>
+          )}
+          {virtualItems.map(vi => (
+            <ScreenerTableRow key={rows[vi.index].symbol} row={rows[vi.index]} />
           ))}
+          {virtualItems.length > 0 && (
+            <tr><td colSpan={COLS.length} style={{ height: totalSize - virtualItems[virtualItems.length - 1].end, padding: 0, border: 'none' }} /></tr>
+          )}
         </tbody>
       </table>
     </div>

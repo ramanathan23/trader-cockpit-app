@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from .config import settings
 from .db.connection import create_pool, run_migrations
+from .infrastructure.dhan.option_chain_client import OptionChainClient
 from .infrastructure.redis.publisher import SignalPublisher
 from .infrastructure.redis.token_store import TokenStore
 from .repositories.candle_repository import CandleRepository
@@ -81,6 +82,12 @@ async def lifespan(app: FastAPI):
     app.state.token_store    = token_store
     app.state.feed_service   = feed_service
     app.state.metrics        = metrics_service
+
+    # Option chain client (on-demand, rate-limited)
+    app.state.option_chain_client = OptionChainClient(
+        client_id=settings.dhan_client_id,
+        token_getter=token_store.get,
+    )
 
     feed_task = asyncio.create_task(feed_service.run(), name="feed-service")
     logger.info("LiveFeedService ready")

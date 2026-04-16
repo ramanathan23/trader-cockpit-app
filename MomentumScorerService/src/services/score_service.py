@@ -1,8 +1,10 @@
 """
-ScoreService — orchestrates batch momentum score computation and persistence.
+ScoreService — orchestrates batch unified score computation and persistence.
 """
 import asyncio
 import logging
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import pandas as pd
@@ -11,10 +13,13 @@ from ..config import settings
 from ..domain.filters import is_liquid
 from ..repositories.price_repository import PriceRepository
 from ..repositories.score_repository import ScoreRepository
-from ..signals import indicators, scorer
+from ..signals.unified_scorer import compute_unified_score
 from ..signals.watchlist import detect_run_and_tight_base
 
 logger = logging.getLogger(__name__)
+
+_IST = ZoneInfo("Asia/Kolkata")
+_WATCHLIST_SIZE = 50
 
 
 class ScoreService:
@@ -24,16 +29,18 @@ class ScoreService:
         self._scores    = ScoreRepository(pool)
         self._semaphore = asyncio.Semaphore(settings.score_concurrency)
 
-    async def compute_all(self, timeframe: str = "1d") -> int:
+    async def compute_unified(self) -> int:
         """
-        Compute and persist momentum scores for all synced symbols.
+        Compute unified daily scores for all synced symbols and persist
+        to daily_scores + update symbol_metrics with indicator values.
 
         Steps:
-          1. Load all synced symbol names (single query).
-          2. Batch-fetch all OHLCV data in one windowed query (no N+1).
-          3. Apply liquidity filter before scoring.
-          4. Run CPU-bound scoring concurrently in threads, semaphore-bounded.
-          5. Replace the existing timeframe snapshot atomically.
+          1. Load all synced symbol names.
+          2. Batch-fetch OHLCV data in one windowed query.
+          3. Apply liquidity filter.
+          4. Run CPU-bound unified scoring concurrently.
+          5. Rank by total_score, mark top 50 as watchlist.
+          6. Persist daily_scores + update symbol_metrics atomically.
 
         Returns the number of symbols successfully scored.
         """
@@ -42,41 +49,35 @@ class ScoreService:
             logger.warning("No synced symbols found — run initial sync first")
             return 0
 
-        logger.info("Computing %s momentum scores for %d symbols", timeframe, len(symbols))
-
-        price_data = await self._prices.fetch_ohlcv_batch(
-            symbols, timeframe, settings.score_lookback_bars
+        fno_set = await self._prices.fetch_fno_set()
+        logger.info(
+            "Computing unified scores for %d symbols (%d FNO, %d equity)",
+            len(symbols), len(fno_set & set(symbols)), len(set(symbols) - fno_set),
         )
 
-        # Extract NIFTY500 benchmark ROC (60-bar) — used for relative-strength mult.
+        price_data = await self._prices.fetch_ohlcv_batch(
+            symbols, "1d", settings.score_lookback_bars
+        )
+
         nifty500_roc_60 = self._extract_benchmark_roc(price_data)
 
-        # Liquidity filter — removes illiquid symbols before scoring.
         price_data, skipped = self._apply_liquidity_filter(price_data)
         if skipped:
             logger.info("Liquidity filter removed %d symbols", skipped)
 
         score_kwargs = dict(
-            rsi_period      = settings.rsi_period,
-            macd_fast       = settings.macd_fast,
-            macd_slow       = settings.macd_slow,
-            macd_signal     = settings.macd_signal,
-            roc_period      = settings.roc_period,
-            vol_period      = settings.vol_avg_period,
-            min_bars        = settings.score_min_bars,
-            trend_lookback  = settings.trend_lookback_bars,
-            atr_period      = settings.atr_period,
-            atr_pct_max     = settings.atr_pct_max,
-            nifty500_roc_60 = nifty500_roc_60,
-            weights         = (
-                settings.weight_rsi, settings.weight_macd,
-                settings.weight_roc, settings.weight_vol,
-            ),
+            rsi_period=settings.rsi_period,
+            macd_fast=settings.macd_fast,
+            macd_slow=settings.macd_slow,
+            macd_signal=settings.macd_signal,
+            vol_period=settings.vol_avg_period,
+            min_bars=settings.score_min_bars,
+            nifty500_roc_60=nifty500_roc_60,
         )
 
         async def _score_one(symbol: str, df):
             async with self._semaphore:
-                return symbol, await asyncio.to_thread(scorer.compute_score, df, **score_kwargs)
+                return symbol, await asyncio.to_thread(compute_unified_score, df, **score_kwargs)
 
         results = await asyncio.gather(
             *[_score_one(sym, df) for sym, df in price_data.items()],
@@ -92,20 +93,40 @@ class ScoreService:
             if breakdown is not None:
                 valid_results.append((symbol, breakdown))
 
+        # Partition into FNO and equity groups; rank each group independently
+        # so top-50 of each becomes is_watchlist=True (total ≤100 subscriptions).
+        fno_results    = [(s, b) for s, b in valid_results if s in fno_set]
+        equity_results = [(s, b) for s, b in valid_results if s not in fno_set]
+
+        for group in (fno_results, equity_results):
+            group.sort(key=lambda x: x[1].total_score, reverse=True)
+
+        today = datetime.now(tz=_IST).date()
         scored = 0
+
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                deleted = await self._scores.delete_by_timeframe(conn, timeframe)
-                if deleted:
-                    logger.info("Replacing %d existing %s scores", deleted, timeframe)
-                for symbol, breakdown in valid_results:
-                    try:
-                        await self._scores.insert(conn, symbol, timeframe, breakdown)
-                        scored += 1
-                    except Exception:
-                        logger.warning("Score persist failed for %s", symbol, exc_info=True)
+                for group in (fno_results, equity_results):
+                    for rank_idx, (symbol, breakdown) in enumerate(group, start=1):
+                        is_watchlist = rank_idx <= _WATCHLIST_SIZE
+                        try:
+                            async with conn.transaction():  # savepoint per symbol
+                                await self._scores.upsert_daily_score(
+                                    conn, symbol, today, breakdown, rank_idx, is_watchlist
+                                )
+                                await self._scores.update_symbol_metrics_indicators(
+                                    conn, symbol, breakdown
+                                )
+                            scored += 1
+                        except Exception:
+                            logger.warning("Score persist failed for %s", symbol, exc_info=True)
 
-        logger.info("Scored %d / %d symbols (%s)", scored, len(symbols), timeframe)
+        fno_wl    = min(_WATCHLIST_SIZE, len(fno_results))
+        equity_wl = min(_WATCHLIST_SIZE, len(equity_results))
+        logger.info(
+            "Unified scoring complete: %d/%d scored — FNO watchlist=%d, equity watchlist=%d (total subs=%d)",
+            scored, len(symbols), fno_wl, equity_wl, fno_wl + equity_wl,
+        )
         return scored
 
     async def build_watchlist(

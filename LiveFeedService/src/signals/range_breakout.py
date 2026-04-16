@@ -24,8 +24,8 @@ from __future__ import annotations
 import statistics
 from typing import Optional
 
-from ..domain.models import Candle
-from ..domain.enums import SignalType
+from ..domain.candle import Candle
+from ..domain.signal_type import SignalType
 
 
 def detect(

@@ -15,7 +15,7 @@ from datetime import datetime
 
 import asyncpg
 
-from ..domain.models import Candle
+from ..domain.candle import Candle
 
 logger = logging.getLogger(__name__)
 

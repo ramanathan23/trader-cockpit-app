@@ -29,7 +29,8 @@ from dataclasses import dataclass
 from statistics import mean
 from typing import Optional
 
-from ..domain.models import Candle, Direction
+from ..domain.candle import Candle
+from ..domain.direction import Direction
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 DOWNTREND_CANDLES  = 4      # candles that must show falling lows before climax
