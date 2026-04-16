@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { filterSignals, type SignalCategory } from '@/domain/signal';
-import { useMarketStatus } from '@/hooks/useMarketStatus';
+import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
 import { useNotes } from '@/hooks/useNotes';
@@ -55,8 +55,8 @@ function HistoryBar({
 
 // ── Root app ─────────────────────────────────────────────────────────────────
 export function CockpitApp() {
-  const market = useMarketStatus();
-  const { signals, paused, pendingCount, connState, metricsCache, togglePause, clearSignals } = useSignals();
+  const clock = useClock();
+  const { signals, paused, pendingCount, connState, metricsCache, marketStatus, togglePause, clearSignals } = useSignals();
   const { notes, saveNote } = useNotes();
   const history = useHistory();
 
@@ -126,9 +126,9 @@ export function CockpitApp() {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-base text-fg text-sm">
       <Header
-        phase={market.phase}
-        bias={market.bias}
-        clock={market.clock}
+        phase={marketStatus.phase}
+        bias={marketStatus.bias}
+        clock={clock}
         theme={theme}
         onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
       />
@@ -182,6 +182,8 @@ export function CockpitApp() {
               ? 'Waiting for signals — market opens at 09:15 IST'
               : `No signals for ${history.date}`
           }
+          hasMore={view === 'history' ? history.hasMore : false}
+          onLoadMore={view === 'history' ? history.loadMore : undefined}
         />
       )}
 

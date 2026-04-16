@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Signal } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
+import type { Bias, IndexName, MarketPhase, MarketStatus } from '@/domain/market';
 import { alertSound } from '@/lib/audio';
 
 export type ConnState = 'connecting' | 'connected' | 'disconnected';
@@ -11,6 +12,11 @@ const MAX_SIGNALS         = 200;
 const METRICS_BATCH_DELAY = 150; // ms — collect symbols then fire one POST
 const ALWAYS_NEW    = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 const ALWAYS_NEW_CU = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
+
+const DEFAULT_MARKET: MarketStatus = {
+  phase: '--',
+  bias: { nifty: 'NEUTRAL', banknifty: 'NEUTRAL', sensex: 'NEUTRAL' },
+};
 
 function toWebSocketUrl(baseUrl: string): string {
   const url = new URL(baseUrl);
@@ -44,6 +50,7 @@ export function useSignals() {
   const [pendingCount, setPendingCount] = useState(0);
   const [connState,    setConnState]    = useState<ConnState>('connecting');
   const [metricsCache, setMetricsCache] = useState<Record<string, InstrumentMetrics | null>>({});
+  const [marketStatus, setMarketStatus] = useState<MarketStatus>(DEFAULT_MARKET);
 
   // Refs allow the connection handler to always see latest state without re-subscribing.
   const pausedRef  = useRef(false);
@@ -175,7 +182,22 @@ export function useSignals() {
       nextSocket.onmessage = (e) => {
         try {
           if (typeof e.data !== 'string') return;
-          const s: Signal = JSON.parse(e.data);
+          const parsed = JSON.parse(e.data);
+
+          // Market status envelope — update phase & bias, skip signal pipeline
+          if (parsed.type === 'market_status') {
+            setMarketStatus({
+              phase: (parsed.session_phase ?? '--') as MarketPhase,
+              bias: {
+                nifty:     (parsed.index_bias?.nifty     ?? 'NEUTRAL') as Bias,
+                banknifty: (parsed.index_bias?.banknifty ?? 'NEUTRAL') as Bias,
+                sensex:    (parsed.index_bias?.sensex    ?? 'NEUTRAL') as Bias,
+              } as Record<IndexName, Bias>,
+            });
+            return;
+          }
+
+          const s: Signal = parsed;
           if (pausedRef.current) {
             pendingRef.current.push(s);
             setPendingCount(pendingRef.current.length);
@@ -237,6 +259,7 @@ export function useSignals() {
     pendingCount,
     connState,
     metricsCache,
+    marketStatus,
     togglePause,
     clearSignals,
   };

@@ -101,6 +101,13 @@ class SignalPublisher:
 
         return self._cluster_counts[key] <= self._cluster_max
 
+    async def publish_status(self, data: dict) -> None:
+        """Broadcast a market-status envelope on the signals channel (no history)."""
+        if self._redis is None:
+            return
+        payload = json.dumps({"type": "market_status", **data})
+        await self._redis.publish(_CHANNEL_ALL, payload)
+
     async def publish(self, signal: Signal) -> bool:
         """
         Persist signal to rolling + daily history, then broadcast via pub/sub.
@@ -151,22 +158,47 @@ class SignalPublisher:
                 pass
         return signals
 
-    async def signals_for_date(self, date_str: str) -> list[dict]:
+    async def signals_for_date(self, date_str: str, offset: int = 0, limit: int | None = None) -> tuple[list[dict], int]:
         """
-        All signals for a given IST date (YYYY-MM-DD), chronological order.
-        Returns [] if nothing recorded or key has expired.
+        Signals for a given IST date (YYYY-MM-DD), chronological order.
+        Returns (page, total_count).
+        Returns ([], 0) if nothing recorded or key has expired.
         """
         if self._redis is None:
-            return []
+            return [], 0
         key = f"{_DAILY_PREFIX}{date_str}"
-        raw = await self._redis.lrange(key, 0, -1)
+        total = await self._redis.llen(key)
+        if total == 0:
+            return [], 0
+
+        # Redis list is newest-first (LPUSH). We want chronological (oldest-first).
+        # To paginate chronologically: reverse the index mapping.
+        # offset=0 → oldest items, which are at the end of the list.
+        if limit is None:
+            # Return all, reversed
+            raw = await self._redis.lrange(key, 0, -1)
+            signals = []
+            for item in reversed(raw):
+                try:
+                    signals.append(json.loads(item))
+                except Exception:
+                    pass
+            return signals, total
+
+        # Paginated: map chronological offset to Redis indices (newest-first order)
+        redis_end   = total - 1 - offset
+        redis_start = max(0, redis_end - limit + 1)
+        if redis_start > redis_end:
+            return [], total
+
+        raw = await self._redis.lrange(key, redis_start, redis_end)
         signals = []
-        for item in reversed(raw):   # newest-first in Redis; reverse for display
+        for item in reversed(raw):   # reverse back to chronological
             try:
                 signals.append(json.loads(item))
             except Exception:
                 pass
-        return signals
+        return signals, total
 
     async def available_dates(self) -> list[str]:
         """IST dates that have saved signal data, sorted descending."""

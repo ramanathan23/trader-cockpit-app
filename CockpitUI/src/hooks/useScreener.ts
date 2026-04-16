@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_RANGE,
   ScreenerPreset,
@@ -13,26 +13,50 @@ import {
 
 export type { ScreenerRangeFilter, ScreenerPreset };
 
+const PAGE_SIZE = 200;
+
 export function useScreener() {
   const [rows,    setRows]    = useState<ScreenerRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [query,   setQuery]   = useState('');
   const [range,   setRange]   = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
   const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
   const [sortCol, setSortCol] = useState('adv_20_cr');
   const [sortAsc, setSortAsc] = useState(false);
+  const offsetRef = useRef(0);
 
   const loadScreener = useCallback(async () => {
     setLoading(true);
+    offsetRef.current = 0;
     try {
-      const r = await fetch('/api/v1/screener');
+      const r = await fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
-        setRows(decorateRows(d.symbols ?? []));
+        const decorated = decorateRows(d.symbols ?? []);
+        setRows(decorated);
+        setHasMore(d.has_more ?? false);
+        offsetRef.current = decorated.length;
       }
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loading || !hasMore) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
+      if (r.ok) {
+        const d = await r.json();
+        const decorated = decorateRows(d.symbols ?? []);
+        setRows(prev => [...prev, ...decorated]);
+        setHasMore(d.has_more ?? false);
+        offsetRef.current += decorated.length;
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [loading, hasMore]);
 
   const sortBy = useCallback((col: string) => {
     setSortCol(prev => {
@@ -68,11 +92,13 @@ export function useScreener() {
     rows,
     filteredRows,
     loading,
+    hasMore,
     query,   setQuery,
     range,   setRange,
     presets, togglePreset,
     sortCol, sortAsc, sortBy,
     loadScreener,
+    loadMore,
     resetFilters,
     totalCount: rows.length,
   };

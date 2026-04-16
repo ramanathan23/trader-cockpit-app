@@ -113,8 +113,10 @@ def squeeze_days(squeeze_series: pd.Series) -> int:
 
 
 def narrowest_range(high: pd.Series, low: pd.Series, window: int = 7) -> bool:
-    """NR7 (or NRn): True when today's range is the narrowest of the last `window` bars."""
+    """NR7 (or NRn): True when today's range is strictly the narrowest of the last `window` bars."""
     if len(high) < window:
         return False
     ranges = (high - low).iloc[-window:]
-    return bool(ranges.iloc[-1] == ranges.min())
+    today = ranges.iloc[-1]
+    prior = ranges.iloc[:-1]
+    return bool(today < prior.min())

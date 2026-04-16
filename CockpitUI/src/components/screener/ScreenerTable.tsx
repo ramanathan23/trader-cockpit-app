@@ -1,17 +1,19 @@
 'use client';
 
-import { memo, useRef } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
 
 interface ScreenerTableProps {
-  rows:     ScreenerRow[];
-  sortCol:  string;
-  sortAsc:  boolean;
-  onSort:   (col: string) => void;
-  loading:  boolean;
+  rows:       ScreenerRow[];
+  sortCol:    string;
+  sortAsc:    boolean;
+  onSort:     (col: string) => void;
+  loading:    boolean;
+  hasMore?:   boolean;
+  onLoadMore?: () => void;
 }
 
 const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right' }[] = [
@@ -47,7 +49,7 @@ function pctText(value?: number | null, forcePlus = false): string {
   return `${prefix}${value.toFixed(1)}%`;
 }
 
-export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: ScreenerTableProps) => {
+export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, hasMore, onLoadMore }: ScreenerTableProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -56,7 +58,15 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: 
     overscan: 20,
   });
 
-  if (loading) {
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el || loading || !hasMore || !onLoadMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+      onLoadMore();
+    }
+  }, [loading, hasMore, onLoadMore]);
+
+  if (loading && rows.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-[11px] animate-blink" style={{ color: '#2a3f58' }}>
         Loading metrics…
@@ -76,7 +86,7 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading }: 
   const totalSize = rowVirtualizer.getTotalSize();
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-auto">
+    <div ref={parentRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
       <table className="w-full text-[11px] border-collapse">
         <thead className="sticky top-0 bg-panel z-10">
           <tr className="border-b border-border">

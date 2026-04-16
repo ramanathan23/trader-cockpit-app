@@ -24,9 +24,11 @@ async def trigger_compute(
 async def get_dashboard(
     repo: ScoreRepoDep,
     score_date: date | None = Query(default=None, description="YYYY-MM-DD, latest if omitted"),
-    limit: int = Query(default=500, ge=1, le=1000),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     watchlist_only: bool = Query(default=False),
     segment: str | None = Query(default=None, pattern="^(fno|equity)$", description="fno | equity — omit for all"),
+    balanced: bool = Query(default=True, description="Return top N per bucket (bull/bear × fno/equity)"),
 ):
     is_fno: bool | None = None
     if segment == "fno":
@@ -35,8 +37,19 @@ async def get_dashboard(
         is_fno = False
 
     stats = await repo.get_dashboard_stats(score_date)
-    scores = await repo.get_daily_scores(score_date, limit, watchlist_only, is_fno)
-    return {"stats": stats, "scores": scores}
+
+    if balanced and segment is None and offset == 0:
+        scores = await repo.get_daily_scores_balanced(score_date, limit, watchlist_only)
+    else:
+        scores = await repo.get_daily_scores(score_date, limit, watchlist_only, is_fno, offset)
+
+    return {
+        "stats": stats,
+        "scores": scores,
+        "offset": offset,
+        "limit": limit,
+        "has_more": len(scores) == limit,
+    }
 
 
 @router.get("/dashboard/watchlist", summary="Current watchlist symbols for live feed subscription")

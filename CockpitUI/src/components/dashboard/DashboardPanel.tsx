@@ -16,7 +16,7 @@ interface DashboardPanelProps {
 }
 
 export function DashboardPanel({ active }: DashboardPanelProps) {
-  const { stats, scores, loading, computing, fetched, loadDashboard, triggerCompute } = useDashboard();
+  const { stats, scores, loading, computing, hasMore, fetched, loadDashboard, loadMore, triggerCompute } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
   const [query, setQuery] = useState('');
@@ -79,6 +79,16 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize   = rowVirtualizer.getTotalSize();
 
+  // Infinite scroll: load more when near bottom
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el || loading || !hasMore) return;
+    const threshold = 200;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < threshold) {
+      loadMore({ watchlistOnly, segment: segment !== 'all' ? segment : undefined });
+    }
+  }, [loading, hasMore, loadMore, watchlistOnly, segment]);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Toolbar */}
@@ -137,7 +147,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
       </div>
 
       {/* Table */}
-      <div ref={parentRef} className="flex-1 overflow-auto">
+      <div ref={parentRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-panel z-10">
             <tr className="border-b border-border">

@@ -4,7 +4,7 @@ import logging
 import re
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from ..deps import PublisherDep
@@ -127,12 +127,26 @@ async def signal_websocket(websocket: WebSocket, publisher: PublisherDep):
 
 
 @router.get("/signals/history", summary="All signals for a given IST date")
-async def signal_history(date: str, publisher: PublisherDep):
+async def signal_history(
+    date: str,
+    publisher: PublisherDep,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+):
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
-    signals = await publisher.signals_for_date(date)
+    signals, total = await publisher.signals_for_date(date, offset, limit)
     dates = await publisher.available_dates()
-    return {"date": date, "count": len(signals), "signals": signals, "available_dates": dates}
+    return {
+        "date": date,
+        "count": len(signals),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(signals) < total,
+        "signals": signals,
+        "available_dates": dates,
+    }
 
 
 @router.get("/signals/history/dates", summary="IST dates with saved signal history")

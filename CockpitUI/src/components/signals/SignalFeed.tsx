@@ -16,6 +16,8 @@ interface SignalFeedProps {
   minAdvCr: number;
   viewMode: 'card' | 'table';
   emptyLabel?: string;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 // Minimal modal for editing note from table row
@@ -65,6 +67,7 @@ const TABLE_HEADERS: { h: string; title: string }[] = [
 
 export const SignalFeed = memo(({
   signals, metricsCache, notes, onSaveNote, category, minAdvCr, viewMode, emptyLabel,
+  hasMore, onLoadMore,
 }: SignalFeedProps) => {
   const [noteModalId, setNoteModalId] = useState<string | null>(null);
 
@@ -82,6 +85,23 @@ export const SignalFeed = memo(({
     overscan: 15,
   });
 
+  const handleTableScroll = useCallback(() => {
+    const el = tableParentRef.current;
+    if (!el || !hasMore || !onLoadMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+      onLoadMore();
+    }
+  }, [hasMore, onLoadMore]);
+
+  const cardParentRef = useRef<HTMLDivElement>(null);
+  const handleCardScroll = useCallback(() => {
+    const el = cardParentRef.current;
+    if (!el || !hasMore || !onLoadMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+      onLoadMore();
+    }
+  }, [hasMore, onLoadMore]);
+
   if (filtered.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-xs gap-2" style={{ color: '#2a3f58' }}>
@@ -94,7 +114,7 @@ export const SignalFeed = memo(({
     const tvItems = tableVirtualizer.getVirtualItems();
     const tvTotal = tableVirtualizer.getTotalSize();
     return (
-      <div ref={tableParentRef} className="flex-1 overflow-auto">
+      <div ref={tableParentRef} className="flex-1 overflow-auto" onScroll={handleTableScroll}>
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-panel z-10">
             <tr className="border-b border-border">
@@ -137,7 +157,7 @@ export const SignalFeed = memo(({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3">
+    <div ref={cardParentRef} className="flex-1 overflow-y-auto p-3" onScroll={handleCardScroll}>
       <div className="signal-grid">
         {filtered.map(s => (
           <SignalCard

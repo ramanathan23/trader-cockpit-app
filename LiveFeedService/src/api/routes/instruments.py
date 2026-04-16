@@ -34,11 +34,23 @@ async def instrument_metrics(symbol: str, request: Request):
 
 
 @router.get("/screener", summary="All instruments with pre-computed daily metrics for screening")
-async def screener(request: Request, svc: FeedServiceDep):
-    rows = request.app.state.metrics.all_daily()
+async def screener(
+    request: Request,
+    svc: FeedServiceDep,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=2000),
+):
+    rows, total = request.app.state.metrics.all_daily(offset, limit)
     live = svc.screener_live_metrics()
     merged = [{**row, **live.get(row["symbol"], {})} for row in rows]
-    return {"count": len(merged), "symbols": merged}
+    return {
+        "count": len(merged),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(merged) < total,
+        "symbols": merged,
+    }
 
 
 @router.get("/chart/{symbol}/daily", summary="Daily OHLCV for TradingView chart")

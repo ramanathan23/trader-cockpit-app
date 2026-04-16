@@ -1,14 +1,16 @@
 'use client';
 
-import { memo, useRef, useMemo } from 'react';
+import { memo, useRef, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
 
 interface ScreenerCardsProps {
-  rows:    ScreenerRow[];
-  loading: boolean;
+  rows:       ScreenerRow[];
+  loading:    boolean;
+  hasMore?:   boolean;
+  onLoadMore?: () => void;
 }
 
 const ProximityBar = memo(({ pct, inverted = false }: { pct?: number | null; inverted?: boolean }) => {
@@ -103,7 +105,7 @@ const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
 });
 ScreenerCard.displayName = 'ScreenerCard';
 
-export const ScreenerCards = memo(({ rows, loading }: ScreenerCardsProps) => {
+export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore }: ScreenerCardsProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Approximate cards per row: container ~full width, card ~176px + 12px gap
@@ -125,7 +127,15 @@ export const ScreenerCards = memo(({ rows, loading }: ScreenerCardsProps) => {
     overscan: 3,
   });
 
-  if (loading) {
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el || loading || !hasMore || !onLoadMore) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+      onLoadMore();
+    }
+  }, [loading, hasMore, onLoadMore]);
+
+  if (loading && rows.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-xs animate-blink" style={{ color: '#2a3f58' }}>
         Loading metrics…
@@ -145,7 +155,7 @@ export const ScreenerCards = memo(({ rows, loading }: ScreenerCardsProps) => {
   const totalSize = rowVirtualizer.getTotalSize();
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
+    <div ref={parentRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
       <div style={{ height: totalSize, position: 'relative' }}>
         {virtualItems.map(vi => (
           <div

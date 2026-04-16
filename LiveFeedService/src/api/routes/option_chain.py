@@ -31,28 +31,37 @@ def _normalize_chain(symbol: str, expiry: str, raw: dict) -> dict:
                     return v
             return None
 
+        def _greek(d: dict, key: str):
+            """Extract a Greek from nested 'greeks' dict or flat key."""
+            g = d.get("greeks")
+            if isinstance(g, dict):
+                v = g.get(key)
+                if v is not None:
+                    return v
+            return d.get(key)
+
         strikes.append({
             "strike_price": strike_price,
             "call_ltp":    _f(ce, "last_price", "lastPrice", "ltp"),
-            "call_iv":     _f(ce, "iv", "impliedVolatility"),
-            "call_delta":  _f(ce, "delta"),
-            "call_theta":  _f(ce, "theta"),
-            "call_gamma":  _f(ce, "gamma"),
-            "call_vega":   _f(ce, "vega"),
-            "call_oi":     _f(ce, "open_interest", "openInterest", "oi"),
+            "call_iv":     _f(ce, "implied_volatility", "iv", "impliedVolatility"),
+            "call_delta":  _greek(ce, "delta"),
+            "call_theta":  _greek(ce, "theta"),
+            "call_gamma":  _greek(ce, "gamma"),
+            "call_vega":   _greek(ce, "vega"),
+            "call_oi":     _f(ce, "oi", "open_interest", "openInterest"),
             "call_volume": _f(ce, "volume"),
-            "call_bid":    _f(ce, "bid_price", "bidPrice", "bid"),
-            "call_ask":    _f(ce, "ask_price", "askPrice", "ask"),
+            "call_bid":    _f(ce, "top_bid_price", "bid_price", "bidPrice", "bid"),
+            "call_ask":    _f(ce, "top_ask_price", "ask_price", "askPrice", "ask"),
             "put_ltp":     _f(pe, "last_price", "lastPrice", "ltp"),
-            "put_iv":      _f(pe, "iv", "impliedVolatility"),
-            "put_delta":   _f(pe, "delta"),
-            "put_theta":   _f(pe, "theta"),
-            "put_gamma":   _f(pe, "gamma"),
-            "put_vega":    _f(pe, "vega"),
-            "put_oi":      _f(pe, "open_interest", "openInterest", "oi"),
+            "put_iv":      _f(pe, "implied_volatility", "iv", "impliedVolatility"),
+            "put_delta":   _greek(pe, "delta"),
+            "put_theta":   _greek(pe, "theta"),
+            "put_gamma":   _greek(pe, "gamma"),
+            "put_vega":    _greek(pe, "vega"),
+            "put_oi":      _f(pe, "oi", "open_interest", "openInterest"),
             "put_volume":  _f(pe, "volume"),
-            "put_bid":     _f(pe, "bid_price", "bidPrice", "bid"),
-            "put_ask":     _f(pe, "ask_price", "askPrice", "ask"),
+            "put_bid":     _f(pe, "top_bid_price", "bid_price", "bidPrice", "bid"),
+            "put_ask":     _f(pe, "top_ask_price", "ask_price", "askPrice", "ask"),
         })
 
     strikes.sort(key=lambda x: x["strike_price"])

@@ -1,12 +1,71 @@
 'use client';
 
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ExpiryListResponse, OptionChainResponse, OptionStrike } from '@/domain/option_chain';
 import { fmt2 } from '@/lib/fmt';
 
 interface OptionChainPanelProps {
   symbol: string;
   onClose: () => void;
+}
+
+const ATM_COUNT = 5; // strikes above + below ATM
+
+/** Quick assessment of option chain health for buying. */
+function assessChain(strikes: OptionStrike[], spotPrice: number): { label: string; color: string; reasons: string[] } {
+  if (strikes.length === 0) return { label: 'No data', color: 'text-ghost', reasons: [] };
+
+  const reasons: string[] = [];
+  let score = 0; // -3 … +3
+
+  // 1. IV level (avg of ATM CE + PE)
+  const atmIVs = strikes
+    .filter(s => s.call_iv != null || s.put_iv != null)
+    .map(s => ((s.call_iv ?? 0) + (s.put_iv ?? 0)) / ((s.call_iv != null ? 1 : 0) + (s.put_iv != null ? 1 : 0)))
+    .filter(v => v > 0);
+  const avgIV = atmIVs.length ? atmIVs.reduce((a, b) => a + b, 0) / atmIVs.length : 0;
+
+  if (avgIV > 0) {
+    if (avgIV < 25) { score += 1; reasons.push(`Low IV ${avgIV.toFixed(1)}% — premiums cheap`); }
+    else if (avgIV < 40) { reasons.push(`Moderate IV ${avgIV.toFixed(1)}%`); }
+    else { score -= 1; reasons.push(`High IV ${avgIV.toFixed(1)}% — premiums expensive`); }
+  }
+
+  // 2. Bid-Ask spread on ATM
+  const atm = strikes.reduce((best, s) =>
+    Math.abs(s.strike_price - spotPrice) < Math.abs(best.strike_price - spotPrice) ? s : best,
+    strikes[0],
+  );
+  const callSpread = (atm.call_ask != null && atm.call_bid != null && atm.call_bid > 0)
+    ? ((atm.call_ask - atm.call_bid) / atm.call_bid) * 100 : null;
+  const putSpread  = (atm.put_ask != null && atm.put_bid != null && atm.put_bid > 0)
+    ? ((atm.put_ask - atm.put_bid) / atm.put_bid) * 100 : null;
+  const avgSpread  = [callSpread, putSpread].filter((v): v is number => v != null);
+  if (avgSpread.length) {
+    const spread = avgSpread.reduce((a, b) => a + b, 0) / avgSpread.length;
+    if (spread < 1) { score += 1; reasons.push(`Tight spread ${spread.toFixed(1)}%`); }
+    else if (spread > 3) { score -= 1; reasons.push(`Wide spread ${spread.toFixed(1)}% — slippage risk`); }
+    else { reasons.push(`Spread ${spread.toFixed(1)}%`); }
+  }
+
+  // 3. OI & volume (liquidity)
+  const totalCallOI = strikes.reduce((s, r) => s + (r.call_oi ?? 0), 0);
+  const totalPutOI  = strikes.reduce((s, r) => s + (r.put_oi ?? 0), 0);
+  const totalVol    = strikes.reduce((s, r) => s + (r.call_volume ?? 0) + (r.put_volume ?? 0), 0);
+
+  if (totalCallOI + totalPutOI > 0) {
+    const pcr = totalPutOI / (totalCallOI || 1);
+    reasons.push(`PCR ${pcr.toFixed(2)}`);
+    if (pcr > 1.2) { score += 1; reasons.push('Bullish OI skew'); }
+    else if (pcr < 0.7) { score -= 1; reasons.push('Bearish OI skew'); }
+  }
+
+  if (totalVol === 0) { score -= 2; reasons.push('No volume — illiquid'); }
+  else if (totalVol < 1000) { reasons.push('Low volume'); }
+
+  const label = score >= 2 ? 'Favourable for buying' : score >= 0 ? 'Neutral' : 'Unfavourable for buying';
+  const color = score >= 2 ? 'text-bull' : score >= 0 ? 'text-amber' : 'text-bear';
+  return { label, color, reasons };
 }
 
 export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps) => {
@@ -60,6 +119,21 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
 
   const atmStrike = findATM();
 
+  // Only show ATM_COUNT strikes above & below ATM
+  const visibleStrikes = useMemo(() => {
+    if (!chain || atmStrike == null) return [];
+    const idx = chain.strikes.findIndex(s => s.strike_price === atmStrike);
+    if (idx === -1) return chain.strikes;
+    const lo = Math.max(0, idx - ATM_COUNT);
+    const hi = Math.min(chain.strikes.length, idx + ATM_COUNT + 1);
+    return chain.strikes.slice(lo, hi);
+  }, [chain, atmStrike]);
+
+  const assessment = useMemo(() => {
+    if (!chain) return null;
+    return assessChain(visibleStrikes, chain.spot_price);
+  }, [chain, visibleStrikes]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(5,12,24,0.88)' }} onClick={onClose}>
       <div className="w-[95vw] max-w-[1100px] max-h-[85vh] bg-card border border-border rounded-lg flex flex-col overflow-hidden"
@@ -69,7 +143,12 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
           <div className="flex items-center gap-3">
             <span className="font-bold text-[14px] text-fg">{symbol}</span>
             <span className="text-[10px] text-ghost">OPTION CHAIN</span>
-            {chain && <span className="num text-[11px] text-amber">Spot {fmt2(chain.spot_price)}</span>}
+            {chain && (
+              <span className="num text-[12px] font-bold px-2 py-0.5 rounded"
+                    style={{ background: 'rgba(45,126,232,0.15)', color: '#2d7ee8' }}>
+                Spot {fmt2(chain.spot_price)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {/* Expiry selector */}
@@ -87,6 +166,16 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
             <button onClick={onClose} className="text-ghost hover:text-fg text-sm px-2">✕</button>
           </div>
         </div>
+
+        {/* Assessment bar */}
+        {assessment && !loading && (
+          <div className="px-4 py-2 border-b border-border flex items-center gap-4 text-[10px]">
+            <span className={`font-bold text-[11px] ${assessment.color}`}>{assessment.label}</span>
+            {assessment.reasons.map((r, i) => (
+              <span key={i} className="text-ghost">• {r}</span>
+            ))}
+          </div>
+        )}
 
         {/* Loading / Error */}
         {loading && <div className="flex-1 flex items-center justify-center text-[10px] text-ghost">Loading option chain…</div>}
@@ -119,13 +208,14 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
                 </tr>
               </thead>
               <tbody>
-                {chain.strikes.map((s: OptionStrike) => {
+                {visibleStrikes.map((s: OptionStrike) => {
                   const isATM = atmStrike != null && s.strike_price === atmStrike;
                   const itm_call = chain.spot_price > s.strike_price;
                   const itm_put  = chain.spot_price < s.strike_price;
                   return (
                     <tr key={s.strike_price}
-                        className={`border-b border-border transition-colors ${isATM ? 'bg-accent/8' : 'hover:bg-lift'}`}>
+                        className={`border-b border-border transition-colors ${isATM ? 'ring-1 ring-accent/50' : 'hover:bg-lift'}`}
+                        style={isATM ? { background: 'rgba(45,126,232,0.12)' } : undefined}>
                       <td className="px-2 py-1.5 text-right num tabular-nums text-dim">{fmtOI(s.call_oi)}</td>
                       <td className="px-2 py-1.5 text-right num tabular-nums text-dim">{fmtOI(s.call_volume)}</td>
                       <td className="px-2 py-1.5 text-right num tabular-nums text-amber">{fmtIV(s.call_iv)}</td>
@@ -137,6 +227,7 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
                       </td>
                       <td className={`px-3 py-1.5 text-center num tabular-nums font-bold ${isATM ? 'text-accent' : 'text-fg'}`}>
                         {s.strike_price}
+                        {isATM && <span className="ml-1 text-[8px] text-accent font-normal">ATM</span>}
                       </td>
                       <td className={`px-2 py-1.5 text-left num tabular-nums font-bold ${itm_put ? 'text-bear' : 'text-fg'}`}>
                         {fmt2(s.put_ltp)}

@@ -111,9 +111,18 @@ class MetricsService:
         """Instant lookup — no I/O. Returns None if symbol not in daily data."""
         return self._daily.get(symbol)
 
-    def all_daily(self) -> list[dict]:
-        """Return all symbols with their daily metrics (in-memory, zero I/O)."""
-        return [{"symbol": s, **m} for s, m in self._daily.items()]
+    def all_daily(self, offset: int = 0, limit: int | None = None) -> tuple[list[dict], int]:
+        """
+        Return symbols with their daily metrics (in-memory, zero I/O).
+        Returns (page, total_count).
+        """
+        items = [{"symbol": s, **m} for s, m in self._daily.items()]
+        total = len(items)
+        if limit is not None:
+            items = items[offset:offset + limit]
+        elif offset > 0:
+            items = items[offset:]
+        return items, total
 
     async def get_with_intraday(self, symbol: str) -> Optional[dict]:
         """

@@ -16,12 +16,12 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
 
   const {
-    filteredRows, loading,
+    filteredRows, loading, hasMore,
     query, setQuery,
     range, setRange,
     presets, togglePreset,
     sortCol, sortAsc, sortBy,
-    loadScreener, resetFilters,
+    loadScreener, loadMore, resetFilters,
     totalCount,
   } = useScreener();
 
@@ -49,8 +49,8 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
       <ScreenerStatsBar stats={breadth} total={filteredRows.length} />
 
       {viewMode === 'table'
-        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} />
-        : <ScreenerCards rows={filteredRows} loading={loading} />
+        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
+        : <ScreenerCards rows={filteredRows} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
       }
     </div>
   );

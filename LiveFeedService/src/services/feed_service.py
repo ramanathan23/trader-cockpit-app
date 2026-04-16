@@ -91,8 +91,11 @@ class FeedService:
     async def run(self) -> None:
         """Main loop — runs until cancelled."""
         await self._initialise()
-        flush_task = asyncio.create_task(
+        flush_task  = asyncio.create_task(
             self._writer.run_periodic_flush(), name="candle-flush"
+        )
+        status_task = asyncio.create_task(
+            self._status_broadcast_loop(), name="status-broadcast"
         )
         try:
             await self._main_loop()
@@ -100,7 +103,8 @@ class FeedService:
             pass
         finally:
             flush_task.cancel()
-            await asyncio.gather(flush_task, return_exceptions=True)
+            status_task.cancel()
+            await asyncio.gather(flush_task, status_task, return_exceptions=True)
             await self._writer.flush()
             if self._sub_mgr:
                 await self._sub_mgr.stop()
@@ -130,6 +134,22 @@ class FeedService:
                 for b in active_builders
             },
         }
+
+    async def _status_broadcast_loop(self) -> None:
+        """Push market phase + per-index bias to WS clients every 10 s."""
+        while True:
+            try:
+                await self._publisher.publish_status({
+                    "session_phase": self._session_mgr.current_phase().value,
+                    "index_bias": {
+                        "nifty":     self._index_bias.nifty.value,
+                        "banknifty": self._index_bias.banknifty.value,
+                        "sensex":    self._index_bias.sensex.value,
+                    },
+                })
+            except Exception as exc:
+                logger.warning("status broadcast failed: %s", exc)
+            await asyncio.sleep(10)
 
     def screener_live_metrics(self) -> dict[str, dict]:
         """
