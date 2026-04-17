@@ -2,23 +2,45 @@
 
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ExpiryListResponse, OptionChainResponse, OptionStrike } from '@/domain/option_chain';
+import type { ScoredSymbol } from '@/domain/dashboard';
 import { fmt2 } from '@/lib/fmt';
 
 interface OptionChainPanelProps {
   symbol: string;
   onClose: () => void;
+  scoreData?: ScoredSymbol | null;
 }
 
 const ATM_COUNT = 5; // strikes above + below ATM
 
-/** Quick assessment of option chain health for buying. */
-function assessChain(strikes: OptionStrike[], spotPrice: number): { label: string; color: string; reasons: string[] } {
+/** Quick assessment of option chain health for buying.
+ *  IV is correlated with price momentum & structure — high IV alone
+ *  is not unfavourable if the stock is coiling or has strong trend support. */
+function assessChain(
+  strikes: OptionStrike[],
+  spotPrice: number,
+  scoreData?: ScoredSymbol | null,
+  oiData?: OIAnalysis | null,
+): { label: string; color: string; reasons: string[] } {
   if (strikes.length === 0) return { label: 'No data', color: 'text-ghost', reasons: [] };
 
   const reasons: string[] = [];
   let score = 0; // -3 … +3
 
-  // 1. IV level (avg of ATM CE + PE)
+  // Momentum / structure context from unified scorer
+  const rsi        = scoreData?.rsi_14 ?? null;
+  const momScore   = scoreData?.momentum_score ?? null;
+  const trendScore = scoreData?.trend_score ?? null;
+  const volScore   = scoreData?.volatility_score ?? null;
+  const squeeze    = scoreData?.bb_squeeze === true;
+  const nr7        = scoreData?.nr7 === true;
+
+  const isOverextended   = (rsi != null && rsi > 75) || (momScore != null && momScore > 80);
+  const isCoiling        = squeeze || nr7 || (volScore != null && volScore >= 65);
+  const hasStrongTrend   = (trendScore != null && trendScore >= 60) && (rsi == null || rsi < 72);
+  const hasMomentum      = (momScore != null && momScore >= 60) || (trendScore != null && trendScore >= 65);
+
+  // 1. IV level (avg of ATM CE + PE) — correlated with price context
   const atmIVs = strikes
     .filter(s => s.call_iv != null || s.put_iv != null)
     .map(s => ((s.call_iv ?? 0) + (s.put_iv ?? 0)) / ((s.call_iv != null ? 1 : 0) + (s.put_iv != null ? 1 : 0)))
@@ -26,9 +48,35 @@ function assessChain(strikes: OptionStrike[], spotPrice: number): { label: strin
   const avgIV = atmIVs.length ? atmIVs.reduce((a, b) => a + b, 0) / atmIVs.length : 0;
 
   if (avgIV > 0) {
-    if (avgIV < 25) { score += 1; reasons.push(`Low IV ${avgIV.toFixed(1)}% — premiums cheap`); }
-    else if (avgIV < 40) { reasons.push(`Moderate IV ${avgIV.toFixed(1)}%`); }
-    else { score -= 1; reasons.push(`High IV ${avgIV.toFixed(1)}% — premiums expensive`); }
+    if (avgIV < 25) {
+      score += 1;
+      reasons.push(`Low IV ${avgIV.toFixed(1)}% — premiums cheap`);
+    } else if (avgIV < 40) {
+      // Moderate IV — momentum context matters
+      if (isOverextended) {
+        score -= 1;
+        reasons.push(`Moderate IV ${avgIV.toFixed(1)}% + overextended (RSI ${rsi?.toFixed(0) ?? '?'}) — risky`);
+      } else if (hasMomentum) {
+        score += 1;
+        reasons.push(`Moderate IV ${avgIV.toFixed(1)}% + momentum backing — justified`);
+      } else {
+        reasons.push(`Moderate IV ${avgIV.toFixed(1)}%`);
+      }
+    } else {
+      // High IV — not automatically bad; correlate with price context
+      if (isOverextended) {
+        score -= 2;
+        reasons.push(`High IV ${avgIV.toFixed(1)}% + overextended (RSI ${rsi?.toFixed(0) ?? '?'}) — premium crush risk`);
+      } else if (isCoiling) {
+        // Sideways / compressed — IV justified by upcoming expansion potential
+        reasons.push(`High IV ${avgIV.toFixed(1)}% but coiling${squeeze ? ' (squeeze)' : ''}${nr7 ? ' (NR7)' : ''} — breakout potential`);
+      } else if (hasStrongTrend) {
+        reasons.push(`High IV ${avgIV.toFixed(1)}% but trending strongly — directional play`);
+      } else {
+        score -= 1;
+        reasons.push(`High IV ${avgIV.toFixed(1)}% — premiums expensive`);
+      }
+    }
   }
 
   // 2. Bid-Ask spread on ATM
@@ -63,12 +111,170 @@ function assessChain(strikes: OptionStrike[], spotPrice: number): { label: strin
   if (totalVol === 0) { score -= 2; reasons.push('No volume — illiquid'); }
   else if (totalVol < 1000) { reasons.push('Low volume'); }
 
+  // 4. OI behaviour — manipulation / bias from full-chain analysis
+  if (oiData) {
+    if (oiData.manipulation) {
+      score -= 2;
+      reasons.push('OI manipulation detected — stay away');
+    }
+    if (oiData.bias === 'SIDEWAYS') {
+      reasons.push('OI walls suggest range-bound — directional bets risky');
+    }
+  }
+
   const label = score >= 2 ? 'Favourable for buying' : score >= 0 ? 'Neutral' : 'Unfavourable for buying';
   const color = score >= 2 ? 'text-bull' : score >= 0 ? 'text-amber' : 'text-bear';
   return { label, color, reasons };
 }
 
-export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps) => {
+// ── OI behaviour analysis ────────────────────────────────────────────────────
+
+interface OIAnalysis {
+  pcr:              number;
+  pcrLabel:         string;   // "Bullish" | "Bearish" | "Neutral"
+  pcrColor:         string;
+  bias:             string;   // "BULL" | "BEAR" | "SIDEWAYS" | "CONTESTED"
+  biasColor:        string;
+  biasReason:       string;
+  unusualStrikes:   string[]; // e.g. "CE 24500 OI 12L (3.2× avg)"
+  manipulation:     boolean;
+  manipReason:      string | null;
+  maxPainStrike:    number | null;
+}
+
+function analyzeOI(strikes: OptionStrike[], spotPrice: number): OIAnalysis | null {
+  if (strikes.length === 0) return null;
+
+  const totalCallOI = strikes.reduce((s, r) => s + (r.call_oi ?? 0), 0);
+  const totalPutOI  = strikes.reduce((s, r) => s + (r.put_oi ?? 0), 0);
+  const totalCallVol = strikes.reduce((s, r) => s + (r.call_volume ?? 0), 0);
+  const totalPutVol  = strikes.reduce((s, r) => s + (r.put_volume ?? 0), 0);
+
+  if (totalCallOI + totalPutOI === 0) return null;
+
+  // ── PCR ──
+  const pcr = totalPutOI / (totalCallOI || 1);
+  let pcrLabel: string;
+  let pcrColor: string;
+  if (pcr > 1.2)      { pcrLabel = 'Bullish';  pcrColor = 'text-bull'; }
+  else if (pcr < 0.7) { pcrLabel = 'Bearish';  pcrColor = 'text-bear'; }
+  else                 { pcrLabel = 'Neutral';  pcrColor = 'text-amber'; }
+
+  // ── Dominant OI walls (find where the real walls are) ──
+  const callsByOI = [...strikes].filter(s => (s.call_oi ?? 0) > 0)
+    .sort((a, b) => (b.call_oi ?? 0) - (a.call_oi ?? 0));
+  const putsByOI = [...strikes].filter(s => (s.put_oi ?? 0) > 0)
+    .sort((a, b) => (b.put_oi ?? 0) - (a.put_oi ?? 0));
+
+  const topCallWall = callsByOI[0]?.strike_price ?? null;  // Resistance
+  const topPutWall  = putsByOI[0]?.strike_price ?? null;   // Support
+
+  // ── Directional bias from OI structure ──
+  let bias: string;
+  let biasColor: string;
+  let biasReason: string;
+
+  if (topCallWall != null && topPutWall != null) {
+    const callWallDist = topCallWall - spotPrice;  // positive = above spot
+    const putWallDist  = spotPrice - topPutWall;    // positive = below spot
+
+    if (pcr > 1.2 && putWallDist > callWallDist * 0.6) {
+      // Strong put writing below → support holds → bullish
+      bias = 'BULL'; biasColor = 'text-bull';
+      biasReason = `Put wall ${topPutWall} supports upside, PCR ${pcr.toFixed(2)}`;
+    } else if (pcr < 0.7 && callWallDist > putWallDist * 0.6) {
+      // Heavy call writing above → resistance → bearish
+      bias = 'BEAR'; biasColor = 'text-bear';
+      biasReason = `Call wall ${topCallWall} caps upside, PCR ${pcr.toFixed(2)}`;
+    } else if (callWallDist < spotPrice * 0.01 && putWallDist < spotPrice * 0.01) {
+      // Both walls very close to spot → range-bound
+      bias = 'SIDEWAYS'; biasColor = 'text-amber';
+      biasReason = `Walls tight: Put ${topPutWall} / Call ${topCallWall} — range-bound`;
+    } else if (pcr >= 0.7 && pcr <= 1.2) {
+      bias = 'CONTESTED'; biasColor = 'text-amber';
+      biasReason = `Balanced OI — no clear directional edge`;
+    } else {
+      bias = pcr > 1.0 ? 'BULL' : 'BEAR';
+      biasColor = pcr > 1.0 ? 'text-bull' : 'text-bear';
+      biasReason = `PCR ${pcr.toFixed(2)} with wall spread ${topPutWall}–${topCallWall}`;
+    }
+  } else {
+    bias = 'CONTESTED'; biasColor = 'text-dim';
+    biasReason = 'Insufficient OI data';
+  }
+
+  // ── Unusual OI concentration (strike OI > 2.5× average) ──
+  const avgCallOI = totalCallOI / strikes.length;
+  const avgPutOI  = totalPutOI / strikes.length;
+  const unusualStrikes: string[] = [];
+
+  for (const s of strikes) {
+    if ((s.call_oi ?? 0) > avgCallOI * 2.5 && avgCallOI > 0) {
+      const mult = (s.call_oi ?? 0) / avgCallOI;
+      unusualStrikes.push(`CE ${s.strike_price} OI ${fmtOI(s.call_oi)} (${mult.toFixed(1)}× avg)`);
+    }
+    if ((s.put_oi ?? 0) > avgPutOI * 2.5 && avgPutOI > 0) {
+      const mult = (s.put_oi ?? 0) / avgPutOI;
+      unusualStrikes.push(`PE ${s.strike_price} OI ${fmtOI(s.put_oi)} (${mult.toFixed(1)}× avg)`);
+    }
+  }
+
+  // ── Manipulation detection ──
+  // When both CE and PE OI build on the same side of spot (same strikes),
+  // or volume is extremely one-sided vs OI direction → synthetic pinning / manipulation.
+  let manipulation = false;
+  let manipReason: string | null = null;
+
+  // Check 1: Heavy writing on BOTH sides of ATM (±2 strikes) — synthetic pinning
+  const nearATM = strikes.filter(s =>
+    Math.abs(s.strike_price - spotPrice) <= (strikes.length >= 2
+      ? Math.abs(strikes[1].strike_price - strikes[0].strike_price) * 2
+      : spotPrice * 0.03),
+  );
+  const nearCallOI = nearATM.reduce((s, r) => s + (r.call_oi ?? 0), 0);
+  const nearPutOI  = nearATM.reduce((s, r) => s + (r.put_oi ?? 0), 0);
+  const nearRatio   = nearCallOI > 0 && nearPutOI > 0
+    ? Math.min(nearCallOI, nearPutOI) / Math.max(nearCallOI, nearPutOI)
+    : 0;
+
+  if (nearRatio > 0.75 && (nearCallOI + nearPutOI) > (totalCallOI + totalPutOI) * 0.5) {
+    // Nearly equal CE+PE writing concentrated at ATM with both sides heavy
+    manipulation = true;
+    manipReason = `Equal CE+PE walls at ATM (${nearRatio.toFixed(0)}% balanced, ${((nearCallOI + nearPutOI) / (totalCallOI + totalPutOI) * 100).toFixed(0)}% of total OI) — likely pinning`;
+  }
+
+  // Check 2: Volume divergence from OI direction
+  // If OI says bullish (high PCR) but call volume >>> put volume → smart money loading calls
+  // while retail writes puts → fine. BUT if PCR bullish and put volume >>> call volume,
+  // the "support" is new shorts added (panic) not conviction — bearish trap.
+  if (!manipulation && totalCallVol + totalPutVol > 0) {
+    const volPCR = totalPutVol / (totalCallVol || 1);
+    if (pcr > 1.2 && volPCR > 2.0) {
+      manipulation = true;
+      manipReason = `PCR bullish (${pcr.toFixed(2)}) but today's put volume ${fmtOI(totalPutVol)} >>> call volume ${fmtOI(totalCallVol)} — fresh put selling may be a trap`;
+    } else if (pcr < 0.7 && volPCR < 0.4) {
+      manipulation = true;
+      manipReason = `PCR bearish (${pcr.toFixed(2)}) but today's call volume ${fmtOI(totalCallVol)} >>> put volume ${fmtOI(totalPutVol)} — call writing may be a trap`;
+    }
+  }
+
+  // ── Max pain estimate (strike where total OI obligation is minimized) ──
+  let maxPainStrike: number | null = null;
+  let minPain = Infinity;
+  for (const s of strikes) {
+    let pain = 0;
+    for (const r of strikes) {
+      const callPain = Math.max(0, s.strike_price - r.strike_price) * (r.call_oi ?? 0);
+      const putPain  = Math.max(0, r.strike_price - s.strike_price) * (r.put_oi ?? 0);
+      pain += callPain + putPain;
+    }
+    if (pain < minPain) { minPain = pain; maxPainStrike = s.strike_price; }
+  }
+
+  return { pcr, pcrLabel, pcrColor, bias, biasColor, biasReason, unusualStrikes, manipulation, manipReason, maxPainStrike };
+}
+
+export const OptionChainPanel = memo(({ symbol, onClose, scoreData }: OptionChainPanelProps) => {
   const [expiries,     setExpiries]     = useState<string[]>([]);
   const [selectedExp,  setSelectedExp]  = useState<string | null>(null);
   const [chain,        setChain]        = useState<OptionChainResponse | null>(null);
@@ -129,14 +335,19 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
     return chain.strikes.slice(lo, hi);
   }, [chain, atmStrike]);
 
+  const oiAnalysis = useMemo(() => {
+    if (!chain) return null;
+    return analyzeOI(chain.strikes, chain.spot_price);
+  }, [chain]);
+
   const assessment = useMemo(() => {
     if (!chain) return null;
-    return assessChain(visibleStrikes, chain.spot_price);
-  }, [chain, visibleStrikes]);
+    return assessChain(visibleStrikes, chain.spot_price, scoreData, oiAnalysis);
+  }, [chain, visibleStrikes, scoreData, oiAnalysis]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(5,12,24,0.88)' }} onClick={onClose}>
-      <div className="w-[95vw] max-w-[1100px] max-h-[85vh] bg-card border border-border rounded-lg flex flex-col overflow-hidden"
+      <div className="w-[95vw] max-w-[1200px] max-h-[85vh] bg-card border border-border rounded-lg flex flex-col overflow-hidden"
            style={{ boxShadow: '0 4px 60px rgba(0,0,0,0.7)' }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -177,6 +388,56 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
           </div>
         )}
 
+        {/* OI Analysis bar */}
+        {oiAnalysis && !loading && (
+          <div className="px-4 py-2 border-b border-border flex flex-col gap-1.5 text-[10px]">
+            {/* Row 1: PCR + Bias + Max Pain + Manipulation warning */}
+            <div className="flex items-center gap-5">
+              <span className="flex items-center gap-1.5">
+                <span className="text-ghost font-bold">PCR</span>
+                <span className={`font-bold ${oiAnalysis.pcrColor}`}>{oiAnalysis.pcr.toFixed(2)}</span>
+                <span className={`text-[9px] ${oiAnalysis.pcrColor}`}>{oiAnalysis.pcrLabel}</span>
+              </span>
+              <span className="text-border">│</span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-ghost font-bold">Bias</span>
+                <span className={`font-bold px-1.5 py-0.5 rounded text-[9px] ${oiAnalysis.biasColor}`}
+                      style={{ background: oiAnalysis.bias === 'BULL' ? 'rgba(13,189,125,0.12)' : oiAnalysis.bias === 'BEAR' ? 'rgba(242,61,85,0.12)' : 'rgba(251,191,36,0.12)' }}>
+                  {oiAnalysis.bias}
+                </span>
+                <span className="text-ghost">{oiAnalysis.biasReason}</span>
+              </span>
+              {oiAnalysis.maxPainStrike != null && (
+                <>
+                  <span className="text-border">│</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-ghost font-bold">Max Pain</span>
+                    <span className="text-accent font-bold">{oiAnalysis.maxPainStrike}</span>
+                  </span>
+                </>
+              )}
+              {oiAnalysis.manipulation && (
+                <>
+                  <span className="text-border">│</span>
+                  <span className="flex items-center gap-1.5 px-2 py-0.5 rounded" style={{ background: 'rgba(242,61,85,0.15)' }}>
+                    <span className="text-bear font-bold">⚠ CAUTION</span>
+                    <span className="text-bear">{oiAnalysis.manipReason}</span>
+                  </span>
+                </>
+              )}
+            </div>
+            {/* Row 2: Unusual OI strikes */}
+            {oiAnalysis.unusualStrikes.length > 0 && (
+              <div className="flex items-center gap-3">
+                <span className="text-ghost font-bold">Unusual OI</span>
+                {oiAnalysis.unusualStrikes.slice(0, 6).map((s, i) => (
+                  <span key={i} className="text-amber">• {s}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Loading / Error */}
         {loading && <div className="flex-1 flex items-center justify-center text-[10px] text-ghost">Loading option chain…</div>}
         {error && <div className="flex-1 flex items-center justify-center text-[10px] text-bear">Error: {error}</div>}
@@ -195,9 +456,11 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
                   <th className="px-2 py-2 text-right text-ghost font-bold tracking-wider">BID</th>
                   <th className="px-2 py-2 text-right text-ghost font-bold tracking-wider">ASK</th>
                   <th className="px-2 py-2 text-right font-bold tracking-wider" style={{ color: '#0dbd7d' }}>CALL</th>
+                  <th className="px-2 py-2 text-right text-ghost font-bold tracking-wider" title="R:R at 2% underlying SL">R:R</th>
                   {/* Strike */}
                   <th className="px-3 py-2 text-center font-bold tracking-wider text-accent">STRIKE</th>
                   {/* Put side */}
+                  <th className="px-2 py-2 text-left text-ghost font-bold tracking-wider" title="R:R at 2% underlying SL">R:R</th>
                   <th className="px-2 py-2 text-left font-bold tracking-wider" style={{ color: '#f23d55' }}>PUT</th>
                   <th className="px-2 py-2 text-left text-ghost font-bold tracking-wider">BID</th>
                   <th className="px-2 py-2 text-left text-ghost font-bold tracking-wider">ASK</th>
@@ -212,6 +475,8 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
                   const isATM = atmStrike != null && s.strike_price === atmStrike;
                   const itm_call = chain.spot_price > s.strike_price;
                   const itm_put  = chain.spot_price < s.strike_price;
+                  const callRR = computeRR(s.call_delta, s.call_ltp, chain.spot_price);
+                  const putRR  = computeRR(s.put_delta, s.put_ltp, chain.spot_price);
                   return (
                     <tr key={s.strike_price}
                         className={`border-b border-border transition-colors ${isATM ? 'ring-1 ring-accent/50' : 'hover:bg-lift'}`}
@@ -225,9 +490,17 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
                       <td className={`px-2 py-1.5 text-right num tabular-nums font-bold ${itm_call ? 'text-bull' : 'text-fg'}`}>
                         {fmt2(s.call_ltp)}
                       </td>
+                      <td className={`px-2 py-1.5 text-right num tabular-nums font-bold ${rrColor(callRR.rr)}`}
+                          title={callRR.risk != null ? `Risk ₹${callRR.risk.toFixed(1)} on 2% SL` : undefined}>
+                        {fmtRR(callRR.rr)}
+                      </td>
                       <td className={`px-3 py-1.5 text-center num tabular-nums font-bold ${isATM ? 'text-accent' : 'text-fg'}`}>
                         {s.strike_price}
                         {isATM && <span className="ml-1 text-[8px] text-accent font-normal">ATM</span>}
+                      </td>
+                      <td className={`px-2 py-1.5 text-left num tabular-nums font-bold ${rrColor(putRR.rr)}`}
+                          title={putRR.risk != null ? `Risk ₹${putRR.risk.toFixed(1)} on 2% SL` : undefined}>
+                        {fmtRR(putRR.rr)}
                       </td>
                       <td className={`px-2 py-1.5 text-left num tabular-nums font-bold ${itm_put ? 'text-bear' : 'text-fg'}`}>
                         {fmt2(s.put_ltp)}
@@ -265,4 +538,27 @@ function fmtIV(v: number | null | undefined): string {
 
 function fmtGreek(v: number | null | undefined): string {
   return v != null ? v.toFixed(2) : '—';
+}
+
+/** Compute risk:reward for a 2% underlying stop-loss.
+ *  Risk  = |delta| × 2% × spot, capped at premium paid.
+ *  R:R   = premium / risk — multiples of SL-risk your entry represents. */
+function computeRR(delta: number | null, ltp: number | null, spotPrice: number): { rr: number | null; risk: number | null } {
+  if (delta == null || ltp == null || ltp <= 0 || spotPrice <= 0) return { rr: null, risk: null };
+  const absDelta = Math.abs(delta);
+  if (absDelta === 0) return { rr: null, risk: null };
+  const slLoss = absDelta * 0.02 * spotPrice;
+  const risk = Math.min(slLoss, ltp);
+  return { rr: ltp / risk, risk };
+}
+
+function fmtRR(rr: number | null): string {
+  return rr != null ? `${rr.toFixed(1)}` : '—';
+}
+
+function rrColor(rr: number | null): string {
+  if (rr == null) return 'text-dim';
+  if (rr >= 2.0) return 'text-bull';
+  if (rr >= 1.2) return 'text-amber';
+  return 'text-bear';
 }

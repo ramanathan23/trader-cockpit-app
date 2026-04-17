@@ -194,7 +194,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
       </div>
 
       {/* Option chain modal */}
-      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} />}
+      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={scores.find(s => s.symbol === ocSymbol)} />}
     </div>
   );
 }
