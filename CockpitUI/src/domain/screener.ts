@@ -3,6 +3,7 @@
 
 export interface ScreenerRow {
   symbol: string;
+  is_fno?: boolean;
   adv_20_cr?: number;
   atr_14?: number;
   current_price?: number;
@@ -143,9 +144,11 @@ export function applyFilters(
   query: string,
   range: ScreenerRangeFilter,
   presets: Set<ScreenerPreset>,
+  fnoOnly: boolean,
 ): ScreenerRow[] {
   const q = query.trim().toUpperCase();
   return rows.filter(r => {
+    if (fnoOnly && !r.is_fno) return false;
     if (q && !r.symbol.includes(q)) return false;
 
     const adv = r.adv_20_cr ?? 0;
@@ -195,8 +198,9 @@ export function sortRows(rows: ScreenerRow[], col: string, asc: boolean): Screen
   });
 }
 
-export function isRangeActive(range: ScreenerRangeFilter): boolean {
+export function isRangeActive(range: ScreenerRangeFilter, fnoOnly = false): boolean {
   return (
+    fnoOnly ||
     range.advMin > 0 || range.advMax !== Infinity ||
     range.atrMin > 0 || range.atrMax !== Infinity ||
     range.closeMin > 0 || range.closeMax !== Infinity ||

@@ -22,6 +22,8 @@ interface ScreenerFiltersProps {
   onRange:      (r: ScreenerRangeFilter) => void;
   presets:      Set<ScreenerPreset>;
   onPreset:     (p: ScreenerPreset) => void;
+  fnoOnly:      boolean;
+  onFnoOnly:    (v: boolean) => void;
   onReset:      () => void;
   totalCount:   number;
   filteredCount: number;
@@ -65,11 +67,11 @@ function RangeInput({
 }
 
 export const ScreenerFilters = memo(({
-  query, onQuery, range, onRange, presets, onPreset, onReset,
+  query, onQuery, range, onRange, presets, onPreset, fnoOnly, onFnoOnly, onReset,
   totalCount, filteredCount, loading, onRefresh, viewMode, onViewMode,
 }: ScreenerFiltersProps) => {
   const [expanded, setExpanded] = useState(false);
-  const rangeActive = isRangeActive(range);
+  const rangeActive = isRangeActive(range, fnoOnly);
   const hasFilters = query || rangeActive || presets.size > 0;
 
   // Quick ADV tier — sets advMin and clears advMax
@@ -106,6 +108,18 @@ export const ScreenerFilters = memo(({
             </button>
           ))}
         </div>
+
+        {/* FNO toggle */}
+        <button
+          onClick={() => onFnoOnly(!fnoOnly)}
+          className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors ${
+            fnoOnly
+              ? 'bg-[#2d1f3a] border-[#c678dd] text-[#c678dd]'
+              : 'bg-subtle border-border text-muted hover:border-[#c678dd] hover:text-fg'
+          }`}
+        >
+          F&amp;O
+        </button>
 
         {/* Preset tags — multi-select AND logic */}
         <div className="flex items-center gap-1">
