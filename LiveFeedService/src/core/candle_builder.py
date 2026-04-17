@@ -119,6 +119,7 @@ class CandleBuilder:
         self._current:  Optional[_ActiveCandle]  = None
         self._is_first: bool                     = True   # True until first boundary seen
         self._history:  deque[Candle]            = deque(maxlen=history_size)
+        self._session_open: Optional[float]      = None   # first tick price of the session
 
     # ── Public interface ───────────────────────────────────────────────────────
 
@@ -140,6 +141,8 @@ class CandleBuilder:
             # our WebSocket connected.
             self._current  = _ActiveCandle(bnd, price, qty)
             self._is_first = not self._history
+            if self._session_open is None:
+                self._session_open = price
             return None
 
         if bnd == self._current.boundary:
@@ -184,8 +187,14 @@ class CandleBuilder:
     def candles_completed(self) -> int:
         return len(self._history)
 
+    @property
+    def session_open_price(self) -> Optional[float]:
+        """The very first tick price of the session (even if the first candle was discarded)."""
+        return self._session_open
+
     def reset(self) -> None:
         """Reset for a new trading session."""
         self._current  = None
         self._is_first = True
         self._history.clear()
+        self._session_open = None

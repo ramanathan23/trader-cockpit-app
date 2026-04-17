@@ -2,6 +2,7 @@
 
 export interface InstrumentMetrics {
   symbol: string;
+  is_fno?: boolean;
   day_high?: number;
   day_low?: number;
   day_open?: number;

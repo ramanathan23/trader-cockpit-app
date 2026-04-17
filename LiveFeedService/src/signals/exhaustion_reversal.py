@@ -34,9 +34,9 @@ from ..domain.direction import Direction
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 DOWNTREND_CANDLES  = 4      # candles that must show falling lows before climax
-VOL_RATIO_MIN      = 6.0   # climax volume vs 20-candle average
-LOWER_LOWS_NEEDED  = 3     # at least this many of the prior candles must print a lower low
-WINDOW             = 20    # rolling window for avg volume baseline
+VOL_RATIO_MIN      = 2.5    # climax volume vs 20-candle average (was 6.0 — unreachable on 3-min bars)
+LOWER_LOWS_NEEDED  = 2      # at least this many of the prior candles must print a lower low (was 3 — required perfection)
+WINDOW             = 20     # rolling window for avg volume baseline
 
 
 @dataclass(frozen=True)
@@ -74,8 +74,11 @@ def detect_candidate(
     Evaluate whether *candle* is a volume-climax candidate at the end of a trend.
 
     Detects both directions:
-      BULLISH — sell-off climax (price below day_open, falling lows, close in upper half)
-      BEARISH — rally climax   (price above day_open, rising highs,  close in lower half)
+      BULLISH — sell-off climax (falling lows, close in upper 60% of range)
+      BEARISH — rally climax   (rising highs, close in lower 60% of range)
+
+    The day_open filter is applied when available but is not required — an
+    intraday reversal can happen above or below the open.
 
     Returns an ExhaustionCandidate if all conditions pass, else None.
     """
@@ -89,37 +92,39 @@ def detect_candidate(
         return None
 
     candle_mid = (candle.high + candle.low) / 2
+    # Use 40th percentile of candle range (less restrictive than strict midpoint).
+    candle_range = candle.high - candle.low or 0.001
+    candle_upper_40 = candle.low + candle_range * 0.40  # bullish: close above this
+    candle_lower_60 = candle.low + candle_range * 0.60  # bearish: close below this
     prior      = history[-downtrend_candles:]
 
     # ── Bullish exhaustion: sell-off climax → expect bounce ───────────────────
-    if day_open and candle.close < day_open:
-        lower_low_count = sum(
-            1 for i in range(1, len(prior))
-            if prior[i].low < prior[i - 1].low
+    lower_low_count = sum(
+        1 for i in range(1, len(prior))
+        if prior[i].low < prior[i - 1].low
+    )
+    if lower_low_count >= lower_lows_needed and candle.close >= candle_upper_40:
+        # Close in upper portion: buyers absorbed the sellers within this candle.
+        return ExhaustionCandidate(
+            climax        = candle,
+            direction     = Direction.BULLISH,
+            volume_ratio  = round(volume_ratio, 2),
+            downtrend_len = lower_low_count,
         )
-        if lower_low_count >= lower_lows_needed and candle.close >= candle_mid:
-            # Close in upper half: buyers absorbed the sellers within this candle.
-            return ExhaustionCandidate(
-                climax        = candle,
-                direction     = Direction.BULLISH,
-                volume_ratio  = round(volume_ratio, 2),
-                downtrend_len = lower_low_count,
-            )
 
     # ── Bearish exhaustion: rally climax → expect selloff ─────────────────────
-    if day_open and candle.close > day_open:
-        rising_high_count = sum(
-            1 for i in range(1, len(prior))
-            if prior[i].high > prior[i - 1].high
+    rising_high_count = sum(
+        1 for i in range(1, len(prior))
+        if prior[i].high > prior[i - 1].high
+    )
+    if rising_high_count >= lower_lows_needed and candle.close <= candle_lower_60:
+        # Close in lower portion: sellers stepped in before the candle even closed.
+        return ExhaustionCandidate(
+            climax        = candle,
+            direction     = Direction.BEARISH,
+            volume_ratio  = round(volume_ratio, 2),
+            downtrend_len = rising_high_count,
         )
-        if rising_high_count >= lower_lows_needed and candle.close < candle_mid:
-            # Close in lower half: sellers stepped in before the candle even closed.
-            return ExhaustionCandidate(
-                climax        = candle,
-                direction     = Direction.BEARISH,
-                volume_ratio  = round(volume_ratio, 2),
-                downtrend_len = rising_high_count,
-            )
 
     return None
 

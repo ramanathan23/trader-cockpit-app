@@ -19,6 +19,7 @@ export function useScreener() {
   const [rows,    setRows]    = useState<ScreenerRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [apiTotal, setApiTotal] = useState(0);
   const [query,   setQuery]   = useState('');
   const [range,   setRange]   = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
   const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
@@ -37,6 +38,7 @@ export function useScreener() {
         const decorated = decorateRows(d.symbols ?? []);
         setRows(decorated);
         setHasMore(d.has_more ?? false);
+        setApiTotal(d.total ?? 0);
         offsetRef.current = decorated.length;
       }
     } catch { /* ignore */ }
@@ -104,5 +106,6 @@ export function useScreener() {
     loadMore,
     resetFilters,
     totalCount: rows.length,
+    apiTotal,
   };
 }

@@ -22,8 +22,8 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
-  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [ocSymbol, setOcSymbol] = useState<string | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     if (active && !fetched && !loading) loadDashboard({ watchlistOnly });
@@ -66,14 +66,14 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   }, [scores, segment, query, sortKey, sortAsc]);
 
   const toggleExpand = useCallback((sym: string) => {
-    setExpandedSymbol(prev => prev === sym ? null : sym);
+    setChartSymbol(sym);
   }, []);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (i) => (expandedSymbol === filtered[i]?.symbol ? 316 : 40),
+    estimateSize: () => 40,
     overscan: 10,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
@@ -167,7 +167,6 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
             )}
             {virtualItems.map(vi => (
               <ScoreRow key={filtered[vi.index].symbol} row={filtered[vi.index]}
-                expanded={expandedSymbol === filtered[vi.index].symbol}
                 onToggle={toggleExpand}
                 onOptionChain={setOcSymbol} />
             ))}
@@ -193,6 +192,35 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
         </span>
       </div>
 
+      {/* Chart modal */}
+      {chartSymbol && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+             onClick={() => setChartSymbol(null)}>
+          <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
+               style={{ width: 900, maxWidth: '95vw' }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-fg">{chartSymbol}</span>
+                {scores.find(s => s.symbol === chartSymbol)?.is_fno && (
+                  <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
+                        style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {scores.find(s => s.symbol === chartSymbol)?.is_fno && (
+                  <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
+                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
+                )}
+                <button onClick={() => setChartSymbol(null)}
+                  className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
+              </div>
+            </div>
+            <DailyChart symbol={chartSymbol} height={380} />
+          </div>
+        </div>
+      )}
+
       {/* Option chain modal */}
       {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={scores.find(s => s.symbol === ocSymbol)} />}
     </div>
@@ -201,13 +229,13 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
 
 // ── Score row with expandable chart ──────────────────────────────────────────
 
-function ScoreRow({ row, expanded, onToggle, onOptionChain }: {
-  row: ScoredSymbol; expanded: boolean;
+function ScoreRow({ row, onToggle, onOptionChain }: {
+  row: ScoredSymbol;
   onToggle: (sym: string) => void; onOptionChain: (sym: string) => void;
 }) {
   return (
     <>
-      <tr className={`border-b border-border transition-colors cursor-pointer group ${expanded ? 'bg-lift' : 'hover:bg-lift'}`}
+      <tr className="border-b border-border transition-colors cursor-pointer group hover:bg-lift"
           onClick={() => onToggle(row.symbol)}>
         <td className="px-2.5 py-2 text-center num tabular-nums text-dim">{row.rank}</td>
         <td className="px-2.5 py-2 whitespace-nowrap">
@@ -264,13 +292,6 @@ function ScoreRow({ row, expanded, onToggle, onOptionChain }: {
           </button>
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={13} className="p-0 bg-base border-b border-border">
-            <DailyChart symbol={row.symbol} height={280} />
-          </td>
-        </tr>
-      )}
     </>
   );
 }

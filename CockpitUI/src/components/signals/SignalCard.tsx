@@ -99,14 +99,20 @@ interface SignalCardProps {
   metrics?: InstrumentMetrics | null;
   note?: string;
   onSave: (id: string, text: string) => void;
+  onChart?:       (sym: string) => void;
+  onOptionChain?: (sym: string) => void;
 }
 
-export const SignalCard = memo(({ signal: s, metrics: m, note, onSave }: SignalCardProps) => {
+export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, onOptionChain }: SignalCardProps) => {
   const color = signalColor(s.signal_type);
   const dc    = dirColor(s.direction);
 
   return (
-    <div className={`relative flex rounded-md overflow-hidden border border-border bg-card shadow-card${s._fromCatchup ? '' : ' animate-enter'}`}>
+    <div
+      className={`relative flex rounded-md overflow-hidden border border-border bg-card shadow-card group${s._fromCatchup ? '' : ' animate-enter'}`}
+      onClick={() => onChart?.(s.symbol)}
+      style={{ cursor: 'pointer' }}
+    >
 
       {/* Left accent stripe (3 px, signal color) */}
       <div className="w-[3px] shrink-0" style={{ background: color }} />
@@ -129,6 +135,11 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave }: SignalC
               >
                 {s._count}×
               </span>
+            )}
+            {/* F&O badge */}
+            {m?.is_fno && (
+              <span className="shrink-0 text-[7px] font-black px-1 py-0.5 rounded-sm"
+                    style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
             )}
           </div>
 
@@ -212,7 +223,15 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave }: SignalC
         )}
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-end px-3 py-2 border-t border-border">
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border">
+          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {m?.is_fno && (
+              <button
+                onClick={e => { e.stopPropagation(); onOptionChain?.(s.symbol); }}
+                className="text-[9px] font-bold text-accent hover:text-fg transition-colors"
+                title="View option chain">OC</button>
+            )}
+          </div>
           <span className="num text-[9px] tabular-nums text-ghost">{timeStr(s.timestamp)}</span>
         </div>
 

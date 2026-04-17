@@ -6,6 +6,8 @@ import { filterSignals, type Signal, type SignalCategory } from '@/domain/signal
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { SignalCard } from './SignalCard';
 import { SignalRow } from './SignalRow';
+import { DailyChart } from '@/components/dashboard/DailyChart';
+import { OptionChainPanel } from '@/components/dashboard/OptionChainPanel';
 
 interface SignalFeedProps {
   signals: Signal[];
@@ -70,12 +72,16 @@ export const SignalFeed = memo(({
   hasMore, onLoadMore,
 }: SignalFeedProps) => {
   const [noteModalId, setNoteModalId] = useState<string | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [ocSymbol,    setOcSymbol]    = useState<string | null>(null);
 
   const filtered = useMemo(
     () => filterSignals(signals, category, minAdvCr, metricsCache),
     [signals, category, minAdvCr, metricsCache],
   );
-  const openNote = useCallback((id: string) => setNoteModalId(id), []);
+  const openNote  = useCallback((id: string) => setNoteModalId(id), []);
+  const openChart = useCallback((sym: string) => setChartSymbol(sym), []);
+  const openOC    = useCallback((sym: string) => setOcSymbol(sym), []);
 
   const tableParentRef = useRef<HTMLDivElement>(null);
   const tableVirtualizer = useVirtualizer({
@@ -136,6 +142,8 @@ export const SignalFeed = memo(({
                 metrics={metricsCache[filtered[vi.index].symbol]}
                 note={notes[filtered[vi.index].id]}
                 onNoteClick={openNote}
+                onChart={openChart}
+                onOptionChain={openOC}
               />
             ))}
             {tvItems.length > 0 && (
@@ -152,12 +160,46 @@ export const SignalFeed = memo(({
             onClose={() => setNoteModalId(null)}
           />
         )}
+
+        {/* Chart modal */}
+        {chartSymbol && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+               onClick={() => setChartSymbol(null)}>
+            <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
+                 style={{ width: 900, maxWidth: '95vw' }}
+                 onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-fg">{chartSymbol}</span>
+                  {metricsCache[chartSymbol]?.is_fno && (
+                    <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
+                          style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {metricsCache[chartSymbol]?.is_fno && (
+                    <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
+                      className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
+                  )}
+                  <button onClick={() => setChartSymbol(null)}
+                    className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
+                </div>
+              </div>
+              <DailyChart symbol={chartSymbol} height={380} />
+            </div>
+          </div>
+        )}
+
+        {/* Option chain modal */}
+        {ocSymbol && (
+          <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={null} />
+        )}
       </div>
     );
   }
 
   return (
-    <div ref={cardParentRef} className="flex-1 overflow-y-auto p-3" onScroll={handleCardScroll}>
+    <div ref={cardParentRef} className="flex-1 overflow-y-auto p-3 relative" onScroll={handleCardScroll}>
       <div className="signal-grid">
         {filtered.map(s => (
           <SignalCard
@@ -166,9 +208,45 @@ export const SignalFeed = memo(({
             metrics={metricsCache[s.symbol]}
             note={notes[s.id]}
             onSave={onSaveNote}
+            onChart={openChart}
+            onOptionChain={openOC}
           />
         ))}
       </div>
+
+      {/* Chart modal */}
+      {chartSymbol && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+             onClick={() => setChartSymbol(null)}>
+          <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
+               style={{ width: 900, maxWidth: '95vw' }}
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-fg">{chartSymbol}</span>
+                {metricsCache[chartSymbol]?.is_fno && (
+                  <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
+                        style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {metricsCache[chartSymbol]?.is_fno && (
+                  <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
+                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
+                )}
+                <button onClick={() => setChartSymbol(null)}
+                  className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
+              </div>
+            </div>
+            <DailyChart symbol={chartSymbol} height={380} />
+          </div>
+        </div>
+      )}
+
+      {/* Option chain modal */}
+      {ocSymbol && (
+        <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={null} />
+      )}
     </div>
   );
 });

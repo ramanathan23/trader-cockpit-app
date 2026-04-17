@@ -6,10 +6,11 @@ Design
 Stateless — takes a list of candles and the day_open price; returns a DriveState.
 The caller (SignalEngine) maintains per-symbol state between calls.
 
-Scoring (max 3 points per candle, DRIVE_CANDLES candles = 15 points total):
+Scoring (max 4 points per candle, DRIVE_CANDLES candles = 20 points total):
   +1  body_ratio > MIN_BODY_RATIO           (candle has conviction, not a doji)
-  +1  price did NOT return through day_open (drive is intact)
+  +1  close did NOT return through day_open  (drive is intact)
   +1  close extends the move vs prior candle (momentum continuing)
+  +1  volume >= prior candle volume          (sustained or rising participation)
 
 Confidence = score / max_score (0.0–1.0)
   >= CONFIRMED_THRESH  → CONFIRMED
@@ -17,7 +18,8 @@ Confidence = score / max_score (0.0–1.0)
   <  WEAK_THRESH       → NO_DRIVE (after all candles evaluated)
 
 Invalidation (overrides scoring):
-  Any candle's low (bullish) or high (bearish) trades through day_open → FAILED.
+  Any candle's CLOSE trades through day_open → FAILED.
+  (Wicks through day_open are tolerated — a wick test that holds is bullish.)
 """
 
 from __future__ import annotations
@@ -29,10 +31,10 @@ from ..domain.drive_status import DriveStatus
 
 # Default thresholds — overridable via SignalEngine config
 DRIVE_CANDLES      = 5
-MIN_BODY_RATIO     = 0.6
+MIN_BODY_RATIO     = 0.5
 CONFIRMED_THRESH   = 0.70
 WEAK_THRESH        = 0.50
-_MAX_SCORE_PER_CANDLE = 3
+_MAX_SCORE_PER_CANDLE = 4
 
 
 def evaluate(
@@ -64,15 +66,23 @@ def evaluate(
     # Direction established by first candle.
     direction = candles[0].direction
     if direction == Direction.NEUTRAL:
-        direction = Direction.BULLISH   # treat doji as bullish for scoring
+        # A doji first candle means the market has no conviction — no drive.
+        return DriveState(
+            status            = DriveStatus.NO_DRIVE,
+            direction         = Direction.NEUTRAL,
+            confidence        = 0.0,
+            day_open          = day_open,
+            candles_evaluated = 1,
+        )
 
     max_score = min(len(candles), drive_candles) * _MAX_SCORE_PER_CANDLE
     score     = 0
     window    = candles[:drive_candles]
 
     for idx, candle in enumerate(window):
-        # 1. Invalidation check — price returned through day_open.
-        if direction == Direction.BULLISH and candle.low < day_open:
+        # 1. Invalidation check — CLOSE returned through day_open.
+        #    Wicks through day_open are tolerated (wick test that holds is fine).
+        if direction == Direction.BULLISH and candle.close < day_open:
             return DriveState(
                 status            = DriveStatus.FAILED,
                 direction         = direction,
@@ -80,7 +90,7 @@ def evaluate(
                 day_open          = day_open,
                 candles_evaluated = idx + 1,
             )
-        if direction == Direction.BEARISH and candle.high > day_open:
+        if direction == Direction.BEARISH and candle.close > day_open:
             return DriveState(
                 status            = DriveStatus.FAILED,
                 direction         = direction,
@@ -93,10 +103,10 @@ def evaluate(
         if candle.body_ratio >= min_body_ratio:
             score += 1
 
-        # 3. Price not returned to day_open.
-        if direction == Direction.BULLISH and candle.low >= day_open:
+        # 3. Close held vs day_open.
+        if direction == Direction.BULLISH and candle.close >= day_open:
             score += 1
-        elif direction == Direction.BEARISH and candle.high <= day_open:
+        elif direction == Direction.BEARISH and candle.close <= day_open:
             score += 1
 
         # 4. Consecutive closes extending the move.
@@ -108,6 +118,15 @@ def evaluate(
                 score += 1
         else:
             # First candle always scores the extension point.
+            score += 1
+
+        # 5. Volume participation — sustained or rising volume supports the drive.
+        if idx > 0:
+            prev = window[idx - 1]
+            if candle.volume >= prev.volume:
+                score += 1
+        else:
+            # First candle: score if volume is non-trivial (always give the point).
             score += 1
 
     confidence = score / max_score if max_score > 0 else 0.0

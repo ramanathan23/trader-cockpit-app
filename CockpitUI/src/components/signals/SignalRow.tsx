@@ -12,14 +12,17 @@ interface SignalRowProps {
   signal: Signal;
   metrics?: InstrumentMetrics | null;
   note?: string;
-  onNoteClick: (id: string) => void;
+  onNoteClick:    (id: string) => void;
+  onChart?:       (sym: string) => void;
+  onOptionChain?: (sym: string) => void;
 }
 
-export const SignalRow = memo(({ signal: s, metrics: m, note, onNoteClick }: SignalRowProps) => {
+export const SignalRow = memo(({ signal: s, metrics: m, note, onNoteClick, onChart, onOptionChain }: SignalRowProps) => {
   const color = signalColor(s.signal_type);
 
   return (
-    <tr className="border-b border-border hover:bg-lift transition-colors group">
+    <tr className="border-b border-border hover:bg-lift transition-colors group cursor-pointer"
+        onClick={() => onChart?.(s.symbol)}>
       {/* Time */}
       <td className="px-3 py-2 tabular-nums whitespace-nowrap">
         <span className="num text-[10px] text-ghost">{timeStr(s.timestamp)}</span>
@@ -30,6 +33,10 @@ export const SignalRow = memo(({ signal: s, metrics: m, note, onNoteClick }: Sig
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dirColor(s.direction) }} />
           <span className="font-bold text-[12px] tracking-wide text-fg">{s.symbol}</span>
+          {m?.is_fno && (
+            <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
+                  style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
+          )}
           {s._count > 1 && (
             <span className="num text-[9px] font-black px-1 py-0.5 rounded-sm"
                   style={{ background: '#e8933a20', color: '#e8933a' }}>{s._count}×</span>
@@ -115,17 +122,25 @@ export const SignalRow = memo(({ signal: s, metrics: m, note, onNoteClick }: Sig
 
       {/* Note */}
       <td className="px-3 py-1.5">
-        <button
-          onClick={() => onNoteClick(s.id)}
-          className="text-[9px] transition-colors opacity-0 group-hover:opacity-100"
-          style={{ color: 'rgb(var(--ghost))' }}
-          title={note}
-        >
-          {note ? '✎' : '+ note'}
-        </button>
-        {note && (
-          <span className="text-[10px] text-dim max-w-[120px] truncate block" title={note}>{note}</span>
-        )}
+        <div className="flex items-center gap-2">
+          {m?.is_fno && (
+            <button
+              onClick={e => { e.stopPropagation(); onOptionChain?.(s.symbol); }}
+              className="text-[9px] font-bold text-accent hover:text-fg transition-colors opacity-0 group-hover:opacity-100"
+              title="View option chain">OC</button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onNoteClick(s.id); }}
+            className="text-[9px] transition-colors opacity-0 group-hover:opacity-100"
+            style={{ color: 'rgb(var(--ghost))' }}
+            title={note}
+          >
+            {note ? '✎' : '+ note'}
+          </button>
+          {note && (
+            <span className="text-[10px] text-dim max-w-[120px] truncate block" title={note}>{note}</span>
+          )}
+        </div>
       </td>
     </tr>
   );

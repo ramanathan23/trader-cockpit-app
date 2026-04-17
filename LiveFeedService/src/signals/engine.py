@@ -80,7 +80,7 @@ class SignalEngine:
         session_manager:  SessionManager,
         *,
         drive_candles:    int   = 5,
-        min_body_ratio:   float = 0.6,
+        min_body_ratio:   float = 0.5,
         confirmed_thresh: float = 0.70,
         weak_thresh:      float = 0.50,
         spike_window:          int   = 20,
@@ -88,8 +88,8 @@ class SignalEngine:
         absorption_cooldown:   int   = _ABSORPTION_COOLDOWN,
         absorption_near_pct:   float = _ABSORPTION_NEAR_PCT,
         exhaustion_downtrend_candles: int   = 4,
-        exhaustion_vol_ratio_min:    float = 6.0,
-        exhaustion_lower_lows:       int   = 3,
+        exhaustion_vol_ratio_min:    float = 2.5,
+        exhaustion_lower_lows:       int   = 2,
         range_lookback:        int   = 5,
         range_vol_ratio:       float = 1.5,
         range_max_pct:         float = 0.02,
@@ -255,7 +255,11 @@ class SignalEngine:
     def _bootstrap_day(self, candle: Candle, phase: SessionPhase, state: _SessionState) -> None:
         if state.day_open is not None:
             return
-        state.day_open = candle.open
+        # Prefer the actual first-tick price captured by CandleBuilder (even if
+        # the first candle was discarded as partial).  Falls back to candle.open
+        # only when session_open_price is unavailable (e.g. seeded history).
+        tick_open = self._builder.session_open_price
+        state.day_open = tick_open if tick_open is not None else candle.open
         state.mid_session_start = phase not in (
             SessionPhase.PRE_SIGNAL, SessionPhase.DRIVE_WINDOW
         )
@@ -290,7 +294,8 @@ class SignalEngine:
         )
         state.drive = drive
 
-        if drive.status == DriveStatus.FAILED:
+        if drive.status == DriveStatus.FAILED and not state.drive_signalled:
+            state.drive_signalled = True
             return [signal_factory.make_drive_failed(self.symbol, candle, phase)]
 
         if drive.status in (DriveStatus.CONFIRMED, DriveStatus.WEAK) and not state.drive_signalled:
