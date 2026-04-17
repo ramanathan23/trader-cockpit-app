@@ -2,6 +2,7 @@
 
 import { PHASE_STYLE, type Bias, type IndexName, type MarketPhase } from '@/domain/market';
 import { unlockAudio } from '@/lib/audio';
+import type { TokenStatus } from '@/hooks/useTokenStatus';
 
 const PHASE_TITLES: Record<string, string> = {
   DRIVE_WINDOW:   'Drive Window (9:15–9:45): High-momentum open; best for trend-following entries',
@@ -18,10 +19,50 @@ interface HeaderProps {
   clock: string;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  tokenStatus?: TokenStatus | null;
 }
 
-export function Header({ phase, bias, clock, theme, onToggleTheme }: HeaderProps) {
+export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus }: HeaderProps) {
   const ps = PHASE_STYLE[phase] ?? PHASE_STYLE['--'];
+
+  // Compute human-readable expiry label
+  let tokenLabel = 'TOKEN';
+  let tokenColor = 'rgb(var(--ghost))';
+  let tokenTitle = 'Token status unknown';
+  if (tokenStatus) {
+    if (!tokenStatus.present) {
+      tokenLabel = 'NO TOKEN';
+      tokenColor = 'rgb(var(--bear))';
+      tokenTitle = 'Dhan access token not set';
+    } else if (tokenStatus.expired) {
+      tokenLabel = 'TOKEN EXPIRED';
+      tokenColor = 'rgb(var(--bear))';
+      tokenTitle = tokenStatus.expires_at
+        ? `Token expired at ${new Date(tokenStatus.expires_at).toLocaleString()}`
+        : 'Token is expired';
+    } else if (tokenStatus.expires_at) {
+      const exp = new Date(tokenStatus.expires_at);
+      const diffMs = exp.getTime() - Date.now();
+      const diffH  = Math.floor(diffMs / 3_600_000);
+      const diffM  = Math.floor((diffMs % 3_600_000) / 60_000);
+      if (diffH < 1) {
+        tokenLabel = `TOKEN ${diffM}m`;
+        tokenColor = 'rgb(var(--warn, 220 170 0))';
+      } else if (diffH < 24) {
+        tokenLabel = `TOKEN ${diffH}h`;
+        tokenColor = 'rgb(var(--bull))';
+      } else {
+        const diffD = Math.floor(diffH / 24);
+        tokenLabel = `TOKEN ${diffD}d`;
+        tokenColor = 'rgb(var(--bull))';
+      }
+      tokenTitle = `Token expires ${exp.toLocaleString()}`;
+    } else {
+      tokenLabel = 'TOKEN OK';
+      tokenColor = 'rgb(var(--bull))';
+      tokenTitle = 'Token present (no expiry info)';
+    }
+  }
 
   return (
     <header
@@ -89,6 +130,15 @@ export function Header({ phase, bias, clock, theme, onToggleTheme }: HeaderProps
           }}
         >
           {phase.replace(/_/g, ' ')}
+        </span>
+
+        {/* Token status */}
+        <span
+          className="num text-[9px] font-bold tracking-[0.12em] uppercase select-none cursor-default"
+          style={{ color: tokenColor }}
+          title={tokenTitle}
+        >
+          {tokenLabel}
         </span>
 
         {/* Clock */}

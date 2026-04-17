@@ -146,13 +146,13 @@ def _trend_score(
     if price > ema_200:
         ema_stack += 25.0
 
-    # Weekly bias from 5-day and 20-day price action
+    # Weekly bias from 5-day price action (0% threshold — any positive close = BULLISH)
     roc_5 = indicators.rate_of_change(close, period=5).iloc[-1]
     weekly_bias = "NEUTRAL"
     if not pd.isna(roc_5):
-        if roc_5 > 1.0:
+        if roc_5 > 0.0:
             weekly_bias = "BULLISH"
-        elif roc_5 < -1.0:
+        elif roc_5 < 0.0:
             weekly_bias = "BEARISH"
     weekly_bonus = 20.0 if weekly_bias == "BULLISH" else (-10.0 if weekly_bias == "BEARISH" else 0.0)
 

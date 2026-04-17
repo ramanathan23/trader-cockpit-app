@@ -30,9 +30,10 @@ class SymbolRepository:
         """
         Load equities to subscribe to Dhan WebSocket.
 
-        Loads the top-50 FNO watchlist and top-50 equity (non-FNO) watchlist
-        independently, giving up to 100 subscriptions split evenly across both
-        segments.  Falls back to the full universe if no scores exist.
+        Loads the watchlisted FNO instruments (top-50 bull + top-50 bear) and
+        watchlisted equity instruments (top-50 bull + top-50 bear), giving up
+        to 200 subscriptions split across four buckets.
+        Falls back to the full universe if no scores exist.
         """
         fno_instruments    = await self._load_watchlist_instruments(is_fno=True)
         equity_instruments = await self._load_watchlist_instruments(is_fno=False)

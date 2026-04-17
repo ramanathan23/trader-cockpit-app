@@ -11,7 +11,11 @@ Usage
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+from datetime import datetime, timezone
+from typing import Optional
 
 import redis.asyncio as aioredis
 
@@ -57,6 +61,30 @@ class TokenStore:
         """Persist a new token to Redis. Takes effect on next WS reconnect."""
         await self._redis.set(_KEY, token)
         logger.info("TokenStore: dhan:access_token updated in Redis")
+
+    async def status(self) -> dict:
+        """Return token presence and expiry decoded from JWT payload."""
+        token = await self._redis.get(_KEY)
+        present = bool(token) or bool(self._env_fallback)
+        if not token:
+            token = self._env_fallback
+        exp_ts: Optional[int] = None
+        if token:
+            try:
+                parts = token.split(".")
+                if len(parts) == 3:
+                    padding = 4 - len(parts[1]) % 4
+                    payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * padding))
+                    exp_ts = payload.get("exp")
+            except Exception:
+                pass
+        expires_at: Optional[str] = None
+        expired = False
+        if exp_ts:
+            dt = datetime.fromtimestamp(exp_ts, tz=timezone.utc)
+            expires_at = dt.isoformat()
+            expired = datetime.now(tz=timezone.utc) > dt
+        return {"present": present, "expires_at": expires_at, "expired": expired}
 
     async def close(self) -> None:
         await self._redis.aclose()

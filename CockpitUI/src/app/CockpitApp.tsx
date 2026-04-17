@@ -6,6 +6,7 @@ import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
 import { useNotes } from '@/hooks/useNotes';
+import { useTokenStatus } from '@/hooks/useTokenStatus';
 import { Header } from '@/components/Header';
 import { HelpLegend } from '@/components/HelpLegend';
 import { SignalToolbar } from '@/components/signals/SignalToolbar';
@@ -59,6 +60,7 @@ export function CockpitApp() {
   const { signals, paused, pendingCount, connState, metricsCache, marketStatus, togglePause, clearSignals } = useSignals();
   const { notes, saveNote } = useNotes();
   const history = useHistory();
+  const tokenStatus = useTokenStatus();
 
   const [view,       setView]       = useState<AppView>('dashboard');
   const [category,   setCategory]   = useState<SignalCategory>('ALL');
@@ -131,6 +133,7 @@ export function CockpitApp() {
         clock={clock}
         theme={theme}
         onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+        tokenStatus={tokenStatus}
       />
 
       <SignalToolbar

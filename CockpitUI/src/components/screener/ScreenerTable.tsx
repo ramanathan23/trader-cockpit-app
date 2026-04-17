@@ -35,7 +35,7 @@ const SortArrow = ({ col, sortCol, sortAsc }: { col: string; sortCol: string; so
   sortCol === col ? <span className="ml-0.5">{sortAsc ? '▲' : '▼'}</span> : null;
 
 function pctColor(value?: number | null, invert = false): string {
-  if (value == null) return '#2a3f58';
+  if (value == null) return '#3a5c7a';
   const score = invert ? -value : value;
   if (score >= 2) return '#0dbd7d';
   if (score >= 0) return '#c5d8f0';
@@ -54,7 +54,7 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 32,
+    estimateSize: () => 36,
     overscan: 20,
   });
 
@@ -68,14 +68,14 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
 
   if (loading && rows.length === 0) {
     return (
-      <div className="flex items-center justify-center h-40 text-[11px] animate-blink" style={{ color: '#2a3f58' }}>
+      <div className="flex items-center justify-center h-40 text-xs animate-blink" style={{ color: '#4a6a8a' }}>
         Loading metrics…
       </div>
     );
   }
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: '#2a3f58' }}>
+      <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: '#4a6a8a' }}>
         <span className="text-2xl opacity-30">&#9783;</span>
         <span className="text-xs">No data — adjust filters</span>
       </div>
@@ -87,7 +87,7 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
 
   return (
     <div ref={parentRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
-      <table className="w-full text-[11px] border-collapse">
+      <table className="w-full text-[12px] border-collapse">
         <thead className="sticky top-0 bg-panel z-10">
           <tr className="border-b border-border">
             {COLS.map((c, i) => (
@@ -95,10 +95,10 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
                 key={`${c.key}-${i}`}
                 title={c.title}
                 onClick={() => onSort(c.key)}
-                className={`px-3 py-2 font-bold text-[9px] tracking-[0.14em] cursor-pointer select-none whitespace-nowrap uppercase transition-colors hover:text-fg ${
+                className={`px-3 py-2.5 font-bold text-[10px] tracking-[0.08em] cursor-pointer select-none whitespace-nowrap uppercase transition-colors hover:text-fg ${
                   c.align === 'left' ? 'text-left' : 'text-right'
                 }`}
-                style={{ color: sortCol === c.key ? '#c5d8f0' : '#2a3f58' }}
+                style={{ color: sortCol === c.key ? '#c5d8f0' : '#4a6a8a' }}
               >
                 {c.label}
                 {sortCol === c.key && <span className="ml-0.5 text-accent">{sortAsc ? '▲' : '▼'}</span>}
@@ -137,39 +137,39 @@ const ScreenerTableRow = memo(({ row: r }: { row: ScreenerRow }) => {
 
   return (
     <tr className="border-b border-border hover:bg-lift transition-colors">
-      <td className="px-3 py-2 font-bold text-fg tracking-wide">{r.symbol}</td>
-      <td className="px-3 py-2 text-right tabular-nums"
-          style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : '#2a3f58' }}>
+      <td className="px-3 py-2.5 font-bold text-[13px] text-fg tracking-wide">{r.symbol}</td>
+      <td className="px-3 py-2.5 text-right tabular-nums"
+          style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : '#4a6a8a' }}>
         <span className="num font-semibold">{fmtAdv(r.adv_20_cr)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums" style={{ color: '#e8933a' }}>
+      <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: '#e8933a' }}>
         <span className="num">{r.atr_14 != null ? r.atr_14.toFixed(2) : '—'}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums text-fg">
+      <td className="px-3 py-2.5 text-right tabular-nums text-fg">
         <span className="num font-semibold">{fmt2(r.display_price)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>
         <span className="num">{pctText(r.dvwap_delta_pct, true)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>
         <span className="num">{pctText(r.ema50_delta_pct, true)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>
         <span className="num">{pctText(r.ema200_delta_pct, true)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: f52hColor }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: f52hColor }}>
         <span className="num">{r.f52h != null ? (r.f52h >= 0 ? '+' : '') + r.f52h.toFixed(1) + '%' : '—'}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: f52lColor }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: f52lColor }}>
         <span className="num">{r.f52l != null ? '+' + r.f52l.toFixed(1) + '%' : '—'}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_return_pct) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_return_pct) }}>
         <span className="num">{pctText(r.week_return_pct, true)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_gain_pct, true) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_gain_pct, true) }}>
         <span className="num">{pctText(r.week_gain_pct, true)}</span>
       </td>
-      <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_decline_pct, true) }}>
+      <td className="px-3 py-2.5 text-right tabular-nums font-bold" style={{ color: pctColor(r.week_decline_pct, true) }}>
         <span className="num">{pctText(r.week_decline_pct)}</span>
       </td>
     </tr>

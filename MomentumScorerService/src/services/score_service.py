@@ -93,12 +93,21 @@ class ScoreService:
             if breakdown is not None:
                 valid_results.append((symbol, breakdown))
 
-        # Partition into FNO and equity groups; rank each group independently
-        # so top-50 of each becomes is_watchlist=True (total ≤100 subscriptions).
-        fno_results    = [(s, b) for s, b in valid_results if s in fno_set]
-        equity_results = [(s, b) for s, b in valid_results if s not in fno_set]
+        # Partition into 4 sub-groups: FNO-bull, FNO-bear, equity-bull, equity-bear.
+        # Each sub-group is ranked independently (1..N within the sub-group) so the
+        # balanced dashboard query (ORDER BY rank ASC LIMIT per_bucket per bucket)
+        # returns a proper top-N for every quadrant.
+        # Stocks with NEUTRAL weekly_bias are distributed by sign-of-roc: the
+        # breakdown already stores BULLISH/BEARISH/NEUTRAL so we check it directly.
+        def _is_bull(b) -> bool:
+            return b.weekly_bias != "BEARISH"  # BULLISH + NEUTRAL → bull bucket
 
-        for group in (fno_results, equity_results):
+        fno_bull    = [(s, b) for s, b in valid_results if s in fno_set     and     _is_bull(b)]
+        fno_bear    = [(s, b) for s, b in valid_results if s in fno_set     and not _is_bull(b)]
+        equity_bull = [(s, b) for s, b in valid_results if s not in fno_set and     _is_bull(b)]
+        equity_bear = [(s, b) for s, b in valid_results if s not in fno_set and not _is_bull(b)]
+
+        for group in (fno_bull, fno_bear, equity_bull, equity_bear):
             group.sort(key=lambda x: x[1].total_score, reverse=True)
 
         today = datetime.now(tz=_IST).date()
@@ -106,7 +115,7 @@ class ScoreService:
 
         async with self._pool.acquire() as conn:
             async with conn.transaction():
-                for group in (fno_results, equity_results):
+                for group in (fno_bull, fno_bear, equity_bull, equity_bear):
                     for rank_idx, (symbol, breakdown) in enumerate(group, start=1):
                         is_watchlist = rank_idx <= _WATCHLIST_SIZE
                         try:
@@ -121,11 +130,16 @@ class ScoreService:
                         except Exception:
                             logger.warning("Score persist failed for %s", symbol, exc_info=True)
 
-        fno_wl    = min(_WATCHLIST_SIZE, len(fno_results))
-        equity_wl = min(_WATCHLIST_SIZE, len(equity_results))
+        fno_b_wl  = min(_WATCHLIST_SIZE, len(fno_bull))
+        fno_s_wl  = min(_WATCHLIST_SIZE, len(fno_bear))
+        eq_b_wl   = min(_WATCHLIST_SIZE, len(equity_bull))
+        eq_s_wl   = min(_WATCHLIST_SIZE, len(equity_bear))
         logger.info(
-            "Unified scoring complete: %d/%d scored — FNO watchlist=%d, equity watchlist=%d (total subs=%d)",
-            scored, len(symbols), fno_wl, equity_wl, fno_wl + equity_wl,
+            "Unified scoring complete: %d/%d scored — "
+            "FNO bull=%d bear=%d | equity bull=%d bear=%d (total watchlist=%d)",
+            scored, len(symbols),
+            fno_b_wl, fno_s_wl, eq_b_wl, eq_s_wl,
+            fno_b_wl + fno_s_wl + eq_b_wl + eq_s_wl,
         )
         return scored
 
