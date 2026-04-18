@@ -154,7 +154,7 @@ class SignalPublisher:
                 d = json.loads(item)
                 d["_catchup"] = True
                 signals.append(d)
-            except Exception:
+            except (json.JSONDecodeError, ValueError):
                 pass
         return signals
 
@@ -181,7 +181,7 @@ class SignalPublisher:
             for item in reversed(raw):
                 try:
                     signals.append(json.loads(item))
-                except Exception:
+                except (json.JSONDecodeError, ValueError):
                     pass
             return signals, total
 
@@ -196,7 +196,7 @@ class SignalPublisher:
         for item in reversed(raw):   # reverse back to chronological
             try:
                 signals.append(json.loads(item))
-            except Exception:
+            except (json.JSONDecodeError, ValueError):
                 pass
         return signals, total
 

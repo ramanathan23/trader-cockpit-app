@@ -8,6 +8,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# ── Health ────────────────────────────────────────────────────────────────────
+
+@router.get("/health", summary="Liveness check")
+async def health():
+    return {"status": "ok", "service": "DataSyncService"}
+
+
 # ── Symbols ───────────────────────────────────────────────────────────────────
 
 @router.post("/symbols/load", summary="Load/refresh symbols from CSV into DB")

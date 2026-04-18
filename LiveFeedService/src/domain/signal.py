@@ -11,7 +11,7 @@ from .signal_type import SignalType
 from .strength import Strength
 
 
-@dataclass
+@dataclass(frozen=True)
 class Signal:
     """
     A trading alert emitted by the signal engine.

@@ -16,13 +16,14 @@ from datetime import datetime
 import asyncpg
 
 from ..domain.candle import Candle
+from shared.constants import DEFAULT_ACQUIRE_TIMEOUT
+from shared.utils import parse_pg_command_result
 
 logger = logging.getLogger(__name__)
 
 _EQUITY_TABLE  = "candles_5min"
 _FUTURE_TABLE  = "index_future_candles_5min"
 _COLUMNS       = ("time", "symbol", "open", "high", "low", "close", "volume", "tick_count")
-_ACQUIRE_TIMEOUT = 30
 
 
 def _to_record(candle: Candle) -> tuple:
@@ -54,7 +55,7 @@ class CandleRepository:
             return {}
 
         table = _FUTURE_TABLE if is_index_future else _EQUITY_TABLE
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch(f"""
                 WITH ranked AS (
                     SELECT
@@ -120,7 +121,7 @@ class CandleRepository:
 
     async def _bulk_insert(self, candles: list[Candle], table: str) -> int:
         records = [_to_record(c) for c in candles]
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             async with conn.transaction():
                 await conn.execute(f"""
                     CREATE TEMP TABLE _candle_tmp
@@ -137,7 +138,7 @@ class CandleRepository:
                     SELECT {", ".join(_COLUMNS)} FROM _candle_tmp
                     ON CONFLICT (symbol, time) DO NOTHING
                 """)
-        inserted = int(result.split()[-1])
+        inserted = parse_pg_command_result(result)
         logger.debug("Inserted %d / %d candles into %s", inserted, len(candles), table)
         return inserted
 
@@ -189,7 +190,7 @@ class BufferedCandleWriter:
         batch, self._buffer = self._buffer, []
         try:
             await self._repo.insert_many(batch)
-        except Exception as exc:
+        except (asyncpg.PostgresError, OSError) as exc:
             logger.error("CandleWriter flush failed: %s", exc, exc_info=True)
             # Re-queue failed candles so we don't lose them.
             self._buffer = batch + self._buffer

@@ -9,6 +9,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/health", summary="Liveness check")
+async def health():
+    return {"status": "ok", "service": "LiveFeedService"}
+
+
 @router.get("/status", summary="Feed health and index bias")
 async def status(svc: FeedServiceDep):
     return svc.status()

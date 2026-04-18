@@ -13,6 +13,8 @@ from datetime import datetime
 import asyncpg
 import pandas as pd
 
+from shared.utils import parse_pg_command_result
+
 logger = logging.getLogger(__name__)
 
 _TABLE_MAP: dict[str, str] = {
@@ -30,17 +32,18 @@ _INGEST_CHUNK_SIZE: dict[str, int] = {
 
 def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
     records: list[tuple] = []
-    for ts, row in df.iterrows():
+    for row in df.itertuples():
+        ts = row.Index
         if hasattr(ts, "tzinfo"):
             ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
         records.append((
             ts.to_pydatetime(),
             symbol,
-            float(row["Open"]) if pd.notna(row["Open"]) else None,
-            float(row["High"]) if pd.notna(row["High"]) else None,
-            float(row["Low"]) if pd.notna(row["Low"]) else None,
-            float(row["Close"]) if pd.notna(row["Close"]) else None,
-            int(row["Volume"]) if pd.notna(row["Volume"]) else 0,
+            float(row.Open) if pd.notna(row.Open) else None,
+            float(row.High) if pd.notna(row.High) else None,
+            float(row.Low) if pd.notna(row.Low) else None,
+            float(row.Close) if pd.notna(row.Close) else None,
+            int(row.Volume) if pd.notna(row.Volume) else 0,
         ))
     return records
 
@@ -155,7 +158,7 @@ class PriceRepository:
                         SELECT {", ".join(_COLUMNS)} FROM _ingest_tmp
                         ON CONFLICT ({conflict_columns}) DO NOTHING
                     """)
-                    inserted += int(result.split()[-1])
+                    inserted += parse_pg_command_result(result)
 
         logger.debug("[%s] Inserted %d / %d records", interval, inserted, len(all_records))
         return inserted

@@ -5,42 +5,20 @@ import type { Signal } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import type { Bias, IndexName, MarketPhase, MarketStatus } from '@/domain/market';
 import { alertSound } from '@/lib/audio';
+import { getSignalsWebSocketUrl, LIVE_FEED } from '@/lib/api-config';
 
 export type ConnState = 'connecting' | 'connected' | 'disconnected';
 
 const MAX_SIGNALS         = 200;
 const METRICS_BATCH_DELAY = 150; // ms — collect symbols then fire one POST
-const ALWAYS_NEW    = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
-const ALWAYS_NEW_CU = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
+
+/** Signal types that always create a new row (never dedup). */
+const ALWAYS_NEW_SIGNALS = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
 
 const DEFAULT_MARKET: MarketStatus = {
   phase: '--',
   bias: { nifty: 'NEUTRAL', banknifty: 'NEUTRAL', sensex: 'NEUTRAL' },
 };
-
-function toWebSocketUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return url.toString();
-}
-
-function getDefaultLiveFeedBaseUrl(): string {
-  if (typeof window === 'undefined') {
-    return 'http://localhost:8003';
-  }
-
-  const url = new URL(window.location.origin);
-  if (url.port === '3000') {
-    url.port = '8003';
-  }
-  return url.toString();
-}
-
-function getSignalsWebSocketUrl(): string {
-  const liveFeedBaseUrl = process.env.NEXT_PUBLIC_LIVE_FEED_URL ?? getDefaultLiveFeedBaseUrl();
-  const normalizedBaseUrl = liveFeedBaseUrl.endsWith('/') ? liveFeedBaseUrl.slice(0, -1) : liveFeedBaseUrl;
-  return toWebSocketUrl(`${normalizedBaseUrl}/api/v1/signals/ws`);
-}
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -72,7 +50,7 @@ export function useSignals() {
     metricsPendingRef.current.clear();
     if (symbols.length === 0) return;
 
-    fetch('/api/v1/instruments/metrics', {
+    fetch(LIVE_FEED.INSTRUMENTS_METRICS, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbols }),
@@ -107,7 +85,7 @@ export function useSignals() {
 
     setSignals(prev => {
       if (isCatchup) {
-        if (!ALWAYS_NEW_CU.has(s.signal_type)) {
+        if (!ALWAYS_NEW_SIGNALS.has(s.signal_type)) {
           const key = `${s.symbol}:${s.signal_type}`;
           const idx = prev.findIndex(x => x._dedupKey === key);
           if (idx !== -1) {
@@ -131,7 +109,7 @@ export function useSignals() {
       }
 
       // Live signal — dedup by symbol:type
-      if (!ALWAYS_NEW.has(s.signal_type)) {
+      if (!ALWAYS_NEW_SIGNALS.has(s.signal_type)) {
         const key = `${s.symbol}:${s.signal_type}`;
         const idx = prev.findIndex(x => x._dedupKey === key);
         if (idx !== -1) {

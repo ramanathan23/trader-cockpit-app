@@ -16,10 +16,9 @@ import logging
 import asyncpg
 
 from ..domain.instrument_meta import InstrumentMeta
+from shared.constants import DEFAULT_ACQUIRE_TIMEOUT
 
 logger = logging.getLogger(__name__)
-
-_ACQUIRE_TIMEOUT = 30
 
 
 class SymbolRepository:
@@ -62,7 +61,7 @@ class SymbolRepository:
     async def _load_watchlist_instruments(self, is_fno: bool) -> list[InstrumentMeta]:
         """Load watchlisted symbols for one segment (FNO or equity)."""
         fno_clause = "AND s.is_fno = TRUE" if is_fno else "AND (s.is_fno = FALSE OR s.is_fno IS NULL)"
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch(f"""
                 SELECT s.symbol, s.dhan_security_id, s.exchange_segment
                 FROM   daily_scores ds
@@ -87,7 +86,7 @@ class SymbolRepository:
 
     async def _load_all_equity_instruments(self) -> list[InstrumentMeta]:
         """Fallback: all equities with a Dhan security ID."""
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch("""
                 SELECT symbol, dhan_security_id, exchange_segment
                 FROM   symbols
@@ -113,7 +112,7 @@ class SymbolRepository:
         Return the active front-month index futures (NIFTY, BANKNIFTY, SENSEX).
         Exactly one row per underlying (is_active = TRUE).
         """
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch("""
                 SELECT underlying, dhan_security_id, exchange_segment
                 FROM   index_futures

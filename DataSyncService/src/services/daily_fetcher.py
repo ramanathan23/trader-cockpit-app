@@ -15,19 +15,13 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from shared.utils import ensure_utc
+
 from ..config import settings
 from ..infrastructure.fetchers.yfinance.fetcher import YFinanceFetcher
 from .sync_state_writer import SyncStateWriter
 
 logger = logging.getLogger(__name__)
-
-
-def _ensure_utc(ts: datetime | None) -> datetime | None:
-    if ts is None:
-        return None
-    if ts.tzinfo is None:
-        return ts.replace(tzinfo=timezone.utc)
-    return ts.astimezone(timezone.utc)
 
 
 def _batches(lst: list, size: int):
@@ -98,17 +92,32 @@ class DailyFetcher:
         total = -(-len(symbols) // settings.sync_batch_size)
         logger.info("[1d/gap] %d symbols, %d batches", len(symbols), total)
         updated = 0
+        sem = asyncio.Semaphore(settings.sync_batch_size)
         for i, batch in enumerate(_batches(symbols, settings.sync_batch_size)):
-            batch_data: dict = {}
-            for symbol in batch:
-                since = _ensure_utc(last_ts_map.get(symbol))
+
+            async def _fetch_one(sym: str) -> tuple[str, object] | None:
+                since = ensure_utc(last_ts_map.get(sym))
                 if since is None:
-                    logger.warning("[1d/gap] %s has no last_ts — skipping", symbol)
-                    continue
-                df = await self._yf.fetch_since(symbol, "1d", since)
+                    logger.warning("[1d/gap] %s has no last_ts — skipping", sym)
+                    return None
+                async with sem:
+                    df = await self._yf.fetch_since(sym, "1d", since)
                 if not df.empty:
-                    batch_data[symbol] = df
-                    logger.debug("[1d/gap] %s — got %d new bars", symbol, len(df))
+                    logger.debug("[1d/gap] %s — got %d new bars", sym, len(df))
+                    return sym, df
+                return None
+
+            results = await asyncio.gather(
+                *[_fetch_one(s) for s in batch],
+                return_exceptions=True,
+            )
+            batch_data: dict = {}
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning("[1d/gap] fetch error: %s", result)
+                elif result is not None:
+                    batch_data[result[0]] = result[1]
+
             await self._writer.persist(batch, batch_data, "1d")
             updated += len(batch_data)
             logger.info("[1d/gap] %d / %d processed, %d updated",

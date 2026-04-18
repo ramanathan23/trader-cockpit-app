@@ -8,10 +8,9 @@ from datetime import datetime
 import asyncpg
 
 from ..domain.sync_state_snapshot import SyncStateSnapshot
+from shared.constants import DEFAULT_ACQUIRE_TIMEOUT
 
 logger = logging.getLogger(__name__)
-
-_ACQUIRE_TIMEOUT = 30  # seconds to wait for a pool connection before giving up
 
 
 class SyncStateRepository:
@@ -84,7 +83,7 @@ class SyncStateRepository:
         if not symbols:
             return []
 
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch("""
                 WITH all_syms AS (SELECT unnest($1::text[]) AS symbol),
                 states AS (
@@ -116,7 +115,7 @@ class SyncStateRepository:
         ]
 
     async def get_summary(self) -> list[dict]:
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch("""
                 SELECT
                     timeframe,
@@ -133,7 +132,7 @@ class SyncStateRepository:
         return [dict(r) for r in rows]
 
     async def get_for_symbol(self, symbol: str) -> list[dict]:
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             rows = await conn.fetch(
                 "SELECT * FROM sync_state WHERE symbol = $1 ORDER BY timeframe",
                 symbol.upper(),

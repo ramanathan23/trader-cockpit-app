@@ -7,9 +7,11 @@ classification logic in domain/daily_action.py.
 """
 import logging
 from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
 import asyncpg
+
+from shared.constants import IST, MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE
+from shared.utils import ensure_utc
 
 from ..config import settings
 from ..domain.daily_action import DailyAction, classify_daily
@@ -23,14 +25,13 @@ from ..infrastructure.dhan.instrument_mapper import (
 from ..repositories.price_repository import PriceRepository
 from ..repositories.symbol_repository import SymbolRepository, load_from_csv
 from ..repositories.sync_state_repository import SyncStateRepository
-from .daily_fetcher import DailyFetcher, _ensure_utc
+from .daily_fetcher import DailyFetcher
 from .sync_state_writer import SyncStateWriter
 from .metrics_compute_service import MetricsComputeService
 
 logger = logging.getLogger(__name__)
 
-_IST         = ZoneInfo("Asia/Kolkata")
-_MARKET_CLOSE = time(hour=15, minute=30)
+_MARKET_CLOSE = time(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MINUTE)
 
 
 class SyncService:
@@ -73,8 +74,9 @@ class SyncService:
 
     async def run_sync(self) -> dict:
         """Auto-classify every symbol and apply the appropriate fetch action."""
-        await self.bootstrap_symbols()
-        all_symbols = [s.symbol for s in load_from_csv()]
+        symbols = load_from_csv()
+        await self._symbols.upsert_many(symbols)
+        all_symbols = [s.symbol for s in symbols]
         logger.info("run_sync: %d symbols — loading sync state", len(all_symbols))
 
         daily_snapshots = await self._state.get_snapshots(all_symbols, "1d")
@@ -91,7 +93,7 @@ class SyncService:
     async def get_gap_report(self) -> dict:
         """Return per-symbol classification without fetching data (diagnostics)."""
         all_symbols = [s.symbol for s in load_from_csv()]
-        now_ist     = datetime.now(tz=_IST)
+        now_ist     = datetime.now(tz=IST)
 
         logger.info("gap_report: querying price tables for %d symbols", len(all_symbols))
         daily_last = await self._prices.get_last_data_ts_bulk(all_symbols, "1d")
@@ -101,7 +103,7 @@ class SyncService:
         summary: dict = {"1d": {"INITIAL": 0, "FETCH_TODAY": 0, "FETCH_GAP": 0, "SKIP": 0}}
 
         for symbol in all_symbols:
-            d_ts  = _ensure_utc(daily_last.get(symbol))
+            d_ts  = ensure_utc(daily_last.get(symbol))
             d_act = classify_daily(d_ts, now_ist)
             summary["1d"][d_act] += 1
             if d_act != "SKIP":
@@ -124,13 +126,13 @@ class SyncService:
         all_symbols: list[str],
         last_ts_map: dict[str, datetime | None],
     ) -> dict:
-        now_ist      = datetime.now(tz=_IST)
+        now_ist      = datetime.now(tz=IST)
         initial:     list[str] = []
         fetch_today: list[str] = []
         fetch_gap:   list[str] = []
 
         for symbol in all_symbols:
-            action = classify_daily(_ensure_utc(last_ts_map.get(symbol)), now_ist)
+            action = classify_daily(ensure_utc(last_ts_map.get(symbol)), now_ist)
             if action == "INITIAL":
                 initial.append(symbol)
             elif action == "FETCH_TODAY":
@@ -148,7 +150,7 @@ class SyncService:
         if fetch_today:
             since_dt = datetime.combine(
                 now_ist.date() - timedelta(days=1), time.min
-            ).replace(tzinfo=_IST)
+            ).replace(tzinfo=IST)
             updated += await self._fetcher.fetch_since_uniform(fetch_today, since_dt)
         if fetch_gap:
             updated += await self._fetcher.fetch_gap(fetch_gap, last_ts_map)

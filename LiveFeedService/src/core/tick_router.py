@@ -97,6 +97,9 @@ class TickRouter:
             logger.debug("Malformed tick for security %d: %s", sec_id, exc)
             return
 
+        if tick_time is None:
+            return  # unparseable LTT — skip tick
+
         if not self._session.is_market_open(tick_time):
             return
 
@@ -153,12 +156,12 @@ class TickRouter:
         self._builders[meta.dhan_security_id] = (meta, builder)
 
 
-def _parse_ltt(ltt) -> datetime:
+def _parse_ltt(ltt) -> datetime | None:
     """
     Parse Dhan LTT (last traded time).
 
     Dhan sends LTT as Unix epoch seconds (integer or float).
-    Falls back to now() if missing or unparseable.
+    Returns None if missing or unparseable — caller should skip the tick.
     """
     if ltt is not None:
         try:
@@ -177,7 +180,8 @@ def _parse_ltt(ltt) -> datetime:
                 )
             except ValueError:
                 pass
-    return datetime.now(tz=_IST)
+    logger.warning("Unparseable LTT value: %r — skipping tick", ltt)
+    return None
 
 
 def _extract_security_id(raw: dict) -> int:

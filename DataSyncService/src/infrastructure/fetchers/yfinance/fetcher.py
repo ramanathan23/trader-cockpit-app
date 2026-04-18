@@ -112,7 +112,7 @@ class YFinanceFetcher:
                 progress=False,
                 threads=False,
             )
-        except Exception:
+        except (ValueError, KeyError, ConnectionError, OSError) as exc:
             logger.exception("yfinance download failed for batch starting with %s", symbols[:3])
             return {}
 

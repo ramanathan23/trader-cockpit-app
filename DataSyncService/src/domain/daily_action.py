@@ -9,10 +9,10 @@ The classifier is the single source of truth for deciding what a symbol needs:
 """
 from datetime import datetime, time, timedelta
 from typing import Literal
-from zoneinfo import ZoneInfo
 
-_IST = ZoneInfo("Asia/Kolkata")
-_MARKET_CLOSE = time(hour=15, minute=30)
+from shared.constants import IST, MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE
+
+_MARKET_CLOSE = time(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MINUTE)
 
 DailyAction = Literal["INITIAL", "SKIP", "FETCH_TODAY", "FETCH_GAP"]
 
@@ -29,7 +29,7 @@ def classify_daily(last_ts: datetime | None, now_ist: datetime) -> DailyAction:
     if last_ts is None:
         return "INITIAL"
 
-    last_date   = last_ts.astimezone(_IST).date()
+    last_date   = last_ts.astimezone(IST).date()
     today       = now_ist.date()
     yesterday   = today - timedelta(days=1)
     after_close = now_ist.time() >= _MARKET_CLOSE

@@ -127,7 +127,7 @@ class ScoreService:
                                     conn, symbol, breakdown
                                 )
                             scored += 1
-                        except Exception:
+                        except (asyncpg.PostgresError, OSError):
                             logger.warning("Score persist failed for %s", symbol, exc_info=True)
 
         fno_b_wl  = min(_WATCHLIST_SIZE, len(fno_bull))

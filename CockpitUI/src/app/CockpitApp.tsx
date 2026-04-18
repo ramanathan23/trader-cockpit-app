@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { filterSignals, type SignalCategory } from '@/domain/signal';
+import { LIVE_FEED } from '@/lib/api-config';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
@@ -106,7 +107,7 @@ export function CockpitApp() {
       const syms = [...new Set(history.signals.map(s => s.symbol))]
         .filter(sym => !(sym in metricsCache));
       if (syms.length === 0) return;
-      fetch('/api/v1/instruments/metrics', {
+      fetch(LIVE_FEED.INSTRUMENTS_METRICS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: syms }),

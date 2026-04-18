@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, Mock
 
+import asyncpg
 import pandas as pd
 import pytest
 
@@ -78,7 +79,7 @@ async def test_persist_skips_ingest_when_batch_has_no_data() -> None:
 @pytest.mark.asyncio
 async def test_persist_marks_batch_as_error_when_ingest_fails() -> None:
     writer, _, prices, state = build_writer()
-    prices.bulk_ingest.side_effect = RuntimeError("boom")
+    prices.bulk_ingest.side_effect = OSError("boom")
     writer._mark_error = AsyncMock()
 
     await writer.persist(["ABC"], {"ABC": make_frame([pd.Timestamp("2026-04-16T09:15:00")])}, "1d")

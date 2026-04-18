@@ -11,12 +11,12 @@ from datetime import timezone
 
 import asyncpg
 
+from shared.constants import DEFAULT_ACQUIRE_TIMEOUT
+
 from ..repositories.price_repository import PriceRepository
 from ..repositories.sync_state_repository import SyncStateRepository
 
 logger = logging.getLogger(__name__)
-
-_ACQUIRE_TIMEOUT = 30  # seconds
 
 
 def _to_utc_datetime(ts) -> datetime:
@@ -53,7 +53,7 @@ class SyncStateWriter:
                     interval, inserted, len(data),
                 )
             await self._update_state(batch, data, interval)
-        except Exception as exc:
+        except (asyncpg.PostgresError, OSError) as exc:
             logger.error(
                 "[%s] persist failed for batch [%s…]: %s",
                 interval, batch[0], exc, exc_info=True,
@@ -73,7 +73,7 @@ class SyncStateWriter:
             if symbol not in data:
                 records.append((symbol, interval, None, "empty", None))
 
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             await self._state.upsert_many(conn, records)
 
     async def _mark_error(
@@ -83,5 +83,5 @@ class SyncStateWriter:
         error_msg: str,
     ) -> None:
         records = [(s, interval, None, "error", error_msg) for s in symbols]
-        async with self._pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+        async with self._pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
             await self._state.upsert_many(conn, records)

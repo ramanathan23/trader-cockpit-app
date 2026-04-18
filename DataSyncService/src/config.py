@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from shared.base_config import BaseServiceSettings
 
@@ -19,6 +19,16 @@ class Settings(BaseServiceSettings):
         default="https://images.dhan.co/api-data/api-scrip-master.csv",
     )
     dhan_master_timeout_s: float = Field(default=30.0)
+
+    @model_validator(mode="after")
+    def _validate_dhan_credentials(self) -> "Settings":
+        if not self.dhan_client_id or not self.dhan_access_token:
+            import logging
+            logging.getLogger(__name__).warning(
+                "DHAN_CLIENT_ID / DHAN_ACCESS_TOKEN not set — "
+                "Dhan master sync will fail. Set them in .env or environment."
+            )
+        return self
 
 
 settings = Settings()

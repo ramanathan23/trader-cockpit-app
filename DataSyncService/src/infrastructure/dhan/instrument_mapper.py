@@ -17,10 +17,10 @@ from datetime import date
 import asyncpg
 
 from .instrument_master import EquityRecord, IndexFutureRecord
+from shared.constants import DEFAULT_ACQUIRE_TIMEOUT
+from shared.utils import parse_pg_command_result
 
 logger = logging.getLogger(__name__)
-
-_ACQUIRE_TIMEOUT = 30  # seconds
 
 
 @dataclass
@@ -51,7 +51,7 @@ async def apply_equity_mapping(
     symbols   = [e.trading_symbol   for e in equities]
     segments  = [e.exchange_segment for e in equities]
 
-    async with pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+    async with pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
         result = await conn.execute("""
             UPDATE symbols AS s
             SET
@@ -67,7 +67,7 @@ async def apply_equity_mapping(
               AND s.series  = 'EQ'
         """, sec_ids, symbols, segments)
 
-    matched = int(result.split()[-1])
+    matched = parse_pg_command_result(result)
     unmatched = len(equities) - matched
     logger.info(
         "Equity mapping: %d matched, %d unmatched (not in symbols table)",
@@ -91,7 +91,7 @@ async def apply_index_future_mapping(
 
     today = today or date.today()
 
-    async with pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
+    async with pool.acquire(timeout=DEFAULT_ACQUIRE_TIMEOUT) as conn:
         async with conn.transaction():
             # Upsert all contracts.
             await conn.executemany("""
@@ -123,7 +123,7 @@ async def apply_index_future_mapping(
                 )
             """, today)
 
-            activated = int(result.split()[-1])
+            activated = parse_pg_command_result(result)
 
     logger.info(
         "Index futures: %d upserted, %d activated (nearest expiry from %s)",

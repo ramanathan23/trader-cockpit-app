@@ -50,28 +50,33 @@ class ScoreRepository:
         symbol: str,
         breakdown: UnifiedScoreBreakdown,
     ) -> None:
-        """Update symbol_metrics with computed indicator values from scoring."""
+        """Upsert symbol_metrics with computed indicator values from scoring."""
         await conn.execute("""
-            UPDATE symbol_metrics SET
-                atr_5         = $2,
-                adx_14        = $3,
-                plus_di       = $4,
-                minus_di      = $5,
-                bb_width      = $6,
-                kc_width      = $7,
-                bb_squeeze    = $8,
-                squeeze_days  = $9,
-                nr7           = $10,
-                atr_ratio     = $11,
-                rsi_14        = $12,
-                macd_hist     = $13,
-                roc_5         = $14,
-                roc_20        = $15,
-                roc_60        = $16,
-                vol_ratio_20  = $17,
-                rs_vs_nifty   = $18,
-                weekly_bias   = $19
-            WHERE symbol = $1
+            INSERT INTO symbol_metrics (symbol, atr_5, adx_14, plus_di, minus_di,
+                bb_width, kc_width, bb_squeeze, squeeze_days, nr7, atr_ratio,
+                rsi_14, macd_hist, roc_5, roc_20, roc_60, vol_ratio_20,
+                rs_vs_nifty, weekly_bias)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                    $12, $13, $14, $15, $16, $17, $18, $19)
+            ON CONFLICT (symbol) DO UPDATE SET
+                atr_5         = EXCLUDED.atr_5,
+                adx_14        = EXCLUDED.adx_14,
+                plus_di       = EXCLUDED.plus_di,
+                minus_di      = EXCLUDED.minus_di,
+                bb_width      = EXCLUDED.bb_width,
+                kc_width      = EXCLUDED.kc_width,
+                bb_squeeze    = EXCLUDED.bb_squeeze,
+                squeeze_days  = EXCLUDED.squeeze_days,
+                nr7           = EXCLUDED.nr7,
+                atr_ratio     = EXCLUDED.atr_ratio,
+                rsi_14        = EXCLUDED.rsi_14,
+                macd_hist     = EXCLUDED.macd_hist,
+                roc_5         = EXCLUDED.roc_5,
+                roc_20        = EXCLUDED.roc_20,
+                roc_60        = EXCLUDED.roc_60,
+                vol_ratio_20  = EXCLUDED.vol_ratio_20,
+                rs_vs_nifty   = EXCLUDED.rs_vs_nifty,
+                weekly_bias   = EXCLUDED.weekly_bias
         """, symbol,
             breakdown.atr_5, breakdown.adx_14,
             breakdown.plus_di, breakdown.minus_di,
@@ -93,48 +98,47 @@ class ScoreRepository:
     ) -> list[dict]:
         """Fetch daily scores for dashboard display."""
         async with self._pool.acquire() as conn:
-            date_clause = "ds.score_date = $1" if score_date else "ds.score_date = (SELECT MAX(score_date) FROM daily_scores)"
-            watchlist_clause = "AND ds.is_watchlist = TRUE" if watchlist_only else ""
-            fno_clause = "AND s.is_fno = TRUE" if is_fno is True else ("AND (s.is_fno = FALSE OR s.is_fno IS NULL)" if is_fno is False else "")
+            clauses: list[str] = []
+            params: list[object] = []
+
+            if score_date:
+                params.append(score_date)
+                clauses.append(f"ds.score_date = ${len(params)}")
+            else:
+                clauses.append("ds.score_date = (SELECT MAX(score_date) FROM daily_scores)")
+
+            if watchlist_only:
+                clauses.append("ds.is_watchlist = TRUE")
+
+            if is_fno is True:
+                clauses.append("s.is_fno = TRUE")
+            elif is_fno is False:
+                clauses.append("(s.is_fno = FALSE OR s.is_fno IS NULL)")
+
+            params.append(limit)
+            limit_idx = len(params)
+            params.append(offset)
+            offset_idx = len(params)
+
+            where = " AND ".join(clauses)
 
             query = f"""
                 SELECT
-                    ds.symbol,
-                    s.company_name,
-                    s.is_fno,
-                    ds.score_date,
-                    ds.total_score,
-                    ds.momentum_score,
-                    ds.trend_score,
-                    ds.volatility_score,
-                    ds.structure_score,
-                    ds.rank,
-                    ds.is_watchlist,
-                    ds.computed_at,
-                    sm.prev_day_close,
-                    sm.atr_14,
-                    sm.adv_20_cr,
-                    sm.week52_high,
-                    sm.week52_low,
-                    sm.ema_50,
-                    sm.ema_200,
-                    sm.bb_squeeze,
-                    sm.squeeze_days,
-                    sm.nr7,
-                    sm.adx_14,
-                    sm.rsi_14,
-                    sm.weekly_bias
+                    ds.symbol, s.company_name, s.is_fno,
+                    ds.score_date, ds.total_score, ds.momentum_score,
+                    ds.trend_score, ds.volatility_score, ds.structure_score,
+                    ds.rank, ds.is_watchlist, ds.computed_at,
+                    sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
+                    sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
+                    sm.bb_squeeze, sm.squeeze_days, sm.nr7,
+                    sm.adx_14, sm.rsi_14, sm.weekly_bias
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
-                WHERE {date_clause}
-                {watchlist_clause}
-                {fno_clause}
+                WHERE {where}
                 ORDER BY ds.rank ASC
-                LIMIT ${"2" if score_date else "1"}
-                OFFSET ${"3" if score_date else "2"}
+                LIMIT ${limit_idx} OFFSET ${offset_idx}
             """
-            params = [score_date, limit, offset] if score_date else [limit, offset]
             rows = await conn.fetch(query, *params)
         return [dict(r) for r in rows]
 
@@ -149,64 +153,56 @@ class ScoreRepository:
         (bull F&O, bear F&O, bull equity, bear equity), ordered by rank.
         """
         async with self._pool.acquire() as conn:
-            date_clause = "ds.score_date = $1" if score_date else "ds.score_date = (SELECT MAX(score_date) FROM daily_scores)"
-            watchlist_clause = "AND ds.is_watchlist = TRUE" if watchlist_only else ""
+            params: list[object] = []
+            base_clauses: list[str] = []
 
-            # $1 or ($1 unused) for date, per_bucket is always the last param
+            if score_date:
+                params.append(score_date)
+                base_clauses.append(f"ds.score_date = ${len(params)}")
+            else:
+                base_clauses.append("ds.score_date = (SELECT MAX(score_date) FROM daily_scores)")
+
+            if watchlist_only:
+                base_clauses.append("ds.is_watchlist = TRUE")
+
+            params.append(per_bucket)
+            limit_idx = len(params)
+
+            base_where = " AND ".join(base_clauses)
+
             base_cols = """
-                    ds.symbol,
-                    s.company_name,
-                    s.is_fno,
-                    ds.score_date,
-                    ds.total_score,
-                    ds.momentum_score,
-                    ds.trend_score,
-                    ds.volatility_score,
-                    ds.structure_score,
-                    ds.rank,
-                    ds.is_watchlist,
-                    ds.computed_at,
-                    sm.prev_day_close,
-                    sm.atr_14,
-                    sm.adv_20_cr,
-                    sm.week52_high,
-                    sm.week52_low,
-                    sm.ema_50,
-                    sm.ema_200,
-                    sm.bb_squeeze,
-                    sm.squeeze_days,
-                    sm.nr7,
-                    sm.adx_14,
-                    sm.rsi_14,
-                    sm.weekly_bias"""
+                    ds.symbol, s.company_name, s.is_fno,
+                    ds.score_date, ds.total_score, ds.momentum_score,
+                    ds.trend_score, ds.volatility_score, ds.structure_score,
+                    ds.rank, ds.is_watchlist, ds.computed_at,
+                    sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
+                    sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
+                    sm.bb_squeeze, sm.squeeze_days, sm.nr7,
+                    sm.adx_14, sm.rsi_14, sm.weekly_bias"""
             base_join = """
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol"""
 
-            limit_param = "$2" if score_date else "$1"
-
             def _bucket(fno_clause: str, bias_clause: str) -> str:
                 return f"""(
                     SELECT {base_cols}
                     {base_join}
-                    WHERE {date_clause}
-                    {watchlist_clause}
-                    {fno_clause}
-                    {bias_clause}
+                    WHERE {base_where}
+                    AND {fno_clause}
+                    AND {bias_clause}
                     ORDER BY ds.rank ASC
-                    LIMIT {limit_param}
+                    LIMIT ${limit_idx}
                 )"""
 
             query = " UNION ALL ".join([
-                _bucket("AND s.is_fno = TRUE",  "AND sm.weekly_bias = 'BULLISH'"),
-                _bucket("AND s.is_fno = TRUE",  "AND sm.weekly_bias = 'BEARISH'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND sm.weekly_bias = 'BULLISH'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND sm.weekly_bias = 'BEARISH'"),
+                _bucket("s.is_fno = TRUE",  "sm.weekly_bias = 'BULLISH'"),
+                _bucket("s.is_fno = TRUE",  "sm.weekly_bias = 'BEARISH'"),
+                _bucket("(s.is_fno = FALSE OR s.is_fno IS NULL)", "sm.weekly_bias = 'BULLISH'"),
+                _bucket("(s.is_fno = FALSE OR s.is_fno IS NULL)", "sm.weekly_bias = 'BEARISH'"),
             ])
             query += " ORDER BY rank ASC"
 
-            params = [score_date, per_bucket] if score_date else [per_bucket]
             rows = await conn.fetch(query, *params)
         return [dict(r) for r in rows]
 

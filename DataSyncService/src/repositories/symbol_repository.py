@@ -9,7 +9,7 @@ from pathlib import Path
 import asyncpg
 import pandas as pd
 
-from ..domain.models import Symbol
+from ..domain.symbol import Symbol
 
 logger = logging.getLogger(__name__)
 

@@ -11,6 +11,8 @@ import logging
 
 import asyncpg
 
+from shared.utils import parse_pg_command_result
+
 logger = logging.getLogger(__name__)
 
 _UNLIMITED_TIMEOUT_SENTINEL_S = 86400.0
@@ -214,10 +216,7 @@ class MetricsComputeService:
             """, timeout=timeout_s)
 
         # asyncpg returns e.g. "INSERT 0 42" — parse the count
-        try:
-            count = int(result.split()[-1])
-        except (IndexError, ValueError):
-            count = -1
+        count = parse_pg_command_result(result)
 
         logger.info("MetricsComputeService: upserted %d symbol_metrics rows", count)
         return count

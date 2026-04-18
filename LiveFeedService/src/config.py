@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from shared.base_config import BaseServiceSettings
 
@@ -13,6 +13,16 @@ class Settings(BaseServiceSettings):
     dhan_access_token: str   = Field(default="")
     dhan_ws_batch_size: int  = Field(default=500)
     dhan_reconnect_delay_s: float = Field(default=5.0)
+
+    @model_validator(mode="after")
+    def _validate_dhan_credentials(self) -> "Settings":
+        if not self.dhan_client_id or not self.dhan_access_token:
+            import logging
+            logging.getLogger(__name__).warning(
+                "DHAN_CLIENT_ID / DHAN_ACCESS_TOKEN not set — "
+                "live feed will fail to connect."
+            )
+        return self
 
     # ── Market hours (IST) ────────────────────────────────────────────────────
     market_open_h:  int = Field(default=9)
@@ -56,6 +66,7 @@ class Settings(BaseServiceSettings):
     # ── Multi-timeframe confluence ────────────────────────────────────────────
     confluence_15m_candles: int   = Field(default=3)
     confluence_1h_candles:  int   = Field(default=12)
+    confluence_min_move_pct: float = Field(default=0.15)
 
     # ── Candle writer ─────────────────────────────────────────────────────────
     candle_write_batch_size: int   = Field(default=100)

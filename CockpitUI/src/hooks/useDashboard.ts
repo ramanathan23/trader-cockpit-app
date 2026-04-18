@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { DashboardResponse, DashboardStats, ScoredSymbol } from '@/domain/dashboard';
+import { SCORER } from '@/lib/api-config';
 
 const EMPTY_STATS: DashboardStats = {
   total_scored: 0, watchlist_count: 0, avg_score: 0, max_score: 0,
@@ -30,7 +31,7 @@ export function useDashboard() {
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', '0');
 
-      const res = await fetch(`/scorer/dashboard?${params}`);
+      const res = await fetch(`${SCORER.DASHBOARD}?${params}`);
       if (!res.ok) throw new Error(`Dashboard fetch failed: ${res.status}`);
       const data: DashboardResponse = await res.json();
       setStats(data.stats);
@@ -57,7 +58,7 @@ export function useDashboard() {
       params.set('offset', String(offsetRef.current));
       params.set('balanced', 'false');
 
-      const res = await fetch(`/scorer/dashboard?${params}`);
+      const res = await fetch(`${SCORER.DASHBOARD}?${params}`);
       if (!res.ok) throw new Error(`Dashboard loadMore failed: ${res.status}`);
       const data: DashboardResponse = await res.json();
       setScores(prev => [...prev, ...data.scores]);
@@ -73,7 +74,7 @@ export function useDashboard() {
   const triggerCompute = useCallback(async () => {
     setComputing(true);
     try {
-      const res = await fetch('/scorer/scores/compute', { method: 'POST' });
+      const res = await fetch(SCORER.SCORES_COMPUTE, { method: 'POST' });
       if (!res.ok) throw new Error(`Compute trigger failed: ${res.status}`);
     } catch (err) {
       console.error('[useDashboard] compute trigger', err);

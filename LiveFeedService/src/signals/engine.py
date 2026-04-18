@@ -99,6 +99,7 @@ class SignalEngine:
         min_adv_cr:            float = 5.0,
         confluence_15m:        int   = 3,
         confluence_1h:         int   = 12,
+        confluence_min_move_pct: float = 0.15,
         daily_metrics:         Optional[dict] = None,
     ) -> None:
         self.symbol        = symbol
@@ -122,6 +123,7 @@ class SignalEngine:
         self._min_adv_cr    = min_adv_cr
         self._conf_15m      = confluence_15m
         self._conf_1h       = confluence_1h
+        self._conf_min_move = confluence_min_move_pct
         self._metrics       = daily_metrics or {}
         self._state         = _SessionState()
 
@@ -174,7 +176,7 @@ class SignalEngine:
         state.vwap = vwap_detector.update(state.vwap, candle)
 
         # Apply 15-min / 1-hr confluence filter to all emitted directional signals.
-        mtf = _mtf.compute(history, self._conf_15m, self._conf_1h)
+        mtf = _mtf.compute(history, self._conf_15m, self._conf_1h, self._conf_min_move)
         return self._apply_confluence(signals, mtf)
 
     def reset(self) -> None:

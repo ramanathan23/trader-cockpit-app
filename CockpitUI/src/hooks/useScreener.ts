@@ -10,6 +10,7 @@ import {
   decorateRows,
   sortRows,
 } from '@/domain/screener';
+import { LIVE_FEED } from '@/lib/api-config';
 
 export type { ScreenerRangeFilter, ScreenerPreset };
 
@@ -32,7 +33,7 @@ export function useScreener() {
     setLoading(true);
     offsetRef.current = 0;
     try {
-      const r = await fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`);
+      const r = await fetch(`${LIVE_FEED.SCREENER}?offset=0&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);
@@ -49,7 +50,7 @@ export function useScreener() {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const r = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
+      const r = await fetch(`${LIVE_FEED.SCREENER}?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);

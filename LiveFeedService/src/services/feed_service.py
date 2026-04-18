@@ -303,6 +303,7 @@ class FeedService:
                 min_adv_cr       = s.min_adv_cr,
                 confluence_15m   = s.confluence_15m_candles,
                 confluence_1h    = s.confluence_1h_candles,
+                confluence_min_move_pct = s.confluence_min_move_pct,
                 daily_metrics    = metrics,
             )
         return self._engines[meta.symbol]

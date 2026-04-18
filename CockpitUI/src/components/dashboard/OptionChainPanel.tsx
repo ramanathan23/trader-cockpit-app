@@ -4,6 +4,18 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ExpiryListResponse, OptionChainResponse, OptionStrike } from '@/domain/option_chain';
 import type { ScoredSymbol } from '@/domain/dashboard';
 import { fmt2 } from '@/lib/fmt';
+import { LIVE_FEED } from '@/lib/api-config';
+import {
+  type OIAnalysis,
+  assessChain,
+  analyzeOI,
+  computeRR,
+  fmtOI,
+  fmtIV,
+  fmtGreek,
+  fmtRR,
+  rrColor,
+} from '@/lib/option-chain-analysis';
 
 interface OptionChainPanelProps {
   symbol: string;
@@ -12,253 +24,6 @@ interface OptionChainPanelProps {
 }
 
 const ATM_COUNT = 5; // strikes above + below ATM
-
-/** Intraday / BTST option chain assessment.
- *  Prioritises LIQUIDITY (spread + volume) over IV.
- *  High IV = bigger premium moves = good for directional intraday buys.
- *  OI gives directional colour, not a gate. Only hard blockers:
- *  zero volume, wide spreads, manipulation. */
-function assessChain(
-  strikes: OptionStrike[],
-  spotPrice: number,
-  scoreData?: ScoredSymbol | null,
-  oiData?: OIAnalysis | null,
-): { label: string; color: string; reasons: string[] } {
-  if (strikes.length === 0) return { label: 'No data', color: 'text-ghost', reasons: [] };
-
-  const reasons: string[] = [];
-  let score = 0;
-
-  const momScore   = scoreData?.momentum_score ?? null;
-  const trendScore = scoreData?.trend_score ?? null;
-  const hasMomentum = (momScore != null && momScore >= 60) || (trendScore != null && trendScore >= 65);
-
-  // 1. IV — informational for intraday. High IV = premium moves faster per
-  //    underlying point, theta negligible in hours. Only penalise extreme IV
-  //    (>60%) with no momentum backing (IV crush risk if event-driven).
-  const atmIVs = strikes
-    .filter(s => s.call_iv != null || s.put_iv != null)
-    .map(s => ((s.call_iv ?? 0) + (s.put_iv ?? 0)) / ((s.call_iv != null ? 1 : 0) + (s.put_iv != null ? 1 : 0)))
-    .filter(v => v > 0);
-  const avgIV = atmIVs.length ? atmIVs.reduce((a, b) => a + b, 0) / atmIVs.length : 0;
-
-  if (avgIV > 0) {
-    if (avgIV < 20) {
-      reasons.push(`Low IV ${avgIV.toFixed(1)}% — small premium moves, need big stock move`);
-    } else if (avgIV < 40) {
-      reasons.push(`IV ${avgIV.toFixed(1)}% — normal range`);
-    } else if (avgIV < 60) {
-      reasons.push(`IV ${avgIV.toFixed(1)}% — good premium movement for intraday`);
-    } else {
-      if (hasMomentum) {
-        reasons.push(`High IV ${avgIV.toFixed(1)}% + momentum — premium moves fast, ride it`);
-      } else {
-        score -= 1;
-        reasons.push(`Very high IV ${avgIV.toFixed(1)}% no momentum — IV crush risk if event-driven`);
-      }
-    }
-  }
-
-  // 2. Bid-Ask spread — CRITICAL for intraday. Determines real entry/exit cost.
-  const atm = strikes.reduce((best, s) =>
-    Math.abs(s.strike_price - spotPrice) < Math.abs(best.strike_price - spotPrice) ? s : best,
-    strikes[0],
-  );
-  const callSpread = (atm.call_ask != null && atm.call_bid != null && atm.call_bid > 0)
-    ? ((atm.call_ask - atm.call_bid) / atm.call_bid) * 100 : null;
-  const putSpread  = (atm.put_ask != null && atm.put_bid != null && atm.put_bid > 0)
-    ? ((atm.put_ask - atm.put_bid) / atm.put_bid) * 100 : null;
-  const avgSpread  = [callSpread, putSpread].filter((v): v is number => v != null);
-  if (avgSpread.length) {
-    const spread = avgSpread.reduce((a, b) => a + b, 0) / avgSpread.length;
-    if (spread < 1.5) { score += 1; reasons.push(`Tight spread ${spread.toFixed(1)}% — clean entry/exit`); }
-    else if (spread > 5) { score -= 2; reasons.push(`Wide spread ${spread.toFixed(1)}% — slippage will eat profits`); }
-    else if (spread > 3) { score -= 1; reasons.push(`Spread ${spread.toFixed(1)}% — factor slippage into target`); }
-    else { reasons.push(`Spread ${spread.toFixed(1)}%`); }
-  }
-
-  // 3. Volume — CRITICAL. Good volume = get in/out fast, price discovery works.
-  const totalCallOI = strikes.reduce((s, r) => s + (r.call_oi ?? 0), 0);
-  const totalPutOI  = strikes.reduce((s, r) => s + (r.put_oi ?? 0), 0);
-  const totalVol    = strikes.reduce((s, r) => s + (r.call_volume ?? 0) + (r.put_volume ?? 0), 0);
-
-  if (totalVol === 0) { score -= 2; reasons.push('Zero volume — cannot trade'); }
-  else if (totalVol < 500) { score -= 1; reasons.push(`Low volume ${totalVol} — tough to get fills`); }
-  else if (totalVol > 10000) { score += 1; reasons.push(`Good volume ${(totalVol / 1000).toFixed(0)}K — liquid`); }
-  else { reasons.push(`Volume ${(totalVol / 1000).toFixed(1)}K`); }
-
-  // 4. OI — directional colour (informational, not gating).
-  //    PCR tells which side has tailwind, useful for both CE & PE buyers.
-  if (totalCallOI + totalPutOI > 0) {
-    const pcr = totalPutOI / (totalCallOI || 1);
-    if (pcr > 1.2) { reasons.push(`PCR ${pcr.toFixed(2)} — put writers supporting, CE buys have tailwind`); }
-    else if (pcr < 0.7) { reasons.push(`PCR ${pcr.toFixed(2)} — call writers dominating, PE buys have tailwind`); }
-    else { reasons.push(`PCR ${pcr.toFixed(2)} — balanced`); }
-  }
-
-  // 5. OI manipulation — hard blocker (still dangerous for intraday)
-  if (oiData) {
-    if (oiData.manipulation) {
-      score -= 2;
-      reasons.push('OI manipulation detected — avoid');
-    }
-    if (oiData.bias === 'SIDEWAYS') {
-      reasons.push('OI walls suggest range — play within walls or wait for break');
-    }
-  }
-
-  // Intraday/BTST: liquid + not manipulated = tradeable
-  const label = score >= 1 ? 'Tradeable — go' : score >= -1 ? 'Tradeable with caution' : 'Avoid — poor liquidity';
-  const color = score >= 1 ? 'text-bull' : score >= -1 ? 'text-amber' : 'text-bear';
-  return { label, color, reasons };
-}
-
-// ── OI behaviour analysis ────────────────────────────────────────────────────
-
-interface OIAnalysis {
-  pcr:              number;
-  pcrLabel:         string;   // "Bullish" | "Bearish" | "Neutral"
-  pcrColor:         string;
-  bias:             string;   // "BULL" | "BEAR" | "SIDEWAYS" | "CONTESTED"
-  biasColor:        string;
-  biasReason:       string;
-  unusualStrikes:   string[]; // e.g. "CE 24500 OI 12L (3.2× avg)"
-  manipulation:     boolean;
-  manipReason:      string | null;
-  maxPainStrike:    number | null;
-}
-
-function analyzeOI(strikes: OptionStrike[], spotPrice: number): OIAnalysis | null {
-  if (strikes.length === 0) return null;
-
-  const totalCallOI = strikes.reduce((s, r) => s + (r.call_oi ?? 0), 0);
-  const totalPutOI  = strikes.reduce((s, r) => s + (r.put_oi ?? 0), 0);
-  const totalCallVol = strikes.reduce((s, r) => s + (r.call_volume ?? 0), 0);
-  const totalPutVol  = strikes.reduce((s, r) => s + (r.put_volume ?? 0), 0);
-
-  if (totalCallOI + totalPutOI === 0) return null;
-
-  // ── PCR ──
-  const pcr = totalPutOI / (totalCallOI || 1);
-  let pcrLabel: string;
-  let pcrColor: string;
-  if (pcr > 1.2)      { pcrLabel = 'Bullish';  pcrColor = 'text-bull'; }
-  else if (pcr < 0.7) { pcrLabel = 'Bearish';  pcrColor = 'text-bear'; }
-  else                 { pcrLabel = 'Neutral';  pcrColor = 'text-amber'; }
-
-  // ── Dominant OI walls (find where the real walls are) ──
-  const callsByOI = [...strikes].filter(s => (s.call_oi ?? 0) > 0)
-    .sort((a, b) => (b.call_oi ?? 0) - (a.call_oi ?? 0));
-  const putsByOI = [...strikes].filter(s => (s.put_oi ?? 0) > 0)
-    .sort((a, b) => (b.put_oi ?? 0) - (a.put_oi ?? 0));
-
-  const topCallWall = callsByOI[0]?.strike_price ?? null;  // Resistance
-  const topPutWall  = putsByOI[0]?.strike_price ?? null;   // Support
-
-  // ── Directional bias from OI structure ──
-  let bias: string;
-  let biasColor: string;
-  let biasReason: string;
-
-  if (topCallWall != null && topPutWall != null) {
-    const callWallDist = topCallWall - spotPrice;  // positive = above spot
-    const putWallDist  = spotPrice - topPutWall;    // positive = below spot
-
-    if (pcr > 1.2 && putWallDist > callWallDist * 0.6) {
-      // Strong put writing below → support holds → bullish
-      bias = 'BULL'; biasColor = 'text-bull';
-      biasReason = `Put wall ${topPutWall} supports upside, PCR ${pcr.toFixed(2)}`;
-    } else if (pcr < 0.7 && callWallDist > putWallDist * 0.6) {
-      // Heavy call writing above → resistance → bearish
-      bias = 'BEAR'; biasColor = 'text-bear';
-      biasReason = `Call wall ${topCallWall} caps upside, PCR ${pcr.toFixed(2)}`;
-    } else if (callWallDist < spotPrice * 0.01 && putWallDist < spotPrice * 0.01) {
-      // Both walls very close to spot → range-bound
-      bias = 'SIDEWAYS'; biasColor = 'text-amber';
-      biasReason = `Walls tight: Put ${topPutWall} / Call ${topCallWall} — range-bound`;
-    } else if (pcr >= 0.7 && pcr <= 1.2) {
-      bias = 'CONTESTED'; biasColor = 'text-amber';
-      biasReason = `Balanced OI — no clear directional edge`;
-    } else {
-      bias = pcr > 1.0 ? 'BULL' : 'BEAR';
-      biasColor = pcr > 1.0 ? 'text-bull' : 'text-bear';
-      biasReason = `PCR ${pcr.toFixed(2)} with wall spread ${topPutWall}–${topCallWall}`;
-    }
-  } else {
-    bias = 'CONTESTED'; biasColor = 'text-dim';
-    biasReason = 'Insufficient OI data';
-  }
-
-  // ── Unusual OI concentration (strike OI > 2.5× average) ──
-  const avgCallOI = totalCallOI / strikes.length;
-  const avgPutOI  = totalPutOI / strikes.length;
-  const unusualStrikes: string[] = [];
-
-  for (const s of strikes) {
-    if ((s.call_oi ?? 0) > avgCallOI * 2.5 && avgCallOI > 0) {
-      const mult = (s.call_oi ?? 0) / avgCallOI;
-      unusualStrikes.push(`CE ${s.strike_price} OI ${fmtOI(s.call_oi)} (${mult.toFixed(1)}× avg)`);
-    }
-    if ((s.put_oi ?? 0) > avgPutOI * 2.5 && avgPutOI > 0) {
-      const mult = (s.put_oi ?? 0) / avgPutOI;
-      unusualStrikes.push(`PE ${s.strike_price} OI ${fmtOI(s.put_oi)} (${mult.toFixed(1)}× avg)`);
-    }
-  }
-
-  // ── Manipulation detection ──
-  // When both CE and PE OI build on the same side of spot (same strikes),
-  // or volume is extremely one-sided vs OI direction → synthetic pinning / manipulation.
-  let manipulation = false;
-  let manipReason: string | null = null;
-
-  // Check 1: Heavy writing on BOTH sides of ATM (±2 strikes) — synthetic pinning
-  const nearATM = strikes.filter(s =>
-    Math.abs(s.strike_price - spotPrice) <= (strikes.length >= 2
-      ? Math.abs(strikes[1].strike_price - strikes[0].strike_price) * 2
-      : spotPrice * 0.03),
-  );
-  const nearCallOI = nearATM.reduce((s, r) => s + (r.call_oi ?? 0), 0);
-  const nearPutOI  = nearATM.reduce((s, r) => s + (r.put_oi ?? 0), 0);
-  const nearRatio   = nearCallOI > 0 && nearPutOI > 0
-    ? Math.min(nearCallOI, nearPutOI) / Math.max(nearCallOI, nearPutOI)
-    : 0;
-
-  if (nearRatio > 0.75 && (nearCallOI + nearPutOI) > (totalCallOI + totalPutOI) * 0.5) {
-    // Nearly equal CE+PE writing concentrated at ATM with both sides heavy
-    manipulation = true;
-    manipReason = `Equal CE+PE walls at ATM (${nearRatio.toFixed(0)}% balanced, ${((nearCallOI + nearPutOI) / (totalCallOI + totalPutOI) * 100).toFixed(0)}% of total OI) — likely pinning`;
-  }
-
-  // Check 2: Volume divergence from OI direction
-  // If OI says bullish (high PCR) but call volume >>> put volume → smart money loading calls
-  // while retail writes puts → fine. BUT if PCR bullish and put volume >>> call volume,
-  // the "support" is new shorts added (panic) not conviction — bearish trap.
-  if (!manipulation && totalCallVol + totalPutVol > 0) {
-    const volPCR = totalPutVol / (totalCallVol || 1);
-    if (pcr > 1.2 && volPCR > 2.0) {
-      manipulation = true;
-      manipReason = `PCR bullish (${pcr.toFixed(2)}) but today's put volume ${fmtOI(totalPutVol)} >>> call volume ${fmtOI(totalCallVol)} — fresh put selling may be a trap`;
-    } else if (pcr < 0.7 && volPCR < 0.4) {
-      manipulation = true;
-      manipReason = `PCR bearish (${pcr.toFixed(2)}) but today's call volume ${fmtOI(totalCallVol)} >>> put volume ${fmtOI(totalPutVol)} — call writing may be a trap`;
-    }
-  }
-
-  // ── Max pain estimate (strike where total OI obligation is minimized) ──
-  let maxPainStrike: number | null = null;
-  let minPain = Infinity;
-  for (const s of strikes) {
-    let pain = 0;
-    for (const r of strikes) {
-      const callPain = Math.max(0, s.strike_price - r.strike_price) * (r.call_oi ?? 0);
-      const putPain  = Math.max(0, r.strike_price - s.strike_price) * (r.put_oi ?? 0);
-      pain += callPain + putPain;
-    }
-    if (pain < minPain) { minPain = pain; maxPainStrike = s.strike_price; }
-  }
-
-  return { pcr, pcrLabel, pcrColor, bias, biasColor, biasReason, unusualStrikes, manipulation, manipReason, maxPainStrike };
-}
 
 export const OptionChainPanel = memo(({ symbol, onClose, scoreData }: OptionChainPanelProps) => {
   const [expiries,     setExpiries]     = useState<string[]>([]);
@@ -270,7 +35,7 @@ export const OptionChainPanel = memo(({ symbol, onClose, scoreData }: OptionChai
   // Load expiries on mount
   useEffect(() => {
     setLoading(true);
-    fetch('/api/v1/optionchain/expiries', {
+    fetch(LIVE_FEED.OPTION_CHAIN_EXPIRIES, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol }),
@@ -288,7 +53,7 @@ export const OptionChainPanel = memo(({ symbol, onClose, scoreData }: OptionChai
   useEffect(() => {
     if (!selectedExp) return;
     setLoading(true);
-    fetch('/api/v1/optionchain', {
+    fetch(LIVE_FEED.OPTION_CHAIN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, expiry: selectedExp }),
@@ -510,41 +275,3 @@ export const OptionChainPanel = memo(({ symbol, onClose, scoreData }: OptionChai
 });
 
 OptionChainPanel.displayName = 'OptionChainPanel';
-
-function fmtOI(v: number | null | undefined): string {
-  if (v == null) return '—';
-  if (v >= 1_00_000) return `${(v / 1_00_000).toFixed(1)}L`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-  return String(v);
-}
-
-function fmtIV(v: number | null | undefined): string {
-  return v != null ? `${v.toFixed(1)}%` : '—';
-}
-
-function fmtGreek(v: number | null | undefined): string {
-  return v != null ? v.toFixed(2) : '—';
-}
-
-/** Compute risk:reward for a 2% underlying stop-loss.
- *  Risk  = |delta| × 2% × spot, capped at premium paid.
- *  R:R   = premium / risk — multiples of SL-risk your entry represents. */
-function computeRR(delta: number | null, ltp: number | null, spotPrice: number): { rr: number | null; risk: number | null } {
-  if (delta == null || ltp == null || ltp <= 0 || spotPrice <= 0) return { rr: null, risk: null };
-  const absDelta = Math.abs(delta);
-  if (absDelta === 0) return { rr: null, risk: null };
-  const slLoss = absDelta * 0.02 * spotPrice;
-  const risk = Math.min(slLoss, ltp);
-  return { rr: ltp / risk, risk };
-}
-
-function fmtRR(rr: number | null): string {
-  return rr != null ? `${rr.toFixed(1)}` : '—';
-}
-
-function rrColor(rr: number | null): string {
-  if (rr == null) return 'text-dim';
-  if (rr >= 2.0) return 'text-bull';
-  if (rr >= 1.2) return 'text-amber';
-  return 'text-bear';
-}

@@ -120,6 +120,8 @@ class CandleBuilder:
         self._is_first: bool                     = True   # True until first boundary seen
         self._history:  deque[Candle]            = deque(maxlen=history_size)
         self._session_open: Optional[float]      = None   # first tick price of the session
+        self._last_tick_minute: Optional[int]    = None   # boundary cache
+        self._last_tick_hour:   Optional[int]    = None
 
     # ── Public interface ───────────────────────────────────────────────────────
 
@@ -130,7 +132,20 @@ class CandleBuilder:
         Returns a completed Candle when a boundary rolls over, else None.
         The returned candle is also appended to the internal history.
         """
+        # Fast path: if tick_time minute hasn't changed, reuse last boundary.
+        if (
+            self._current is not None
+            and self._last_tick_minute is not None
+            and tick_time.minute == self._last_tick_minute
+            and tick_time.hour == self._last_tick_hour
+        ):
+            self._current.update(price, qty)
+            return None
+
         bnd = _boundary(tick_time, self._open_h, self._open_m, self._candle_min)
+        self._last_tick_minute = tick_time.minute
+        self._last_tick_hour = tick_time.hour
+
         if bnd is None:
             return None   # outside market hours
 
@@ -198,3 +213,5 @@ class CandleBuilder:
         self._is_first = True
         self._history.clear()
         self._session_open = None
+        self._last_tick_minute = None
+        self._last_tick_hour = None
