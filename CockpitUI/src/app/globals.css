@@ -104,16 +104,20 @@
     align-content: start;
   }
 
-  .help-legend {
+  /* help-legend: 3-col flex — col1=signals, col2=metrics+levels, col3=phases+adv */
+  .help-signal-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(280px, 1fr));
-    gap: 16px 20px;
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    gap: 5px 20px;
+    align-content: start;
   }
 
-  .help-section-grid {
+  /* col 2/3 pair grids: 2 sub-columns per section so 6 items = 3 rows */
+  .help-pair-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px 18px;
+    gap: 5px 20px;
+    align-content: start;
   }
 
   .theme-chip {
@@ -133,9 +137,8 @@
       grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
     }
 
-    .help-legend {
-      grid-template-columns: repeat(2, minmax(240px, 1fr));
-      gap: 14px 16px;
+    .help-pair-grid {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -145,8 +148,7 @@
       grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
     }
 
-    .help-legend,
-    .help-section-grid {
+    .help-signal-grid {
       grid-template-columns: 1fr;
     }
   }

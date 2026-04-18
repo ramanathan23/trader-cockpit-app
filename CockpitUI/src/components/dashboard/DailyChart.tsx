@@ -82,7 +82,7 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
 
   // Volume profile draw callback — called after data loads and on resize
   const drawVolumeProfile = useCallback(
-    (profile: { price: number; vol: number; pct: number }[], chart: IChartApi) => {
+    (profile: { price: number; vol: number; pct: number }[], series: { priceToCoordinate: (price: number) => number | null }) => {
       const canvas = vpCanvasRef.current;
       if (!canvas || profile.length === 0) return;
       const ctx = canvas.getContext('2d');
@@ -95,11 +95,10 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
 
-      const priceScale = chart.priceScale('right');
       const maxBarW = rect.width * 0.15; // VP bars max 15% of chart width
 
       for (const row of profile) {
-        const y = priceScale.priceToCoordinate(row.price);
+        const y = series.priceToCoordinate(row.price);
         if (y == null) continue;
         const barW = row.pct * maxBarW;
         const barH = Math.max(1, rect.height / profile.length - 1);
@@ -238,11 +237,11 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
 
         // Volume profile overlay
         const profile = buildVolumeProfile(bars);
-        drawVolumeProfile(profile, chart);
+        drawVolumeProfile(profile, candleSeries);
 
         // Redraw VP on visible range change (scroll / zoom)
         chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-          drawVolumeProfile(profile, chart);
+          drawVolumeProfile(profile, candleSeries);
         });
 
         chart.timeScale().fitContent();
@@ -324,7 +323,6 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
         style={{ width: '100%', height }}
       />
       <div ref={containerRef} style={{ width: '100%', height }} />
-    </div>
     </div>
   );
 });
