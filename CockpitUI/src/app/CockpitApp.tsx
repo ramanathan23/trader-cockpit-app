@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { filterSignals, type SignalCategory } from '@/domain/signal';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
@@ -64,7 +64,14 @@ export function CockpitApp() {
 
   const [view,       setView]       = useState<AppView>('dashboard');
   const [category,   setCategory]   = useState<SignalCategory>('ALL');
+  const [subType,    setSubType]    = useState<import('@/domain/signal').SignalType | null>(null);
+  const [fnoOnly,    setFnoOnly]    = useState(false);
   const [minAdvCr,   setMinAdvCr]   = useState(0);
+
+  const handleCategory = useCallback((c: SignalCategory) => {
+    setCategory(c);
+    setSubType(null);
+  }, []);
   const [viewMode,   setViewMode]   = useState<'card' | 'table'>('card');
   const [histViewMode, setHistViewMode] = useState<'card' | 'table'>('card');
   const [showHelp,   setShowHelp]   = useState(false);
@@ -123,7 +130,7 @@ export function CockpitApp() {
   const currentViewMode  = view === 'history' ? histViewMode : viewMode;
   const onCurrentViewMode = view === 'history' ? setHistViewMode : setViewMode;
 
-  const filteredCount = filterSignals(currentSignals, category, minAdvCr, metricsCache).length;
+  const filteredCount = filterSignals(currentSignals, category, minAdvCr, metricsCache, subType, fnoOnly).length;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-base text-fg text-sm">
@@ -137,7 +144,9 @@ export function CockpitApp() {
       />
 
       <SignalToolbar
-        category={category}   onCategory={setCategory}
+        category={category}   onCategory={handleCategory}
+        subType={subType}     onSubType={setSubType}
+        fnoOnly={fnoOnly}     onFnoOnly={setFnoOnly}
         minAdvCr={minAdvCr}   onMinAdv={setMinAdvCr}
         signals={currentSignals}
         metricsCache={metricsCache}
@@ -178,6 +187,8 @@ export function CockpitApp() {
           notes={notes}
           onSaveNote={saveNote}
           category={category}
+          subType={subType}
+          fnoOnly={fnoOnly}
           minAdvCr={minAdvCr}
           viewMode={currentViewMode}
           emptyLabel={

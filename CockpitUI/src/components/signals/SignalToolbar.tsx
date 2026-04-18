@@ -1,21 +1,44 @@
 'use client';
 
 import { memo } from 'react';
-import { filterSignals, signalColor, type Signal, type SignalCategory } from '@/domain/signal';
+import { filterSignals, signalColor, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 
 // Representative signal type per category — used to pick a highlight color
 const TAB_SIGNAL_TYPE: Record<SignalCategory, string> = {
-  ALL:     'OPEN_DRIVE',
-  DRIVE:   'OPEN_DRIVE',
-  SPIKE:   'VOLUME_SPIKE',
-  ABS:     'ABS_STRENGTH',
+  ALL:     'OPEN_DRIVE_ENTRY',
+  DRIVE:   'OPEN_DRIVE_ENTRY',
+  SPIKE:   'SPIKE_BREAKOUT',
+  ABS:     'ABSORPTION',
   EXHAUST: 'EXHAUSTION_REVERSAL',
-  FADE:    'FADE_SETUP',
+  FADE:    'FADE_ALERT',
   BREAK:   'RANGE_BREAKOUT',
-  VWAP:    'VWAP_RECLAIM',
-  CAM:     'CAMARILLA_R3_BREAK',
+  VWAP:    'VWAP_BREAKOUT',
+  CAM:     'CAM_H4_BREAKOUT',
+};
+
+const CAM_SUBTYPES: { type: SignalType; label: string; title: string }[] = [
+  { type: 'CAM_H4_BREAKOUT',  label: 'H4\u2191',  title: 'H4 cross — price crossed above Camarilla H4 resistance (momentum long)' },
+  { type: 'CAM_L4_BREAKDOWN', label: 'S4\u2193',  title: 'S4 cross — price crossed below Camarilla L4 support (momentum short)' },
+  { type: 'CAM_H3_REVERSAL',  label: 'H3\u2935',  title: 'H3 rejection — wicked into H3 but closed below (fade short)' },
+  { type: 'CAM_L3_REVERSAL',  label: 'S3\u2934',  title: 'S3 rejection — wicked into L3 but closed above (fade long)' },
+];
+
+const BREAK_SUBTYPES: { type: SignalType; label: string; title: string }[] = [
+  { type: 'ORB_BREAKOUT',    label: 'ORB\u2191',  title: 'Opening Range Breakout — closed above opening range high on volume' },
+  { type: 'ORB_BREAKDOWN',   label: 'ORB\u2193',  title: 'Opening Range Breakdown — closed below opening range low on volume' },
+  { type: 'PDH_BREAKOUT',    label: 'PDH\u2191',  title: 'Previous Day High cross — closed above PDH on volume (momentum long)' },
+  { type: 'PDL_BREAKDOWN',   label: 'PDL\u2193',  title: 'Previous Day Low cross — closed below PDL on volume (momentum short)' },
+  { type: 'RANGE_BREAKOUT',  label: 'RNG\u2191',  title: '5-candle consolidation broken upward on volume' },
+  { type: 'RANGE_BREAKDOWN', label: 'RNG\u2193',  title: '5-candle consolidation broken downward on volume' },
+  { type: 'WEEK52_BREAKOUT', label: '52W\u2191',  title: '52-week high breakout on 2× volume — major momentum signal' },
+  { type: 'WEEK52_BREAKDOWN',label: '52W\u2193',  title: '52-week low breakdown on 2× volume — major breakdown signal' },
+];
+
+const SUBTYPES_BY_CATEGORY: Partial<Record<SignalCategory, { type: SignalType; label: string; title: string }[]>> = {
+  CAM:   CAM_SUBTYPES,
+  BREAK: BREAK_SUBTYPES,
 };
 
 const TABS: { key: SignalCategory; label: string; title: string }[] = [
@@ -42,6 +65,12 @@ interface SignalToolbarProps {
   // Category filter
   category: SignalCategory;
   onCategory: (c: SignalCategory) => void;
+  // Sub-type filter (active for CAM and BREAK categories)
+  subType: SignalType | null;
+  onSubType: (t: SignalType | null) => void;
+  // F&O filter
+  fnoOnly: boolean;
+  onFnoOnly: (v: boolean) => void;
   // Value filter
   minAdvCr: number;
   onMinAdv: (cr: number) => void;
@@ -65,14 +94,16 @@ interface SignalToolbarProps {
 }
 
 export const SignalToolbar = memo(({
-  category, onCategory, minAdvCr, onMinAdv,
+  category, onCategory, subType, onSubType,
+  fnoOnly, onFnoOnly,
+  minAdvCr, onMinAdv,
   signals, metricsCache,
   paused, pendingCount, onTogglePause, onClear,
   viewMode, onViewMode,
   activeView, onViewChange,
   showHelp, onToggleHelp,
 }: SignalToolbarProps) => {
-  const filtered = filterSignals(signals, category, minAdvCr, metricsCache);
+  const filtered = filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly);  const activeSubtypes = SUBTYPES_BY_CATEGORY[category];
 
   return (
     <div className="shrink-0 flex items-center flex-wrap gap-2.5 px-3 py-2 bg-panel border-b border-border z-10 xl:px-4">
@@ -113,10 +144,40 @@ export const SignalToolbar = memo(({
         })}
       </div>
 
+      {/* ── Sub-type filter (visible for CAM and BREAK tabs) ── */}
+      {activeSubtypes && (
+        <>
+          <div className="w-px h-4 bg-border" />
+          <div className="seg-group">
+            {activeSubtypes.map(t => (
+              <button
+                key={t.type}
+                onClick={() => onSubType(subType === t.type ? null : t.type)}
+                title={t.title}
+                className={`seg-btn ${subType === t.type ? 'active' : ''}`}
+                style={subType === t.type ? { color: category === 'CAM' ? '#9b72f7' : '#0dbd7d' } : undefined}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ── Right cluster ──────────────────────────────────────── */}
       <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
 
-        {/* Value (ADV) tier filter */}
+        {/* ── F&O toggle ──────────────────────────────────────── */}
+        <button
+          onClick={() => onFnoOnly(!fnoOnly)}
+          title="Show only F&O stocks"
+          className={`seg-btn ${fnoOnly ? 'active' : ''}`}
+          style={fnoOnly ? { color: '#c678dd' } : undefined}
+        >
+          F&amp;O
+        </button>
+
+        {/* ── Value (ADV) tier filter ───────────────────────── */}
         <div className="seg-group">
           {VALUE_TIERS.map(t => (
             <button

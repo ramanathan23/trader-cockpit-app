@@ -123,7 +123,7 @@ export const ScreenerFilters = memo(({
 
         {/* Preset tags — multi-select AND logic */}
         <div className="flex items-center gap-1">
-          {SCREENER_PRESETS.map(p => (
+          {SCREENER_PRESETS.filter(p => !p.group).map(p => (
             <button
               key={p.key}
               onClick={() => onPreset(p.key)}
@@ -131,6 +131,24 @@ export const ScreenerFilters = memo(({
                 presets.has(p.key)
                   ? 'bg-[#2d2118] border-[#d29922] text-[#d29922]'
                   : 'bg-subtle border-border text-muted hover:border-[#d29922] hover:text-fg'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* CAM preset tags */}
+        <div className="flex items-center gap-1">
+          <span className="text-muted text-[11px]">CAM</span>
+          {SCREENER_PRESETS.filter(p => p.group === 'cam').map(p => (
+            <button
+              key={p.key}
+              onClick={() => onPreset(p.key)}
+              className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
+                presets.has(p.key)
+                  ? 'bg-[#1f1a2e] border-[#9b72f7] text-[#9b72f7]'
+                  : 'bg-subtle border-border text-muted hover:border-[#9b72f7] hover:text-fg'
               }`}
             >
               {p.label}

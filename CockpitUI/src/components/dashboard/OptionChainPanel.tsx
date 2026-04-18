@@ -13,9 +13,11 @@ interface OptionChainPanelProps {
 
 const ATM_COUNT = 5; // strikes above + below ATM
 
-/** Quick assessment of option chain health for buying.
- *  IV is correlated with price momentum & structure — high IV alone
- *  is not unfavourable if the stock is coiling or has strong trend support. */
+/** Intraday / BTST option chain assessment.
+ *  Prioritises LIQUIDITY (spread + volume) over IV.
+ *  High IV = bigger premium moves = good for directional intraday buys.
+ *  OI gives directional colour, not a gate. Only hard blockers:
+ *  zero volume, wide spreads, manipulation. */
 function assessChain(
   strikes: OptionStrike[],
   spotPrice: number,
@@ -25,22 +27,15 @@ function assessChain(
   if (strikes.length === 0) return { label: 'No data', color: 'text-ghost', reasons: [] };
 
   const reasons: string[] = [];
-  let score = 0; // -3 … +3
+  let score = 0;
 
-  // Momentum / structure context from unified scorer
-  const rsi        = scoreData?.rsi_14 ?? null;
   const momScore   = scoreData?.momentum_score ?? null;
   const trendScore = scoreData?.trend_score ?? null;
-  const volScore   = scoreData?.volatility_score ?? null;
-  const squeeze    = scoreData?.bb_squeeze === true;
-  const nr7        = scoreData?.nr7 === true;
+  const hasMomentum = (momScore != null && momScore >= 60) || (trendScore != null && trendScore >= 65);
 
-  const isOverextended   = (rsi != null && rsi > 75) || (momScore != null && momScore > 80);
-  const isCoiling        = squeeze || nr7 || (volScore != null && volScore >= 65);
-  const hasStrongTrend   = (trendScore != null && trendScore >= 60) && (rsi == null || rsi < 72);
-  const hasMomentum      = (momScore != null && momScore >= 60) || (trendScore != null && trendScore >= 65);
-
-  // 1. IV level (avg of ATM CE + PE) — correlated with price context
+  // 1. IV — informational for intraday. High IV = premium moves faster per
+  //    underlying point, theta negligible in hours. Only penalise extreme IV
+  //    (>60%) with no momentum backing (IV crush risk if event-driven).
   const atmIVs = strikes
     .filter(s => s.call_iv != null || s.put_iv != null)
     .map(s => ((s.call_iv ?? 0) + (s.put_iv ?? 0)) / ((s.call_iv != null ? 1 : 0) + (s.put_iv != null ? 1 : 0)))
@@ -48,38 +43,23 @@ function assessChain(
   const avgIV = atmIVs.length ? atmIVs.reduce((a, b) => a + b, 0) / atmIVs.length : 0;
 
   if (avgIV > 0) {
-    if (avgIV < 25) {
-      score += 1;
-      reasons.push(`Low IV ${avgIV.toFixed(1)}% — premiums cheap`);
+    if (avgIV < 20) {
+      reasons.push(`Low IV ${avgIV.toFixed(1)}% — small premium moves, need big stock move`);
     } else if (avgIV < 40) {
-      // Moderate IV — momentum context matters
-      if (isOverextended) {
-        score -= 1;
-        reasons.push(`Moderate IV ${avgIV.toFixed(1)}% + overextended (RSI ${rsi?.toFixed(0) ?? '?'}) — risky`);
-      } else if (hasMomentum) {
-        score += 1;
-        reasons.push(`Moderate IV ${avgIV.toFixed(1)}% + momentum backing — justified`);
-      } else {
-        reasons.push(`Moderate IV ${avgIV.toFixed(1)}%`);
-      }
+      reasons.push(`IV ${avgIV.toFixed(1)}% — normal range`);
+    } else if (avgIV < 60) {
+      reasons.push(`IV ${avgIV.toFixed(1)}% — good premium movement for intraday`);
     } else {
-      // High IV — not automatically bad; correlate with price context
-      if (isOverextended) {
-        score -= 2;
-        reasons.push(`High IV ${avgIV.toFixed(1)}% + overextended (RSI ${rsi?.toFixed(0) ?? '?'}) — premium crush risk`);
-      } else if (isCoiling) {
-        // Sideways / compressed — IV justified by upcoming expansion potential
-        reasons.push(`High IV ${avgIV.toFixed(1)}% but coiling${squeeze ? ' (squeeze)' : ''}${nr7 ? ' (NR7)' : ''} — breakout potential`);
-      } else if (hasStrongTrend) {
-        reasons.push(`High IV ${avgIV.toFixed(1)}% but trending strongly — directional play`);
+      if (hasMomentum) {
+        reasons.push(`High IV ${avgIV.toFixed(1)}% + momentum — premium moves fast, ride it`);
       } else {
         score -= 1;
-        reasons.push(`High IV ${avgIV.toFixed(1)}% — premiums expensive`);
+        reasons.push(`Very high IV ${avgIV.toFixed(1)}% no momentum — IV crush risk if event-driven`);
       }
     }
   }
 
-  // 2. Bid-Ask spread on ATM
+  // 2. Bid-Ask spread — CRITICAL for intraday. Determines real entry/exit cost.
   const atm = strikes.reduce((best, s) =>
     Math.abs(s.strike_price - spotPrice) < Math.abs(best.strike_price - spotPrice) ? s : best,
     strikes[0],
@@ -91,39 +71,45 @@ function assessChain(
   const avgSpread  = [callSpread, putSpread].filter((v): v is number => v != null);
   if (avgSpread.length) {
     const spread = avgSpread.reduce((a, b) => a + b, 0) / avgSpread.length;
-    if (spread < 1) { score += 1; reasons.push(`Tight spread ${spread.toFixed(1)}%`); }
-    else if (spread > 3) { score -= 1; reasons.push(`Wide spread ${spread.toFixed(1)}% — slippage risk`); }
+    if (spread < 1.5) { score += 1; reasons.push(`Tight spread ${spread.toFixed(1)}% — clean entry/exit`); }
+    else if (spread > 5) { score -= 2; reasons.push(`Wide spread ${spread.toFixed(1)}% — slippage will eat profits`); }
+    else if (spread > 3) { score -= 1; reasons.push(`Spread ${spread.toFixed(1)}% — factor slippage into target`); }
     else { reasons.push(`Spread ${spread.toFixed(1)}%`); }
   }
 
-  // 3. OI & volume (liquidity)
+  // 3. Volume — CRITICAL. Good volume = get in/out fast, price discovery works.
   const totalCallOI = strikes.reduce((s, r) => s + (r.call_oi ?? 0), 0);
   const totalPutOI  = strikes.reduce((s, r) => s + (r.put_oi ?? 0), 0);
   const totalVol    = strikes.reduce((s, r) => s + (r.call_volume ?? 0) + (r.put_volume ?? 0), 0);
 
+  if (totalVol === 0) { score -= 2; reasons.push('Zero volume — cannot trade'); }
+  else if (totalVol < 500) { score -= 1; reasons.push(`Low volume ${totalVol} — tough to get fills`); }
+  else if (totalVol > 10000) { score += 1; reasons.push(`Good volume ${(totalVol / 1000).toFixed(0)}K — liquid`); }
+  else { reasons.push(`Volume ${(totalVol / 1000).toFixed(1)}K`); }
+
+  // 4. OI — directional colour (informational, not gating).
+  //    PCR tells which side has tailwind, useful for both CE & PE buyers.
   if (totalCallOI + totalPutOI > 0) {
     const pcr = totalPutOI / (totalCallOI || 1);
-    reasons.push(`PCR ${pcr.toFixed(2)}`);
-    if (pcr > 1.2) { score += 1; reasons.push('Bullish OI skew'); }
-    else if (pcr < 0.7) { score -= 1; reasons.push('Bearish OI skew'); }
+    if (pcr > 1.2) { reasons.push(`PCR ${pcr.toFixed(2)} — put writers supporting, CE buys have tailwind`); }
+    else if (pcr < 0.7) { reasons.push(`PCR ${pcr.toFixed(2)} — call writers dominating, PE buys have tailwind`); }
+    else { reasons.push(`PCR ${pcr.toFixed(2)} — balanced`); }
   }
 
-  if (totalVol === 0) { score -= 2; reasons.push('No volume — illiquid'); }
-  else if (totalVol < 1000) { reasons.push('Low volume'); }
-
-  // 4. OI behaviour — manipulation / bias from full-chain analysis
+  // 5. OI manipulation — hard blocker (still dangerous for intraday)
   if (oiData) {
     if (oiData.manipulation) {
       score -= 2;
-      reasons.push('OI manipulation detected — stay away');
+      reasons.push('OI manipulation detected — avoid');
     }
     if (oiData.bias === 'SIDEWAYS') {
-      reasons.push('OI walls suggest range-bound — directional bets risky');
+      reasons.push('OI walls suggest range — play within walls or wait for break');
     }
   }
 
-  const label = score >= 2 ? 'Favourable for buying' : score >= 0 ? 'Neutral' : 'Unfavourable for buying';
-  const color = score >= 2 ? 'text-bull' : score >= 0 ? 'text-amber' : 'text-bear';
+  // Intraday/BTST: liquid + not manipulated = tradeable
+  const label = score >= 1 ? 'Tradeable — go' : score >= -1 ? 'Tradeable with caution' : 'Avoid — poor liquidity';
+  const color = score >= 1 ? 'text-bull' : score >= -1 ? 'text-amber' : 'text-bear';
   return { label, color, reasons };
 }
 

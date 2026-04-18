@@ -171,10 +171,10 @@ def detect_camarilla(
 ) -> list[CamSignal]:
     """
     Detect Camarilla pivot signals:
+      - H4 Cross: prev close ≤ H4, current close > H4 → momentum long.
       - H3 Reversal: touched/exceeded H3 but closed below it → fade short.
-      - H4 Breakout: closed above H4 → momentum long.
+      - L4 Cross: prev close ≥ L4, current close < L4 → momentum short.
       - L3 Reversal: touched/exceeded L3 but closed above it → fade long.
-      - L4 Breakdown: closed below L4 → momentum short.
     """
     window = history[-vol_window:] if len(history) >= vol_window else history
     vols   = [c.volume for c in window if c.volume > 0]
@@ -184,21 +184,22 @@ def detect_camarilla(
     if median_vol == 0 or candle.volume < min_vol_ratio * median_vol:
         return []
 
+    prev = prev_candle or (history[-1] if history else None)
     sigs: list[CamSignal] = []
 
-    # H4 full breakout: close above H4.
-    if candle.close > levels.h4:
+    # H4 cross: previous close at or below H4, current close punches through.
+    if prev and prev.close <= levels.h4 and candle.close > levels.h4:
         sigs.append(CamSignal(SignalType.CAM_H4_BREAKOUT, levels.h4))
 
     # H3 rejection: high touched or exceeded H3 but closed below H3.
     elif candle.high >= levels.h3 * (1 - h3_touch_pct) and candle.close < levels.h3:
         sigs.append(CamSignal(SignalType.CAM_H3_REVERSAL, levels.h3))
 
-    # L4 full breakdown: close below L4.
-    if candle.close < levels.l4:
+    # L4 cross: previous close at or above L4, current close punches through.
+    if prev and prev.close >= levels.l4 and candle.close < levels.l4:
         sigs.append(CamSignal(SignalType.CAM_L4_BREAKDOWN, levels.l4))
 
-    # L3 bounce: low touched or went below L3 but closed above L3.
+    # L3 rejection: low touched or went below L3 but closed above L3.
     elif candle.low <= levels.l3 * (1 + h3_touch_pct) and candle.close > levels.l3:
         sigs.append(CamSignal(SignalType.CAM_L3_REVERSAL, levels.l3))
 

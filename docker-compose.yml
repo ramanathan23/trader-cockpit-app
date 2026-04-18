@@ -35,8 +35,8 @@ services:
 
   data-sync:
     build:
-      context: ./DataSyncService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: DataSyncService/Dockerfile
     container_name: trader_data_sync
     environment:
       DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
@@ -58,14 +58,15 @@ services:
         condition: service_healthy
     volumes:
       - ./DataSyncService/src:/app/src:ro
+      - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
     networks:
       - trader-bridge
     restart: unless-stopped
 
   momentum-scorer:
     build:
-      context: ./MomentumScorerService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: MomentumScorerService/Dockerfile
     container_name: trader_momentum_scorer
     environment:
       DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
@@ -94,8 +95,8 @@ services:
 
   live-feed:
     build:
-      context: ./LiveFeedService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: LiveFeedService/Dockerfile
     container_name: trader_live_feed
     environment:
       DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
@@ -128,6 +129,7 @@ services:
       start_period: 20s
     volumes:
       - ./LiveFeedService/src:/app/src:ro
+      - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
     networks:
       - trader-bridge
     restart: unless-stopped

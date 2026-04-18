@@ -68,6 +68,8 @@ class _SessionState:
     orb_signalled:        bool                 = False
     week52_signalled:     bool                 = False
     range_signalled_at:   Optional[str]        = None   # ISO boundary of last range signal
+    cam_h4_signalled:     bool                 = False
+    cam_l4_signalled:     bool                 = False
 
 
 class SignalEngine:
@@ -150,6 +152,10 @@ class SignalEngine:
         # ── ADV floor: skip breakout/spike signals for illiquid stocks ────────
         adv = self._metrics.get("adv_20_cr", 0.0)
         skip_non_drive = adv < self._min_adv_cr
+        if skip_non_drive and not getattr(state, '_adv_warned', False):
+            logger.warning("[%s] ADV %.1f < %.1f — breakout/spike signals skipped",
+                           self.symbol, adv, self._min_adv_cr)
+            state._adv_warned = True
 
         signals: list[Signal] = []
 
@@ -268,9 +274,12 @@ class SignalEngine:
                         self.symbol, phase.value)
 
     def _bootstrap_orb(self, history: list[Candle], state: _SessionState) -> None:
-        if len(history) == self._dc and state.orb_high is None:
-            state.orb_high = max(c.high for c in history)
-            state.orb_low  = min(c.low  for c in history)
+        if len(history) >= self._dc and state.orb_high is None:
+            first = history[:self._dc]
+            state.orb_high = max(c.high for c in first)
+            state.orb_low  = min(c.low  for c in first)
+            logger.info("[%s] ORB bootstrapped: high=%.2f low=%.2f (from %d candles)",
+                        self.symbol, state.orb_high, state.orb_low, len(first))
 
     # ── Drive evaluation ───────────────────────────────────────────────────────
 
@@ -487,7 +496,17 @@ class SignalEngine:
         pdc = m.get("prev_day_close")
         if pdh and pdl and pdc:
             levels = level_breakout.compute_camarilla(pdh, pdl, pdc)
-            for cam_sig in level_breakout.detect_camarilla(candle, levels, None, prior):
+            prev_candle = prior[-1] if prior else None
+            for cam_sig in level_breakout.detect_camarilla(candle, levels, prev_candle, prior):
+                # Once-per-session guard for H4/L4 cross signals
+                if cam_sig.signal_type == SignalType.CAM_H4_BREAKOUT:
+                    if state.cam_h4_signalled:
+                        continue
+                    state.cam_h4_signalled = True
+                if cam_sig.signal_type == SignalType.CAM_L4_BREAKDOWN:
+                    if state.cam_l4_signalled:
+                        continue
+                    state.cam_l4_signalled = True
                 out.append(signal_factory.make_camarilla_signal(
                     self.symbol, candle, cam_sig.signal_type, cam_sig.level,
                     _vol_ratio(), phase, bias,

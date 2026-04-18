@@ -19,10 +19,10 @@ export function useTokenStatus(pollMs = 60_000) {
   const [status, setStatus] = useState<TokenStatus | null>(null);
 
   useEffect(() => {
-    const base = (process.env.NEXT_PUBLIC_LIVE_FEED_URL ?? getLiveFeedBase()).replace(/\/$/, '');
-
+    // Use relative path — proxied server-side by Next.js rewrite to LiveFeedService.
+    // Avoids CORS issues from direct browser requests to port 8003.
     const fetch_ = () =>
-      fetch(`${base}/api/v1/token/status`)
+      fetch('/api/v1/token/status')
         .then(r => (r.ok ? r.json() : null))
         .then((d: TokenStatus | null) => { if (d) setStatus(d); })
         .catch(() => {});

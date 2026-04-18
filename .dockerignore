@@ -1,0 +1,13 @@
+.git
+.github
+__pycache__
+*.pyc
+node_modules
+.next
+coverage.xml
+notebooks
+*.ipynb
+.env
+*.md
+!shared/shared/**
+!shared/pyproject.toml

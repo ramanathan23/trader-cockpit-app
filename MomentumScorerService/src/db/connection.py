@@ -1,35 +1,14 @@
-import logging
+"""Re-exports from the shared DB library — keeps service imports unchanged."""
+
 from pathlib import Path
 
-import asyncpg
+from shared.db import create_pool, run_migrations as _run_migrations
 
-logger = logging.getLogger(__name__)
-
-_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
-async def create_pool(
-    dsn: str,
-    *,
-    min_size: int = 3,
-    max_size: int = 10,
-    command_timeout: int = 60,
-) -> asyncpg.Pool:
-    pool = await asyncpg.create_pool(
-        dsn,
-        min_size=min_size,
-        max_size=max_size,
-        command_timeout=command_timeout,
-    )
-    logger.info("Database pool created (min=%d, max=%d)", min_size, max_size)
-    return pool
+async def run_migrations(pool, *, timeout=None):
+    await _run_migrations(pool, MIGRATIONS_DIR, timeout=timeout)
 
 
-async def run_migrations(pool: asyncpg.Pool) -> None:
-    """Apply all schema migrations in order. All DDL uses IF NOT EXISTS — safe to re-run."""
-    for migration in sorted(_MIGRATIONS_DIR.glob("*.sql")):
-        sql = migration.read_text(encoding="utf-8")
-        async with pool.acquire() as conn:
-            await conn.execute(sql)
-        logger.info("Applied %s", migration.name)
-    logger.info("Migrations applied")
+__all__ = ["create_pool", "run_migrations"]

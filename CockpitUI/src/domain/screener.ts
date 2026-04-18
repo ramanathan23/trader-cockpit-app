@@ -60,14 +60,30 @@ export const DEFAULT_RANGE: ScreenerRangeFilter = {
   f52lMin: -Infinity, f52lMax: Infinity,
 };
 
-export type ScreenerPreset = 'near52h' | 'near52l' | 'nearpdh' | 'nearpdl';
+export type ScreenerPreset = 'near52h' | 'near52l' | 'nearpdh' | 'nearpdl'
+  | 'camH4x' | 'camS4x' | 'camH3rej' | 'camS3rej';
 
-export const SCREENER_PRESETS: { key: ScreenerPreset; label: string }[] = [
+export const SCREENER_PRESETS: { key: ScreenerPreset; label: string; group?: string }[] = [
   { key: 'near52h', label: 'NEAR 52H' },
   { key: 'near52l', label: 'NEAR 52L' },
   { key: 'nearpdh', label: 'NEAR PDH' },
   { key: 'nearpdl', label: 'NEAR PDL' },
+  { key: 'camH4x',   label: 'CAM H4↑', group: 'cam' },
+  { key: 'camS4x',   label: 'CAM S4↓', group: 'cam' },
+  { key: 'camH3rej', label: 'CAM H3⤵', group: 'cam' },
+  { key: 'camS3rej', label: 'CAM S3⤴', group: 'cam' },
 ];
+
+/** Compute Camarilla pivot levels from previous-day OHLC. */
+function camLevels(pdh: number, pdl: number, pdc: number) {
+  const rng = pdh - pdl;
+  return {
+    h4: pdc + rng * 1.1 / 2,
+    h3: pdc + rng * 1.1 / 4,
+    l3: pdc - rng * 1.1 / 4,
+    l4: pdc - rng * 1.1 / 2,
+  };
+}
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -183,6 +199,20 @@ export function applyFilters(
       r.prev_day_low && r.prev_day_close &&
       Math.abs((r.prev_day_close - r.prev_day_low) / r.prev_day_low) < 0.005
     )) return false;
+
+    // CAM presets — compute levels from prev-day OHLC
+    const hasCamPreset = presets.has('camH4x') || presets.has('camS4x')
+      || presets.has('camH3rej') || presets.has('camS3rej');
+    if (hasCamPreset && r.prev_day_high && r.prev_day_low && r.prev_day_close) {
+      const cam = camLevels(r.prev_day_high, r.prev_day_low, r.prev_day_close);
+      const price = close;
+      if (presets.has('camH4x')   && !(price > cam.h4)) return false;
+      if (presets.has('camS4x')   && !(price < cam.l4)) return false;
+      if (presets.has('camH3rej') && !(price >= cam.h3 * 0.995 && price <= cam.h3 * 1.005)) return false;
+      if (presets.has('camS3rej') && !(price >= cam.l3 * 0.995 && price <= cam.l3 * 1.005)) return false;
+    } else if (hasCamPreset) {
+      return false; // no prev-day data → exclude
+    }
 
     return true;
   });

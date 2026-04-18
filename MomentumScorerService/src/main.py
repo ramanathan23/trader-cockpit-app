@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
         max_size=settings.db_pool_max_size,
         command_timeout=settings.db_command_timeout,
     )
-    await run_migrations(pool)
+    await run_migrations(pool, timeout=settings.db_migration_timeout)
     app.state.pool          = pool
     app.state.score_repo    = ScoreRepository(pool)
     app.state.score_service = ScoreService(pool)

@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { filterSignals, type Signal, type SignalCategory } from '@/domain/signal';
+import { filterSignals, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { SignalCard } from './SignalCard';
 import { SignalRow } from './SignalRow';
@@ -15,6 +15,8 @@ interface SignalFeedProps {
   notes: Record<string, string>;
   onSaveNote: (id: string, text: string) => void;
   category: SignalCategory;
+  subType?: SignalType | null;
+  fnoOnly?: boolean;
   minAdvCr: number;
   viewMode: 'card' | 'table';
   emptyLabel?: string;
@@ -68,7 +70,7 @@ const TABLE_HEADERS: { h: string; title: string }[] = [
 ];
 
 export const SignalFeed = memo(({
-  signals, metricsCache, notes, onSaveNote, category, minAdvCr, viewMode, emptyLabel,
+  signals, metricsCache, notes, onSaveNote, category, subType, fnoOnly, minAdvCr, viewMode, emptyLabel,
   hasMore, onLoadMore,
 }: SignalFeedProps) => {
   const [noteModalId, setNoteModalId] = useState<string | null>(null);
@@ -76,8 +78,8 @@ export const SignalFeed = memo(({
   const [ocSymbol,    setOcSymbol]    = useState<string | null>(null);
 
   const filtered = useMemo(
-    () => filterSignals(signals, category, minAdvCr, metricsCache),
-    [signals, category, minAdvCr, metricsCache],
+    () => filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly),
+    [signals, category, subType, fnoOnly, minAdvCr, metricsCache],
   );
   const openNote  = useCallback((id: string) => setNoteModalId(id), []);
   const openChart = useCallback((sym: string) => setChartSymbol(sym), []);

@@ -10,6 +10,7 @@ import type { ScoredSymbol } from '@/domain/dashboard';
 
 type SortKey = 'rank' | 'total_score' | 'momentum_score' | 'trend_score' | 'volatility_score' | 'structure_score' | 'adx_14' | 'rsi_14';
 type Segment = 'all' | 'fno' | 'equity';
+type Bias = 'all' | 'bull' | 'bear';
 
 interface DashboardPanelProps {
   active: boolean;
@@ -19,6 +20,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   const { stats, scores, loading, computing, hasMore, fetched, loadDashboard, loadMore, triggerCompute } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
+  const [bias, setBias] = useState<Bias>('all');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
@@ -53,6 +55,8 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
     let rows = scores;
     if (segment === 'fno')    rows = rows.filter(r => r.is_fno === true);
     if (segment === 'equity') rows = rows.filter(r => r.is_fno !== true);
+    if (bias === 'bull')  rows = rows.filter(r => r.weekly_bias === 'BULLISH');
+    if (bias === 'bear')  rows = rows.filter(r => r.weekly_bias === 'BEARISH');
     if (query) {
       const q = query.toUpperCase();
       rows = rows.filter(r => r.symbol.includes(q) || r.company_name?.toUpperCase().includes(q));
@@ -63,7 +67,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
       return sortAsc ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [scores, segment, query, sortKey, sortAsc]);
+  }, [scores, segment, bias, query, sortKey, sortAsc]);
 
   const toggleExpand = useCallback((sym: string) => {
     setChartSymbol(sym);
@@ -122,6 +126,19 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
           <button onClick={() => setSegment('equity')}
             className={`seg-btn ${segment === 'equity' ? 'active' : ''}`}
             style={segment === 'equity' ? { color: '#0dbd7d' } : undefined}>EQ</button>
+        </div>
+
+        {/* Bias filter */}
+        <div className="seg-group">
+          <button onClick={() => setBias('all')}
+            className={`seg-btn ${bias === 'all' ? 'active' : ''}`}
+            style={bias === 'all' ? { color: '#5a7796' } : undefined}>ALL</button>
+          <button onClick={() => setBias('bull')}
+            className={`seg-btn ${bias === 'bull' ? 'active' : ''}`}
+            style={bias === 'bull' ? { color: '#0dbd7d' } : undefined}>BULL ↑</button>
+          <button onClick={() => setBias('bear')}
+            className={`seg-btn ${bias === 'bear' ? 'active' : ''}`}
+            style={bias === 'bear' ? { color: '#f23d55' } : undefined}>BEAR ↓</button>
         </div>
 
         {/* Stats pills */}
@@ -189,6 +206,8 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
         <span className="flex gap-3">
           <span style={{ color: '#9b72f7' }}>F&amp;O: {scores.filter(s => s.is_fno === true).length}</span>
           <span style={{ color: '#0dbd7d' }}>EQ: {scores.filter(s => s.is_fno !== true).length}</span>
+          <span className="border-l border-border pl-3" style={{ color: '#0dbd7d' }}>Bull: {scores.filter(s => s.weekly_bias === 'BULLISH').length}</span>
+          <span style={{ color: '#f23d55' }}>Bear: {scores.filter(s => s.weekly_bias === 'BEARISH').length}</span>
         </span>
       </div>
 
@@ -197,7 +216,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
              onClick={() => setChartSymbol(null)}>
           <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
-               style={{ width: 900, maxWidth: '95vw' }}
+               style={{ width: '80vw', height: '80vh', maxWidth: '95vw' }}
                onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2">
@@ -216,7 +235,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
                   className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
               </div>
             </div>
-            <DailyChart symbol={chartSymbol} height={380} />
+            <DailyChart symbol={chartSymbol} height={Math.round(window.innerHeight * 0.8 - 44)} />
           </div>
         </div>
       )}

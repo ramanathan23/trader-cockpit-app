@@ -59,123 +59,56 @@ export const CATEGORY_TYPES: Record<Exclude<SignalCategory, 'ALL'>, SignalType[]
   CAM:     ['CAM_H3_REVERSAL', 'CAM_H4_BREAKOUT', 'CAM_L3_REVERSAL', 'CAM_L4_BREAKDOWN'],
 };
 
-// ── Color palette ────────────────────────────────────────────────────────────
+// ── Signal metadata (single source of truth per type) ────────────────────────
 
-const COLORS: Partial<Record<SignalType, string>> = {
-  OPEN_DRIVE_ENTRY:    '#0dbd7d',
-  SPIKE_BREAKOUT:      '#e8933a',
-  ABSORPTION:          '#38b6ff',
-  EXHAUSTION_REVERSAL: '#9b72f7',
-  TRAIL_UPDATE:        '#5a7796',
-  DRIVE_FAILED:        '#f23d55',
-  EXIT:                '#f23d55',
-  FADE_ALERT:          '#d4a63a',
-  ORB_BREAKOUT:        '#0dbd7d',
-  ORB_BREAKDOWN:       '#f23d55',
-  RANGE_BREAKOUT:      '#1ad48d',
-  RANGE_BREAKDOWN:     '#f75068',
-  WEEK52_BREAKOUT:     '#0dbd7d',
-  WEEK52_BREAKDOWN:    '#f23d55',
-  PDH_BREAKOUT:        '#25d692',
-  PDL_BREAKDOWN:       '#f23d55',
-  VWAP_BREAKOUT:       '#38b6ff',
-  VWAP_BREAKDOWN:      '#e06cff',
-  CAM_H3_REVERSAL:     '#9b72f7',
-  CAM_H4_BREAKOUT:     '#b490ff',
-  CAM_L3_REVERSAL:     '#9b72f7',
-  CAM_L4_BREAKDOWN:    '#b490ff',
-};
+interface SignalMeta {
+  color: string;
+  tint:  string;
+  short: string;
+  desc:  string;
+}
 
-const TINTS: Partial<Record<SignalType, string>> = {
-  OPEN_DRIVE_ENTRY:    'rgba(13,189,125,0.06)',
-  SPIKE_BREAKOUT:      'rgba(232,147,58,0.06)',
-  ABSORPTION:          'rgba(56,182,255,0.06)',
-  EXHAUSTION_REVERSAL: 'rgba(155,114,247,0.06)',
-  DRIVE_FAILED:        'rgba(242,61,85,0.06)',
-  EXIT:                'rgba(242,61,85,0.06)',
-  FADE_ALERT:          'rgba(212,166,58,0.06)',
-  ORB_BREAKOUT:        'rgba(13,189,125,0.05)',
-  ORB_BREAKDOWN:       'rgba(242,61,85,0.05)',
-  RANGE_BREAKOUT:      'rgba(26,212,141,0.05)',
-  RANGE_BREAKDOWN:     'rgba(247,80,104,0.05)',
-  WEEK52_BREAKOUT:     'rgba(13,189,125,0.08)',
-  WEEK52_BREAKDOWN:    'rgba(242,61,85,0.08)',
-  PDH_BREAKOUT:        'rgba(37,214,146,0.05)',
-  PDL_BREAKDOWN:       'rgba(242,61,85,0.05)',
-  VWAP_BREAKOUT:       'rgba(56,182,255,0.05)',
-  VWAP_BREAKDOWN:      'rgba(224,108,255,0.05)',
-  CAM_H3_REVERSAL:     'rgba(155,114,247,0.05)',
-  CAM_H4_BREAKOUT:     'rgba(180,144,255,0.05)',
-  CAM_L3_REVERSAL:     'rgba(155,114,247,0.05)',
-  CAM_L4_BREAKDOWN:    'rgba(180,144,255,0.05)',
-};
-
-const SHORT: Partial<Record<SignalType, string>> = {
-  OPEN_DRIVE_ENTRY:    'DRIVE',
-  SPIKE_BREAKOUT:      'SPIKE',
-  ABSORPTION:          'ABS',
-  EXHAUSTION_REVERSAL: 'EXHAUST',
-  TRAIL_UPDATE:        'TRAIL',
-  DRIVE_FAILED:        'FAILED',
-  EXIT:                'EXIT',
-  FADE_ALERT:          'FADE',
-  ORB_BREAKOUT:        'ORB↑',
-  ORB_BREAKDOWN:       'ORB↓',
-  RANGE_BREAKOUT:      'RNG↑',
-  RANGE_BREAKDOWN:     'RNG↓',
-  WEEK52_BREAKOUT:     '52W↑',
-  WEEK52_BREAKDOWN:    '52W↓',
-  PDH_BREAKOUT:        'PDH↑',
-  PDL_BREAKDOWN:       'PDL↓',
-  VWAP_BREAKOUT:       'VWAP↑',
-  VWAP_BREAKDOWN:      'VWAP↓',
-  CAM_H3_REVERSAL:     'CAM H3',
-  CAM_H4_BREAKOUT:     'CAM H4↑',
-  CAM_L3_REVERSAL:     'CAM L3',
-  CAM_L4_BREAKDOWN:    'CAM L4↓',
-};
-
-const DESC: Partial<Record<SignalType, string>> = {
-  OPEN_DRIVE_ENTRY:    'Strong open drive — ride the momentum',
-  SPIKE_BREAKOUT:      'Volume shock breakout — watch for follow-through',
-  ABSORPTION:          'Big vol, flat price — supply/demand absorbing',
-  EXHAUSTION_REVERSAL: 'Downtrend climax held — bounce reversal setup',
-  TRAIL_UPDATE:        'Trailing stop moved up',
-  DRIVE_FAILED:        'Drive failed — price back through open',
-  EXIT:                'Position exited',
-  FADE_ALERT:          'Big move, no volume — likely to fade/reverse',
-  ORB_BREAKOUT:        'Closed above opening range high on volume',
-  ORB_BREAKDOWN:       'Closed below opening range low on volume',
-  RANGE_BREAKOUT:      '5-candle consolidation broken upward on volume',
-  RANGE_BREAKDOWN:     '5-candle consolidation broken downward on volume',
-  WEEK52_BREAKOUT:     '52-week high breakout on 2× volume',
-  WEEK52_BREAKDOWN:    '52-week low breakdown on 2× volume',
-  PDH_BREAKOUT:        'Closed above previous day high on volume',
-  PDL_BREAKDOWN:       'Closed below previous day low on volume',
-  VWAP_BREAKOUT:       'Price crossed above VWAP on volume — intraday bull',
-  VWAP_BREAKDOWN:      'Price crossed below VWAP on volume — intraday bear',
-  CAM_H3_REVERSAL:     'Rejected at Camarilla H3 — fade short setup',
-  CAM_H4_BREAKOUT:     'Broke above Camarilla H4 — momentum long',
-  CAM_L3_REVERSAL:     'Bounced off Camarilla L3 — fade long setup',
-  CAM_L4_BREAKDOWN:    'Broke below Camarilla L4 — momentum short',
+const META: Record<SignalType, SignalMeta> = {
+  OPEN_DRIVE_ENTRY:    { color: '#0dbd7d', tint: 'rgba(13,189,125,0.06)',  short: 'DRIVE',    desc: 'Strong open drive — ride the momentum' },
+  SPIKE_BREAKOUT:      { color: '#e8933a', tint: 'rgba(232,147,58,0.06)',  short: 'SPIKE',    desc: 'Volume shock breakout — watch for follow-through' },
+  ABSORPTION:          { color: '#38b6ff', tint: 'rgba(56,182,255,0.06)',  short: 'ABS',      desc: 'Big vol, flat price — supply/demand absorbing' },
+  EXHAUSTION_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.06)', short: 'EXHAUST',  desc: 'Downtrend climax held — bounce reversal setup' },
+  TRAIL_UPDATE:        { color: '#5a7796', tint: 'transparent',            short: 'TRAIL',    desc: 'Trailing stop moved up' },
+  DRIVE_FAILED:        { color: '#f23d55', tint: 'rgba(242,61,85,0.06)',   short: 'FAILED',   desc: 'Drive failed — price back through open' },
+  EXIT:                { color: '#f23d55', tint: 'rgba(242,61,85,0.06)',   short: 'EXIT',     desc: 'Position exited' },
+  FADE_ALERT:          { color: '#d4a63a', tint: 'rgba(212,166,58,0.06)',  short: 'FADE',     desc: 'Big move, no volume — likely to fade/reverse' },
+  ORB_BREAKOUT:        { color: '#0dbd7d', tint: 'rgba(13,189,125,0.05)', short: 'ORB↑',     desc: 'Closed above opening range high on volume' },
+  ORB_BREAKDOWN:       { color: '#f23d55', tint: 'rgba(242,61,85,0.05)',  short: 'ORB↓',     desc: 'Closed below opening range low on volume' },
+  RANGE_BREAKOUT:      { color: '#1ad48d', tint: 'rgba(26,212,141,0.05)', short: 'RNG↑',     desc: '5-candle consolidation broken upward on volume' },
+  RANGE_BREAKDOWN:     { color: '#f75068', tint: 'rgba(247,80,104,0.05)', short: 'RNG↓',     desc: '5-candle consolidation broken downward on volume' },
+  WEEK52_BREAKOUT:     { color: '#0dbd7d', tint: 'rgba(13,189,125,0.08)', short: '52W↑',     desc: '52-week high breakout on 2× volume' },
+  WEEK52_BREAKDOWN:    { color: '#f23d55', tint: 'rgba(242,61,85,0.08)',  short: '52W↓',     desc: '52-week low breakdown on 2× volume' },
+  PDH_BREAKOUT:        { color: '#25d692', tint: 'rgba(37,214,146,0.05)', short: 'PDH↑',     desc: 'Closed above previous day high on volume' },
+  PDL_BREAKDOWN:       { color: '#f23d55', tint: 'rgba(242,61,85,0.05)',  short: 'PDL↓',     desc: 'Closed below previous day low on volume' },
+  VWAP_BREAKOUT:       { color: '#38b6ff', tint: 'rgba(56,182,255,0.05)', short: 'VWAP↑',    desc: 'Price crossed above VWAP on volume — intraday bull' },
+  VWAP_BREAKDOWN:      { color: '#e06cff', tint: 'rgba(224,108,255,0.05)',short: 'VWAP↓',    desc: 'Price crossed below VWAP on volume — intraday bear' },
+  CAM_H3_REVERSAL:     { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)',short: 'CAM H3',   desc: 'Rejected at Camarilla H3 — fade short setup' },
+  CAM_H4_BREAKOUT:     { color: '#b490ff', tint: 'rgba(180,144,255,0.05)',short: 'CAM H4↑',  desc: 'Broke above Camarilla H4 — momentum long' },
+  CAM_L3_REVERSAL:     { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)',short: 'CAM L3',   desc: 'Bounced off Camarilla L3 — fade long setup' },
+  CAM_L4_BREAKDOWN:    { color: '#b490ff', tint: 'rgba(180,144,255,0.05)',short: 'CAM L4↓',  desc: 'Broke below Camarilla L4 — momentum short' },
 };
 
 // ── Pure helper functions ────────────────────────────────────────────────────
 
 export function signalColor(type: SignalType): string {
-  return COLORS[type] ?? '#30363d';
+  return META[type]?.color ?? '#30363d';
 }
 
 export function signalTint(type: SignalType): string {
-  return TINTS[type] ?? 'transparent';
+  return META[type]?.tint ?? 'transparent';
 }
 
 export function signalShort(type: SignalType): string {
-  return SHORT[type] ?? type;
+  return META[type]?.short ?? type;
 }
 
 export function signalDesc(type: SignalType): string {
-  return DESC[type] ?? '';
+  return META[type]?.desc ?? '';
 }
 
 export function dirColor(dir?: Direction): string {
@@ -200,6 +133,8 @@ export function filterSignals(
   category: SignalCategory,
   minAdvCr: number,
   metricsCache: Record<string, InstrumentMetrics | null>,
+  subType?: SignalType | null,
+  fnoOnly?: boolean,
 ): Signal[] {
   return signals
     .filter(s => {
@@ -207,6 +142,8 @@ export function filterSignals(
         const allowed = CATEGORY_TYPES[category as Exclude<SignalCategory, 'ALL'>] ?? [];
         if (!allowed.includes(s.signal_type)) return false;
       }
+      if (subType && s.signal_type !== subType) return false;
+      if (fnoOnly && !metricsCache[s.symbol]?.is_fno) return false;
       if (minAdvCr > 0) {
         const m = metricsCache[s.symbol];
         if (m && (m.adv_20_cr ?? 0) < minAdvCr) return false;
