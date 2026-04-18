@@ -1,13 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { filterSignals, type SignalCategory } from '@/domain/signal';
-import { LIVE_FEED } from '@/lib/api-config';
+import { useEffect, useState } from 'react';
+import { filterSignals, type SignalCategory, type SignalType } from '@/domain/signal';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
 import { useNotes } from '@/hooks/useNotes';
-import { useTokenStatus } from '@/hooks/useTokenStatus';
 import { Header } from '@/components/Header';
 import { HelpLegend } from '@/components/HelpLegend';
 import { SignalToolbar } from '@/components/signals/SignalToolbar';
@@ -61,22 +59,16 @@ export function CockpitApp() {
   const { signals, paused, pendingCount, connState, metricsCache, marketStatus, togglePause, clearSignals } = useSignals();
   const { notes, saveNote } = useNotes();
   const history = useHistory();
-  const tokenStatus = useTokenStatus();
 
   const [view,       setView]       = useState<AppView>('dashboard');
   const [category,   setCategory]   = useState<SignalCategory>('ALL');
-  const [subType,    setSubType]    = useState<import('@/domain/signal').SignalType | null>(null);
-  const [fnoOnly,    setFnoOnly]    = useState(false);
   const [minAdvCr,   setMinAdvCr]   = useState(0);
-
-  const handleCategory = useCallback((c: SignalCategory) => {
-    setCategory(c);
-    setSubType(null);
-  }, []);
   const [viewMode,   setViewMode]   = useState<'card' | 'table'>('card');
   const [histViewMode, setHistViewMode] = useState<'card' | 'table'>('card');
   const [showHelp,   setShowHelp]   = useState(false);
   const [theme,      setTheme]      = useState<ThemeMode>('dark');
+  const [subType,    setSubType]    = useState<SignalType | null>(null);
+  const [fnoOnly,    setFnoOnly]    = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -107,7 +99,7 @@ export function CockpitApp() {
       const syms = [...new Set(history.signals.map(s => s.symbol))]
         .filter(sym => !(sym in metricsCache));
       if (syms.length === 0) return;
-      fetch(LIVE_FEED.INSTRUMENTS_METRICS, {
+      fetch('/api/v1/instruments/metrics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbols: syms }),
@@ -131,7 +123,7 @@ export function CockpitApp() {
   const currentViewMode  = view === 'history' ? histViewMode : viewMode;
   const onCurrentViewMode = view === 'history' ? setHistViewMode : setViewMode;
 
-  const filteredCount = filterSignals(currentSignals, category, minAdvCr, metricsCache, subType, fnoOnly).length;
+  const filteredCount = filterSignals(currentSignals, category, minAdvCr, metricsCache).length;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-base text-fg text-sm">
@@ -141,11 +133,10 @@ export function CockpitApp() {
         clock={clock}
         theme={theme}
         onToggleTheme={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-        tokenStatus={tokenStatus}
       />
 
       <SignalToolbar
-        category={category}   onCategory={handleCategory}
+        category={category}   onCategory={setCategory}
         subType={subType}     onSubType={setSubType}
         fnoOnly={fnoOnly}     onFnoOnly={setFnoOnly}
         minAdvCr={minAdvCr}   onMinAdv={setMinAdvCr}
@@ -188,8 +179,6 @@ export function CockpitApp() {
           notes={notes}
           onSaveNote={saveNote}
           category={category}
-          subType={subType}
-          fnoOnly={fnoOnly}
           minAdvCr={minAdvCr}
           viewMode={currentViewMode}
           emptyLabel={

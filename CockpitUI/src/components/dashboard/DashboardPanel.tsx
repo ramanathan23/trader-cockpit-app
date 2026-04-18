@@ -10,22 +10,20 @@ import type { ScoredSymbol } from '@/domain/dashboard';
 
 type SortKey = 'rank' | 'total_score' | 'momentum_score' | 'trend_score' | 'volatility_score' | 'structure_score' | 'adx_14' | 'rsi_14';
 type Segment = 'all' | 'fno' | 'equity';
-type Bias = 'all' | 'bull' | 'bear';
 
 interface DashboardPanelProps {
   active: boolean;
 }
 
 export function DashboardPanel({ active }: DashboardPanelProps) {
-  const { stats, scores, loading, computing, hasMore, fetched, loadDashboard, loadMore, triggerCompute } = useDashboard();
+  const { stats, scores, loading, computing, fetched, loadDashboard, triggerCompute } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
-  const [bias, setBias] = useState<Bias>('all');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [ocSymbol, setOcSymbol] = useState<string | null>(null);
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     if (active && !fetched && !loading) loadDashboard({ watchlistOnly });
@@ -55,8 +53,6 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
     let rows = scores;
     if (segment === 'fno')    rows = rows.filter(r => r.is_fno === true);
     if (segment === 'equity') rows = rows.filter(r => r.is_fno !== true);
-    if (bias === 'bull')  rows = rows.filter(r => r.weekly_bias === 'BULLISH');
-    if (bias === 'bear')  rows = rows.filter(r => r.weekly_bias === 'BEARISH');
     if (query) {
       const q = query.toUpperCase();
       rows = rows.filter(r => r.symbol.includes(q) || r.company_name?.toUpperCase().includes(q));
@@ -67,31 +63,22 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
       return sortAsc ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [scores, segment, bias, query, sortKey, sortAsc]);
+  }, [scores, segment, query, sortKey, sortAsc]);
 
   const toggleExpand = useCallback((sym: string) => {
-    setChartSymbol(sym);
+    setExpandedSymbol(prev => prev === sym ? null : sym);
   }, []);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 40,
+    estimateSize: (i) => (expandedSymbol === filtered[i]?.symbol ? 316 : 40),
     overscan: 10,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize   = rowVirtualizer.getTotalSize();
 
-  // Infinite scroll: load more when near bottom
-  const handleScroll = useCallback(() => {
-    const el = parentRef.current;
-    if (!el || loading || !hasMore) return;
-    const threshold = 200;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < threshold) {
-      loadMore({ watchlistOnly, segment: segment !== 'all' ? segment : undefined });
-    }
-  }, [loading, hasMore, loadMore, watchlistOnly, segment]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -128,19 +115,6 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
             style={segment === 'equity' ? { color: '#0dbd7d' } : undefined}>EQ</button>
         </div>
 
-        {/* Bias filter */}
-        <div className="seg-group">
-          <button onClick={() => setBias('all')}
-            className={`seg-btn ${bias === 'all' ? 'active' : ''}`}
-            style={bias === 'all' ? { color: '#5a7796' } : undefined}>ALL</button>
-          <button onClick={() => setBias('bull')}
-            className={`seg-btn ${bias === 'bull' ? 'active' : ''}`}
-            style={bias === 'bull' ? { color: '#0dbd7d' } : undefined}>BULL ↑</button>
-          <button onClick={() => setBias('bear')}
-            className={`seg-btn ${bias === 'bear' ? 'active' : ''}`}
-            style={bias === 'bear' ? { color: '#f23d55' } : undefined}>BEAR ↓</button>
-        </div>
-
         {/* Stats pills */}
         {stats.score_date && (
           <div className="flex items-center gap-3 text-[10px]">
@@ -164,7 +138,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
       </div>
 
       {/* Table */}
-      <div ref={parentRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
+      <div ref={parentRef} className="flex-1 overflow-auto">
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-panel z-10">
             <tr className="border-b border-border">
@@ -184,6 +158,7 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
             )}
             {virtualItems.map(vi => (
               <ScoreRow key={filtered[vi.index].symbol} row={filtered[vi.index]}
+                expanded={expandedSymbol === filtered[vi.index].symbol}
                 onToggle={toggleExpand}
                 onOptionChain={setOcSymbol} />
             ))}
@@ -206,55 +181,24 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
         <span className="flex gap-3">
           <span style={{ color: '#9b72f7' }}>F&amp;O: {scores.filter(s => s.is_fno === true).length}</span>
           <span style={{ color: '#0dbd7d' }}>EQ: {scores.filter(s => s.is_fno !== true).length}</span>
-          <span className="border-l border-border pl-3" style={{ color: '#0dbd7d' }}>Bull: {scores.filter(s => s.weekly_bias === 'BULLISH').length}</span>
-          <span style={{ color: '#f23d55' }}>Bear: {scores.filter(s => s.weekly_bias === 'BEARISH').length}</span>
         </span>
       </div>
 
-      {/* Chart modal */}
-      {chartSymbol && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-             onClick={() => setChartSymbol(null)}>
-          <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
-               style={{ width: '80vw', height: '80vh', maxWidth: '95vw' }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-fg">{chartSymbol}</span>
-                {scores.find(s => s.symbol === chartSymbol)?.is_fno && (
-                  <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
-                        style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {scores.find(s => s.symbol === chartSymbol)?.is_fno && (
-                  <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
-                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
-                )}
-                <button onClick={() => setChartSymbol(null)}
-                  className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
-              </div>
-            </div>
-            <DailyChart symbol={chartSymbol} height={Math.round(window.innerHeight * 0.8 - 44)} />
-          </div>
-        </div>
-      )}
-
       {/* Option chain modal */}
-      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={scores.find(s => s.symbol === ocSymbol)} />}
+      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} />}
     </div>
   );
 }
 
 // ── Score row with expandable chart ──────────────────────────────────────────
 
-function ScoreRow({ row, onToggle, onOptionChain }: {
-  row: ScoredSymbol;
+function ScoreRow({ row, expanded, onToggle, onOptionChain }: {
+  row: ScoredSymbol; expanded: boolean;
   onToggle: (sym: string) => void; onOptionChain: (sym: string) => void;
 }) {
   return (
     <>
-      <tr className="border-b border-border transition-colors cursor-pointer group hover:bg-lift"
+      <tr className={`border-b border-border transition-colors cursor-pointer group ${expanded ? 'bg-lift' : 'hover:bg-lift'}`}
           onClick={() => onToggle(row.symbol)}>
         <td className="px-2.5 py-2 text-center num tabular-nums text-dim">{row.rank}</td>
         <td className="px-2.5 py-2 whitespace-nowrap">
@@ -276,34 +220,34 @@ function ScoreRow({ row, onToggle, onOptionChain }: {
           </div>
           {row.company_name && <div className="text-[9px] text-ghost truncate max-w-[160px]">{row.company_name}</div>}
         </td>
-        <td className="px-2.5 py-2 text-right">
+        <td className="px-2.5 py-1.5 text-right">
           <ScoreBar value={row.total_score} color="#2d7ee8" />
         </td>
-        <td className="px-2.5 py-2 text-right">
+        <td className="px-2.5 py-1.5 text-right">
           <ScoreBar value={row.momentum_score} color="#e8933a" />
         </td>
-        <td className="px-2.5 py-2 text-right">
+        <td className="px-2.5 py-1.5 text-right">
           <ScoreBar value={row.trend_score} color="#0dbd7d" />
         </td>
-        <td className="px-2.5 py-2 text-right">
+        <td className="px-2.5 py-1.5 text-right">
           <ScoreBar value={row.volatility_score} color="#9b72f7" />
         </td>
-        <td className="px-2.5 py-2 text-right">
+        <td className="px-2.5 py-1.5 text-right">
           <ScoreBar value={row.structure_score} color="#38b6ff" />
         </td>
-        <td className="px-2.5 py-2 text-right num tabular-nums text-dim">{row.adx_14 != null ? row.adx_14.toFixed(0) : '—'}</td>
-        <td className="px-2.5 py-2 text-right num tabular-nums" style={{ color: rsiColor(row.rsi_14) }}>
+        <td className="px-2.5 py-1.5 text-right num tabular-nums text-dim text-[10px]">{row.adx_14 != null ? row.adx_14.toFixed(0) : '—'}</td>
+        <td className="px-2.5 py-1.5 text-right num tabular-nums text-[10px]" style={{ color: rsiColor(row.rsi_14) }}>
           {row.rsi_14 != null ? row.rsi_14.toFixed(0) : '—'}
         </td>
-        <td className="px-2.5 py-2 text-right num tabular-nums text-dim">
+        <td className="px-2.5 py-1.5 text-right num tabular-nums text-dim text-[10px]">
           {row.adv_20_cr != null ? fmtAdv(row.adv_20_cr) : '—'}
         </td>
-        <td className="px-2.5 py-2 text-center text-[9px] font-bold"
+        <td className="px-2.5 py-1.5 text-center text-[9px] font-bold"
             style={{ color: row.weekly_bias === 'BULLISH' ? '#0dbd7d' : row.weekly_bias === 'BEARISH' ? '#f23d55' : '#5a7796' }}>
           {row.weekly_bias === 'BULLISH' ? '↑' : row.weekly_bias === 'BEARISH' ? '↓' : '·'}
         </td>
-        <td className="px-2.5 py-2 text-right num tabular-nums text-dim">{fmt2(row.prev_day_close)}</td>
-        <td className="px-2.5 py-2">
+        <td className="px-2.5 py-1.5 text-right num tabular-nums text-dim text-[11px]">{fmt2(row.prev_day_close)}</td>
+        <td className="px-2.5 py-1.5">
           <button onClick={e => { e.stopPropagation(); onOptionChain(row.symbol); }}
             className="text-[9px] font-bold text-accent hover:text-fg transition-colors opacity-0 group-hover:opacity-100"
             title="View option chain">
@@ -311,6 +255,13 @@ function ScoreRow({ row, onToggle, onOptionChain }: {
           </button>
         </td>
       </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={13} className="p-0 bg-base border-b border-border">
+            <DailyChart symbol={row.symbol} height={280} />
+          </td>
+        </tr>
+      )}
     </>
   );
 }
@@ -320,9 +271,9 @@ function ScoreRow({ row, onToggle, onOptionChain }: {
 function ScoreBar({ value, color }: { value: number; color: string }) {
   const pct = Math.min(100, Math.max(0, value));
   return (
-    <div className="flex items-center gap-1.5 justify-end">
-      <span className="num tabular-nums text-[10px] font-bold" style={{ color }}>{value.toFixed(0)}</span>
-      <div className="w-[40px] h-[4px] rounded-full bg-border overflow-hidden">
+    <div className="flex items-center gap-1 justify-end">
+      <span className="num tabular-nums text-[9px] font-bold" style={{ color }}>{value.toFixed(0)}</span>
+      <div className="w-[36px] h-[3px] rounded-full bg-border overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>

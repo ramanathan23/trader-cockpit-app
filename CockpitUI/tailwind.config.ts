@@ -47,9 +47,15 @@ const config: Config = {
         },
       },
       animation: {
-        'enter':    'enter 0.16s cubic-bezier(0.25,0.1,0.25,1)',
-        'fade-up':  'fade-up 0.2s ease',
+        'enter':    'enter 0.15s cubic-bezier(0.25,0.1,0.25,1)',
+        'fade-up':  'fade-up 0.15s ease',
         'blink':    'blink 1.2s ease-in-out infinite',
+      },
+      fontSize: {
+        'ticker': ['18px', { lineHeight: '1.2', fontWeight: '700', letterSpacing: '-0.01em' }],
+        'price': ['22px', { lineHeight: '1.1', fontWeight: '700', letterSpacing: '-0.015em' }],
+        'signal-badge': ['10px', { lineHeight: '1', fontWeight: '800', letterSpacing: '0.08em' }],
+        'meta': ['10px', { lineHeight: '1.4', fontWeight: '500' }],
       },
     },
   },

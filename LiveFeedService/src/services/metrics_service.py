@@ -64,18 +64,16 @@ class MetricsService:
         logger.info("MetricsService: loading precomputed daily metrics from symbol_metrics…")
         rows = await self._pool.fetch("""
             SELECT
-                sm.symbol,
-                sm.week52_high, sm.week52_low,
-                sm.atr_14, sm.adv_20_cr,
-                sm.ema_50, sm.ema_200,
-                sm.week_return_pct, sm.week_gain_pct, sm.week_decline_pct,
-                sm.trading_days,
-                sm.prev_day_high, sm.prev_day_low, sm.prev_day_close,
-                sm.prev_week_high, sm.prev_week_low,
-                sm.prev_month_high, sm.prev_month_low,
-                COALESCE(s.is_fno, FALSE) AS is_fno
-            FROM symbol_metrics sm
-            LEFT JOIN symbols s ON s.symbol = sm.symbol
+                symbol,
+                week52_high, week52_low,
+                atr_14, adv_20_cr,
+                ema_50, ema_200,
+                week_return_pct, week_gain_pct, week_decline_pct,
+                trading_days,
+                prev_day_high, prev_day_low, prev_day_close,
+                prev_week_high, prev_week_low,
+                prev_month_high, prev_month_low
+            FROM symbol_metrics
         """)
 
         self._daily = {
@@ -97,7 +95,6 @@ class MetricsService:
                 "prev_week_low":  round(float(row["prev_week_low"]), 2)  if row["prev_week_low"]  else None,
                 "prev_month_high":round(float(row["prev_month_high"]),2) if row["prev_month_high"] else None,
                 "prev_month_low": round(float(row["prev_month_low"]), 2) if row["prev_month_low"]  else None,
-                "is_fno":         bool(row["is_fno"]),
             }
             for row in rows
         }

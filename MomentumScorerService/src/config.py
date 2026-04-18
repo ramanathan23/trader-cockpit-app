@@ -25,6 +25,10 @@ class Settings(BaseServiceSettings):
 
     # ── Quality filters ───────────────────────────────────────────────────────
     min_avg_daily_turnover: float = Field(default=10_000_000)
+    
+    # ── ML Integration ────────────────────────────────────────────────────────
+    modeling_service_url: str = Field(default="http://modeling:8000")
+    enable_comfort_scoring: bool = Field(default=True)
 
 
 settings = Settings()

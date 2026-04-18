@@ -10,7 +10,6 @@ import {
   decorateRows,
   sortRows,
 } from '@/domain/screener';
-import { LIVE_FEED } from '@/lib/api-config';
 
 export type { ScreenerRangeFilter, ScreenerPreset };
 
@@ -20,11 +19,9 @@ export function useScreener() {
   const [rows,    setRows]    = useState<ScreenerRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [apiTotal, setApiTotal] = useState(0);
   const [query,   setQuery]   = useState('');
   const [range,   setRange]   = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
   const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
-  const [fnoOnly, setFnoOnly]  = useState(false);
   const [sortCol, setSortCol] = useState('adv_20_cr');
   const [sortAsc, setSortAsc] = useState(false);
   const offsetRef = useRef(0);
@@ -33,13 +30,12 @@ export function useScreener() {
     setLoading(true);
     offsetRef.current = 0;
     try {
-      const r = await fetch(`${LIVE_FEED.SCREENER}?offset=0&limit=${PAGE_SIZE}`);
+      const r = await fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);
         setRows(decorated);
         setHasMore(d.has_more ?? false);
-        setApiTotal(d.total ?? 0);
         offsetRef.current = decorated.length;
       }
     } catch { /* ignore */ }
@@ -50,7 +46,7 @@ export function useScreener() {
     if (loading || !hasMore) return;
     setLoading(true);
     try {
-      const r = await fetch(`${LIVE_FEED.SCREENER}?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
+      const r = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);
@@ -85,13 +81,12 @@ export function useScreener() {
     setQuery('');
     setRange(DEFAULT_RANGE);
     setPresets(new Set());
-    setFnoOnly(false);
   }, []);
 
   const filteredRows = useMemo(() => {
-    const filtered = applyFilters(rows, query, range, presets, fnoOnly);
+    const filtered = applyFilters(rows, query, range, presets);
     return sortRows(filtered, sortCol, sortAsc);
-  }, [rows, query, range, presets, fnoOnly, sortCol, sortAsc]);
+  }, [rows, query, range, presets, sortCol, sortAsc]);
 
   return {
     rows,
@@ -101,12 +96,10 @@ export function useScreener() {
     query,   setQuery,
     range,   setRange,
     presets, togglePreset,
-    fnoOnly, setFnoOnly,
     sortCol, sortAsc, sortBy,
     loadScreener,
     loadMore,
     resetFilters,
     totalCount: rows.length,
-    apiTotal,
   };
 }

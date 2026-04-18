@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { filterSignals, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
+import { filterSignals, type Signal, type SignalCategory } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { SignalCard } from './SignalCard';
 import { SignalRow } from './SignalRow';
@@ -15,8 +15,6 @@ interface SignalFeedProps {
   notes: Record<string, string>;
   onSaveNote: (id: string, text: string) => void;
   category: SignalCategory;
-  subType?: SignalType | null;
-  fnoOnly?: boolean;
   minAdvCr: number;
   viewMode: 'card' | 'table';
   emptyLabel?: string;
@@ -54,6 +52,36 @@ const NoteModal = memo(({ id, note, onSave, onClose }: {
 });
 NoteModal.displayName = 'NoteModal';
 
+const LatestSignalsBar = memo(({ signals, metricsCache, onChart }: {
+  signals: Signal[];
+  metricsCache: Record<string, InstrumentMetrics | null>;
+  onChart: (sym: string) => void;
+}) => {
+  if (signals.length === 0) return null;
+  return (
+    <div className="flex gap-2 px-3 py-1.5 border-b border-border/40 overflow-x-auto shrink-0">
+      {signals.map(s => (
+        <button
+          key={s.id}
+          onClick={() => onChart(s.symbol)}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] whitespace-nowrap hover:bg-border/20 transition-colors"
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: s.direction === 'BULLISH' ? '#22c55e' : s.direction === 'BEARISH' ? '#ef4444' : '#4b5563' }}
+          />
+          <span className="font-bold text-fg">{s.symbol}</span>
+          <span style={{ color: '#2a3f58' }}>{s.signal_type.replace(/_/g, ' ')}</span>
+          {metricsCache[s.symbol]?.is_fno && (
+            <span className="text-[7px] font-black px-0.5" style={{ color: '#9b72f7' }}>F&O</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+});
+LatestSignalsBar.displayName = 'LatestSignalsBar';
+
 const TABLE_HEADERS: { h: string; title: string }[] = [
   { h: 'TIME',   title: 'Signal trigger time (IST)' },
   { h: 'SYMBOL', title: 'Stock symbol. Coloured dot = direction (● green=bullish, ● red=bearish)' },
@@ -70,20 +98,20 @@ const TABLE_HEADERS: { h: string; title: string }[] = [
 ];
 
 export const SignalFeed = memo(({
-  signals, metricsCache, notes, onSaveNote, category, subType, fnoOnly, minAdvCr, viewMode, emptyLabel,
+  signals, metricsCache, notes, onSaveNote, category, minAdvCr, viewMode, emptyLabel,
   hasMore, onLoadMore,
 }: SignalFeedProps) => {
   const [noteModalId, setNoteModalId] = useState<string | null>(null);
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [ocSymbol,    setOcSymbol]    = useState<string | null>(null);
 
   const filtered = useMemo(
-    () => filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly),
-    [signals, category, subType, fnoOnly, minAdvCr, metricsCache],
+    () => filterSignals(signals, category, minAdvCr, metricsCache),
+    [signals, category, minAdvCr, metricsCache],
   );
-  const openNote  = useCallback((id: string) => setNoteModalId(id), []);
+  const openNote = useCallback((id: string) => setNoteModalId(id), []);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [ocSymbol, setOcSymbol] = useState<string | null>(null);
   const openChart = useCallback((sym: string) => setChartSymbol(sym), []);
-  const openOC    = useCallback((sym: string) => setOcSymbol(sym), []);
+  const openOC = useCallback((sym: string) => setOcSymbol(sym), []);
 
   const tableParentRef = useRef<HTMLDivElement>(null);
   const tableVirtualizer = useVirtualizer({
@@ -122,7 +150,9 @@ export const SignalFeed = memo(({
     const tvItems = tableVirtualizer.getVirtualItems();
     const tvTotal = tableVirtualizer.getTotalSize();
     return (
-      <div ref={tableParentRef} className="flex-1 overflow-auto" onScroll={handleTableScroll}>
+      <>
+        <LatestSignalsBar signals={filtered.slice(0, 3)} metricsCache={metricsCache} onChart={openChart} />
+        <div ref={tableParentRef} className="flex-1 overflow-auto" onScroll={handleTableScroll}>
         <table className="w-full text-[11px] border-collapse">
           <thead className="sticky top-0 bg-panel z-10">
             <tr className="border-b border-border">
@@ -153,6 +183,7 @@ export const SignalFeed = memo(({
             )}
           </tbody>
         </table>
+        </div>
 
         {noteModalId && (
           <NoteModal
@@ -166,11 +197,13 @@ export const SignalFeed = memo(({
         {/* Chart modal */}
         {chartSymbol && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-               onClick={() => setChartSymbol(null)}>
-            <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
+               onClick={() => setChartSymbol(null)}
+               onKeyDown={e => { if (e.key === 'Escape') setChartSymbol(null); }}
+               tabIndex={-1}>
+            <div className="bg-panel border border-border/80 rounded-lg shadow-2xl overflow-hidden"
                  style={{ width: 900, maxWidth: '95vw' }}
                  onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-fg">{chartSymbol}</span>
                   {metricsCache[chartSymbol]?.is_fno && (
@@ -187,7 +220,64 @@ export const SignalFeed = memo(({
                     className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
                 </div>
               </div>
-              <DailyChart symbol={chartSymbol} height={380} />
+              <DailyChart symbol={chartSymbol} height={420} />
+            </div>
+          </div>
+        )}
+
+        {/* Option chain modal */}
+        {ocSymbol && (
+          <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={null} />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <LatestSignalsBar signals={filtered.slice(0, 3)} metricsCache={metricsCache} onChart={openChart} />
+      <div ref={cardParentRef} className="flex-1 overflow-y-auto p-3 relative" onScroll={handleCardScroll}>
+        <div className="signal-grid">
+          {filtered.map(s => (
+            <SignalCard
+              key={s.id}
+              signal={s}
+              metrics={metricsCache[s.symbol]}
+              note={notes[s.id]}
+              onSave={onSaveNote}
+              onChart={openChart}
+              onOptionChain={openOC}
+            />
+          ))}
+        </div>
+
+        {/* Chart modal */}
+        {chartSymbol && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+               onClick={() => setChartSymbol(null)}
+               onKeyDown={e => { if (e.key === 'Escape') setChartSymbol(null); }}
+               tabIndex={-1}>
+            <div className="bg-panel border border-border/80 rounded-lg shadow-2xl overflow-hidden"
+                 style={{ width: 900, maxWidth: '95vw' }}
+                 onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-2 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-fg">{chartSymbol}</span>
+                  {metricsCache[chartSymbol]?.is_fno && (
+                    <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
+                          style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {metricsCache[chartSymbol]?.is_fno && (
+                    <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
+                      className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
+                  )}
+                  <button onClick={() => setChartSymbol(null)}
+                    className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
+                </div>
+              </div>
+              <DailyChart symbol={chartSymbol} height={420} />
             </div>
           </div>
         )}
@@ -197,59 +287,7 @@ export const SignalFeed = memo(({
           <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={null} />
         )}
       </div>
-    );
-  }
-
-  return (
-    <div ref={cardParentRef} className="flex-1 overflow-y-auto p-3 relative" onScroll={handleCardScroll}>
-      <div className="signal-grid">
-        {filtered.map(s => (
-          <SignalCard
-            key={s.id}
-            signal={s}
-            metrics={metricsCache[s.symbol]}
-            note={notes[s.id]}
-            onSave={onSaveNote}
-            onChart={openChart}
-            onOptionChain={openOC}
-          />
-        ))}
-      </div>
-
-      {/* Chart modal */}
-      {chartSymbol && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-             onClick={() => setChartSymbol(null)}>
-          <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
-               style={{ width: 900, maxWidth: '95vw' }}
-               onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-fg">{chartSymbol}</span>
-                {metricsCache[chartSymbol]?.is_fno && (
-                  <span className="text-[7px] font-black px-1 py-0.5 rounded-sm"
-                        style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {metricsCache[chartSymbol]?.is_fno && (
-                  <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
-                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
-                )}
-                <button onClick={() => setChartSymbol(null)}
-                  className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
-              </div>
-            </div>
-            <DailyChart symbol={chartSymbol} height={380} />
-          </div>
-        </div>
-      )}
-
-      {/* Option chain modal */}
-      {ocSymbol && (
-        <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} scoreData={null} />
-      )}
-    </div>
+    </>
   );
 });
 

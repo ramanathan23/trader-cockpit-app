@@ -9,11 +9,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/health", summary="Liveness check")
-async def health():
-    return {"status": "ok", "service": "MomentumScorerService"}
-
-
 @router.post("/scores/compute", summary="Trigger unified daily scoring (background)")
 async def trigger_compute(
     background_tasks: BackgroundTasks,

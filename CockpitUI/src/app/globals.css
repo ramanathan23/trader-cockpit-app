@@ -5,22 +5,22 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --base: 5 12 24;
-    --panel: 8 15 30;
-    --card: 12 20 35;
-    --lift: 17 29 51;
-    --border: 23 32 53;
-    --rim: 39 59 85;
-    --fg: 212 226 244;
-    --dim: 116 142 170;
-    --ghost: 77 101 128;
+    --base: 5 10 18;
+    --panel: 11 15 20;
+    --card: 14 20 28;
+    --lift: 18 26 38;
+    --border: 26 36 50;
+    --rim: 42 58 78;
+    --fg: 220 230 245;
+    --dim: 120 140 165;
+    --ghost: 80 100 125;
     --accent: 45 126 232;
     --bull: 13 189 125;
     --bear: 242 61 85;
     --amber: 232 147 58;
     --violet: 155 114 247;
     --sky: 56 182 255;
-    --shadow-card: 0 10px 22px rgba(0, 0, 0, 0.22);
+    --shadow-card: 0 8px 20px rgba(0, 0, 0, 0.3);
   }
 
   :root[data-theme='light'] {
@@ -62,8 +62,16 @@
   body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-feature-settings: 'tnum' 1; /* tabular numbers everywhere */
-    transition: background-color 0.18s ease, color 0.18s ease;
+    font-feature-settings: 'tnum' 1;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  
+  * {
+    transition-duration: 0.15s;
+  }
+  
+  button, a, input, select, textarea {
+    transition-property: background-color, border-color, color, opacity, transform;
   }
 
   /* Remove number input spinners */
@@ -83,10 +91,10 @@
   .seg-btn {
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     padding: 4px 10px;
     border-radius: 4px;
-    transition: background 0.12s, color 0.12s;
+    transition: background 0.1s, color 0.1s;
     color: rgb(var(--dim));
     white-space: nowrap;
     cursor: pointer;
@@ -99,9 +107,19 @@
 
   .signal-grid {
     display: grid;
-    gap: 12px;
+    gap: 10px;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     align-content: start;
+  }
+  
+  @keyframes pulse-new {
+    0% { box-shadow: 0 0 0 0 rgba(45, 126, 232, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(45, 126, 232, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(45, 126, 232, 0); }
+  }
+  
+  .pulse-new {
+    animation: pulse-new 1.2s ease-out;
   }
 
   /* help-legend: 3-col flex — col1=signals, col2=metrics+levels, col3=phases+adv */
@@ -133,7 +151,7 @@
 
   @media (max-width: 1366px) {
     .signal-grid {
-      gap: 10px;
+      gap: 8px;
       grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
     }
 
@@ -144,7 +162,7 @@
 
   @media (max-width: 1100px) {
     .signal-grid {
-      gap: 8px;
+      gap: 6px;
       grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
     }
 

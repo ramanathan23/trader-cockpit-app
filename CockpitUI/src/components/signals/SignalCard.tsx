@@ -26,9 +26,9 @@ const BiasTag = memo(({ label, bias }: { label: string; bias: Direction }) => {
 BiasTag.displayName = 'BiasTag';
 
 const MetricCell = memo(({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) => (
-  <div className="flex flex-col gap-1" title={title}>
-    <span className="text-[9px] font-bold tracking-wider uppercase text-ghost">{label}</span>
-    <span className="num text-[11px] tabular-nums">{children}</span>
+  <div className="flex flex-col gap-0.5" title={title}>
+    <span className="text-[8px] font-bold tracking-wider uppercase text-ghost">{label}</span>
+    <span className="num text-[10px] tabular-nums">{children}</span>
   </div>
 ));
 MetricCell.displayName = 'MetricCell';
@@ -109,24 +109,24 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
 
   return (
     <div
-      className={`relative flex rounded-md overflow-hidden border border-border bg-card shadow-card group${s._fromCatchup ? '' : ' animate-enter'}`}
+      className={`relative flex rounded-md overflow-hidden border border-border bg-card shadow-card group${s._fromCatchup ? '' : ' animate-enter pulse-new'}`}
       onClick={() => onChart?.(s.symbol)}
       style={{ cursor: 'pointer' }}
     >
 
-      {/* Left accent stripe (3 px, signal color) */}
-      <div className="w-[3px] shrink-0" style={{ background: color }} />
+      {/* Left accent stripe (4px, signal color) */}
+      <div className="w-1 shrink-0" style={{ background: color }} />
 
       {/* Card body */}
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* ── Header row ──────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-3 pt-3 pb-1">
+        <div className="flex items-center justify-between px-2.5 pt-2.5 pb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Direction dot */}
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dc }} />
             {/* Symbol */}
-            <span className="font-bold text-[14px] tracking-wide text-fg truncate">{s.symbol}</span>
+            <span className="text-ticker text-fg truncate">{s.symbol}</span>
             {/* Repeat badge */}
             {s._count > 1 && (
               <span
@@ -145,36 +145,33 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
 
           {/* Signal type pill */}
           <span
-            className="text-[9px] font-black tracking-[0.1em] uppercase px-1.5 py-0.5 rounded-sm shrink-0 ml-1"
-            style={{ color, background: `${color}18`, border: `1px solid ${color}30` }}
+            className="text-signal-badge uppercase px-2 py-1 rounded shrink-0 ml-1"
+            style={{ color, background: `${color}20`, border: `1px solid ${color}40` }}
             title={signalDesc(s.signal_type)}
           >
             {signalShort(s.signal_type)}
           </span>
         </div>
 
-        {/* ── MTF bias ────────────────────────────────────────────── */}
-        {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH' ||
-          s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && (
-          <div className="flex gap-3 px-3 pb-1.5">
-            {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH') && <BiasTag label="15m" bias={s.bias_15m} />}
-            {(s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && <BiasTag label="1h"  bias={s.bias_1h}  />}
-          </div>
-        )}
-
-        {/* ── Hero price ──────────────────────────────────────────── */}
-        <div className="flex items-baseline justify-between px-3 pb-3">
-          <span
-            className="num font-bold tabular-nums leading-none"
-            style={{ fontSize: '20px', color: 'rgb(var(--fg))' }}
-          >
+        {/* ── Hero price + MTF ────────────────────────────────────── */}
+        <div className="flex items-end justify-between px-2.5 pb-2.5 pt-1">
+          <span className="num text-price text-fg leading-none">
             {s.price != null ? s.price.toFixed(2) : '—'}
           </span>
-          {s.volume_ratio != null && (
-            <span className="num text-[10px] tabular-nums text-ghost">
-              Vol <span style={{ color: '#e8933a' }}>{s.volume_ratio.toFixed(1)}×</span>
-            </span>
-          )}
+          <div className="flex flex-col items-end gap-0.5">
+            {s.volume_ratio != null && (
+              <span className="num text-[10px] tabular-nums text-ghost">
+                Vol <span style={{ color: '#e8933a' }}>{s.volume_ratio.toFixed(1)}×</span>
+              </span>
+            )}
+            {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH' ||
+              s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && (
+              <div className="flex gap-2">
+                {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH') && <BiasTag label="15m" bias={s.bias_15m} />}
+                {(s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && <BiasTag label="1h"  bias={s.bias_1h}  />}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Trade levels ────────────────────────────────────────── */}
@@ -182,7 +179,7 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
 
         {/* ── Metrics grid ────────────────────────────────────────── */}
         {m && (
-          <div className="grid grid-cols-3 gap-x-3 gap-y-3 px-3 py-3 border-t border-border">
+          <div className="grid grid-cols-3 gap-x-2.5 gap-y-2.5 px-2.5 py-2.5 border-t border-border">
             {m.week52_high && s.price != null && (
               <MetricCell label="52H" title="% below 52-week high — 0% = at record high; negative = below high">
                 <span style={{ color: pctColor(s.price, m.week52_high) }}>{spct(s.price, m.week52_high)}</span>
@@ -223,7 +220,7 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
         )}
 
         {/* ── Footer ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-border">
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             {m?.is_fno && (
               <button

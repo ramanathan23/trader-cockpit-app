@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Signal } from '@/domain/signal';
 import { todayIST } from '@/lib/fmt';
-import { LIVE_FEED } from '@/lib/api-config';
 
 const PAGE_SIZE = 100;
 
@@ -27,7 +26,7 @@ export function useHistory() {
 
   const loadDates = useCallback(async () => {
     try {
-      const r = await fetch(LIVE_FEED.SIGNAL_HISTORY_DATES);
+      const r = await fetch('/api/v1/signals/history/dates');
       if (r.ok) {
         const d = await r.json();
         setState(s => ({ ...s, availableDates: d.dates ?? [] }));
@@ -39,7 +38,7 @@ export function useHistory() {
     setState(s => ({ ...s, loading: true, signals: [], date, hasMore: false }));
     offsetRef.current = 0;
     try {
-      const r = await fetch(`${LIVE_FEED.SIGNAL_HISTORY}?date=${date}&offset=0&limit=${PAGE_SIZE}`);
+      const r = await fetch(`/api/v1/signals/history?date=${date}&offset=0&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const newestFirst = [...(d.signals ?? [])].reverse();
@@ -63,7 +62,7 @@ export function useHistory() {
     if (state.loading || !state.hasMore) return;
     setState(s => ({ ...s, loading: true }));
     try {
-      const r = await fetch(`${LIVE_FEED.SIGNAL_HISTORY}?date=${state.date}&offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
+      const r = await fetch(`/api/v1/signals/history?date=${state.date}&offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
         const newestFirst = [...(d.signals ?? [])].reverse();

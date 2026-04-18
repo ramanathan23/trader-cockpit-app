@@ -11,8 +11,6 @@ interface ScreenerCardsProps {
   loading:    boolean;
   hasMore?:   boolean;
   onLoadMore?: () => void;
-  onChart?:       (sym: string) => void;
-  onOptionChain?: (sym: string) => void;
 }
 
 const ProximityBar = memo(({ pct, inverted = false }: { pct?: number | null; inverted?: boolean }) => {
@@ -31,11 +29,7 @@ const ProximityBar = memo(({ pct, inverted = false }: { pct?: number | null; inv
 });
 ProximityBar.displayName = 'ProximityBar';
 
-const ScreenerCard = memo(({ row: r, onChart, onOptionChain }: {
-  row: ScreenerRow;
-  onChart?:       (sym: string) => void;
-  onOptionChain?: (sym: string) => void;
-}) => {
+const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
   const f52hColor = r.f52h == null ? '#2a3f58' : r.f52h >= -2 ? '#0dbd7d' : r.f52h >= -10 ? '#e8933a' : '#f23d55';
   const f52lColor = r.f52l == null ? '#2a3f58' : r.f52l > 50  ? '#0dbd7d' : r.f52l > 20   ? '#e8933a' : '#f23d55';
   const dvwapColor = r.dvwap_delta_pct == null ? '#2a3f58' : r.dvwap_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
@@ -43,22 +37,13 @@ const ScreenerCard = memo(({ row: r, onChart, onOptionChain }: {
   const ema200Color = r.ema200_delta_pct == null ? '#2a3f58' : r.ema200_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
 
   return (
-    <div
-      className="w-44 rounded-md border border-border bg-card hover:bg-lift transition-colors p-3 flex flex-col gap-2.5 cursor-pointer group"
-      onClick={() => onChart?.(r.symbol)}
-    >
-      {/* Symbol + ADV + F&O badge */}
-      <div className="flex items-start justify-between gap-1 min-w-0">
-        <div className="flex items-center gap-1 min-w-0">
-          <span className="font-bold text-[13px] tracking-wide text-fg truncate">{r.symbol}</span>
-          {r.is_fno && (
-            <span className="shrink-0 text-[7px] font-black px-1 py-0.5 rounded-sm"
-                  style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
-          )}
-        </div>
+    <div className="w-44 rounded-md border border-border bg-card hover:bg-lift transition-colors p-3 flex flex-col gap-2.5">
+      {/* Symbol + ADV */}
+      <div className="flex items-start justify-between">
+        <span className="font-bold text-[13px] tracking-wide text-fg">{r.symbol}</span>
         {r.adv_20_cr != null && (
           <span
-            className="shrink-0 num text-[9px] font-bold px-1.5 py-0.5 rounded-sm"
+            className="num text-[9px] font-bold px-1.5 py-0.5 rounded-sm"
             style={{ color: advColor(r.adv_20_cr), background: `${advColor(r.adv_20_cr)}15` }}
           >
             {fmtAdv(r.adv_20_cr)}
@@ -115,22 +100,12 @@ const ScreenerCard = memo(({ row: r, onChart, onOptionChain }: {
         <span>W+ <span className="num" style={{ color: '#5a7796' }}>{r.week_gain_pct != null ? `+${r.week_gain_pct.toFixed(1)}%` : '—'}</span></span>
         <span>W- <span className="num" style={{ color: '#5a7796' }}>{r.week_decline_pct != null ? `${r.week_decline_pct.toFixed(1)}%` : '—'}</span></span>
       </div>
-
-      {/* Actions row */}
-      <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity mt-auto pt-1">
-        {r.is_fno && (
-          <button
-            onClick={e => { e.stopPropagation(); onOptionChain?.(r.symbol); }}
-            className="text-[9px] font-bold text-accent hover:text-fg transition-colors px-1"
-            title="View option chain">OC</button>
-        )}
-      </div>
     </div>
   );
 });
 ScreenerCard.displayName = 'ScreenerCard';
 
-export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart, onOptionChain }: ScreenerCardsProps) => {
+export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore }: ScreenerCardsProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Approximate cards per row: container ~full width, card ~176px + 12px gap
@@ -193,7 +168,7 @@ export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart
             }}
             className="flex flex-wrap gap-3"
           >
-            {chunkedRows[vi.index].map(r => <ScreenerCard key={r.symbol} row={r} onChart={onChart} onOptionChain={onOptionChain} />)}
+            {chunkedRows[vi.index].map(r => <ScreenerCard key={r.symbol} row={r} />)}
           </div>
         ))}
       </div>

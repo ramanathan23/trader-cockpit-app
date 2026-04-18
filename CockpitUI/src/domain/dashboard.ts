@@ -42,9 +42,6 @@ export interface ScoredSymbol {
 }
 
 export interface DashboardResponse {
-  stats:    DashboardStats;
-  scores:   ScoredSymbol[];
-  offset:   number;
-  limit:    number;
-  has_more: boolean;
+  stats:  DashboardStats;
+  scores: ScoredSymbol[];
 }
