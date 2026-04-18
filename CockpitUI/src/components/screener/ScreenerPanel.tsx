@@ -72,15 +72,11 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
 
       {/* Chart modal */}
       {chartSymbol && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setChartSymbol(null)}
-        >
-          <div
-            className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
-            style={{ width: 900, maxWidth: '95vw' }}
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+             onClick={() => setChartSymbol(null)}>
+          <div className="bg-panel border border-border rounded-lg shadow-2xl overflow-hidden"
+               style={{ width: 900, maxWidth: '95vw' }}
+               onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-fg">{chartSymbol}</span>
@@ -91,10 +87,8 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
               </div>
               <div className="flex items-center gap-2">
                 {rows.find(r => r.symbol === chartSymbol)?.is_fno && (
-                  <button
-                    onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
-                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm"
-                  >OC</button>
+                  <button onClick={() => { setChartSymbol(null); setOcSymbol(chartSymbol); }}
+                    className="text-[10px] font-bold text-accent hover:text-fg transition-colors px-2 py-1 border border-accent/40 rounded-sm">OC</button>
                 )}
                 <button onClick={() => setChartSymbol(null)}
                   className="text-ghost hover:text-fg transition-colors text-base leading-none px-1">✕</button>
