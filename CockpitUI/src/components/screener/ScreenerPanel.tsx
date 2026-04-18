@@ -20,6 +20,7 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
     query, setQuery,
     range, setRange,
     presets, togglePreset,
+    fnoOnly, setFnoOnly,
     sortCol, sortAsc, sortBy,
     loadScreener, loadMore, resetFilters,
     totalCount,
@@ -40,6 +41,7 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
         query={query}            onQuery={setQuery}
         range={range}            onRange={setRange}
         presets={presets}        onPreset={togglePreset}
+        fnoOnly={fnoOnly}        onFnoOnly={setFnoOnly}
         onReset={resetFilters}
         totalCount={totalCount}  filteredCount={filteredRows.length}
         loading={loading}        onRefresh={loadScreener}

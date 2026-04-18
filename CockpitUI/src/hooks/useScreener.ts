@@ -24,6 +24,7 @@ export function useScreener() {
   const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
   const [sortCol, setSortCol] = useState('adv_20_cr');
   const [sortAsc, setSortAsc] = useState(false);
+  const [fnoOnly, setFnoOnly] = useState(false);
   const offsetRef = useRef(0);
 
   const loadScreener = useCallback(async () => {
@@ -81,12 +82,13 @@ export function useScreener() {
     setQuery('');
     setRange(DEFAULT_RANGE);
     setPresets(new Set());
+    setFnoOnly(false);
   }, []);
 
   const filteredRows = useMemo(() => {
-    const filtered = applyFilters(rows, query, range, presets);
+    const filtered = applyFilters(rows, query, range, presets, fnoOnly);
     return sortRows(filtered, sortCol, sortAsc);
-  }, [rows, query, range, presets, sortCol, sortAsc]);
+  }, [rows, query, range, presets, fnoOnly, sortCol, sortAsc]);
 
   return {
     rows,
@@ -96,6 +98,7 @@ export function useScreener() {
     query,   setQuery,
     range,   setRange,
     presets, togglePreset,
+    fnoOnly, setFnoOnly,
     sortCol, sortAsc, sortBy,
     loadScreener,
     loadMore,
