@@ -192,12 +192,12 @@ export function applyFilters(
     if (presets.has('near52h') && !(r.f52h != null && r.f52h >= -5)) return false;
     if (presets.has('near52l') && !(r.f52l != null && r.f52l >= 0 && r.f52l <= 10)) return false;
     if (presets.has('nearpdh') && !(
-      r.prev_day_high && r.prev_day_close &&
-      Math.abs((r.prev_day_close - r.prev_day_high) / r.prev_day_high) < 0.005
+      r.prev_day_high && close > 0 &&
+      Math.abs((close - r.prev_day_high) / r.prev_day_high) < 0.005
     )) return false;
     if (presets.has('nearpdl') && !(
-      r.prev_day_low && r.prev_day_close &&
-      Math.abs((r.prev_day_close - r.prev_day_low) / r.prev_day_low) < 0.005
+      r.prev_day_low && close > 0 &&
+      Math.abs((close - r.prev_day_low) / r.prev_day_low) < 0.005
     )) return false;
 
     // CAM presets — compute levels from prev-day OHLC

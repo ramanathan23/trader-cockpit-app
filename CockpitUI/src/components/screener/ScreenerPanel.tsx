@@ -46,7 +46,6 @@ export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelPro
         onReset={resetFilters}
         totalCount={totalCount}  filteredCount={filteredRows.length}
         loading={loading}        onRefresh={loadScreener}
-        viewMode={viewMode}      onViewMode={onViewMode}
       />
 
       <ScreenerStatsBar stats={breadth} total={totalCount} />

@@ -23,6 +23,7 @@ type Segment = 'all' | 'fno' | 'equity';
 
 interface DashboardPanelProps {
   active: boolean;
+  viewMode: 'card' | 'table';
 }
 
 const HEADERS: { key: string; label: string; title: string; align: 'left' | 'right' | 'center'; sortable: boolean }[] = [
@@ -41,7 +42,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
 ];
 
-export function DashboardPanel({ active }: DashboardPanelProps) {
+export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
@@ -156,51 +157,72 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
         </div>
       </div>
 
-      <div ref={parentRef} className="table-wrap flex-1">
-        <table className="data-table">
-          <thead>
-            <tr>
-              {HEADERS.map(header => (
-                <th
-                  key={header.key}
-                  title={header.title}
-                  onClick={() => header.sortable && handleSort(header.key as SortKey)}
-                  className={`${header.align === 'right' ? 'text-right' : header.align === 'center' ? 'text-center' : 'text-left'} ${header.sortable ? 'cursor-pointer hover:text-fg' : ''}`}
-                  style={{ color: sortKey === header.key ? 'rgb(var(--accent))' : undefined }}
-                >
-                  {header.label}{sortKey === header.key ? (sortAsc ? ' ^' : ' v') : ''}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {virtualItems.length > 0 && (
-              <tr><td colSpan={HEADERS.length} style={{ height: virtualItems[0].start, padding: 0, border: 'none' }} /></tr>
-            )}
-            {virtualItems.map(item => {
-              const row = filtered[item.index];
-              return (
-                <ScoreRow
-                  key={row.symbol}
-                  row={row}
-                  expanded={expandedSymbol === row.symbol}
-                  onToggle={symbol => setExpandedSymbol(prev => prev === symbol ? null : symbol)}
-                  onOptionChain={setOcSymbol}
-                />
-              );
-            })}
-            {virtualItems.length > 0 && (
-              <tr><td colSpan={HEADERS.length} style={{ height: totalSize - virtualItems[virtualItems.length - 1].end, padding: 0, border: 'none' }} /></tr>
-            )}
-          </tbody>
-        </table>
-
-        {filtered.length === 0 && !loading && (
-          <div className="flex h-48 items-center justify-center text-[13px] text-dim">
-            {scores.length === 0 ? 'No scores yet. Run compute to build the dashboard.' : 'No symbols match the active filters.'}
+      {viewMode === 'card' ? (
+        <div className="flex-1 overflow-y-auto p-4">
+          {filtered.length === 0 && !loading && (
+            <div className="flex h-48 items-center justify-center text-[13px] text-dim">
+              {scores.length === 0 ? 'No scores yet. Run compute to build the dashboard.' : 'No symbols match the active filters.'}
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map(row => (
+              <ScoreCard
+                key={row.symbol}
+                row={row}
+                expanded={expandedSymbol === row.symbol}
+                onToggle={symbol => setExpandedSymbol(prev => prev === symbol ? null : symbol)}
+                onOptionChain={setOcSymbol}
+              />
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div ref={parentRef} className="table-wrap flex-1">
+          <table className="data-table">
+            <thead>
+              <tr>
+                {HEADERS.map(header => (
+                  <th
+                    key={header.key}
+                    title={header.title}
+                    onClick={() => header.sortable && handleSort(header.key as SortKey)}
+                    className={`${header.align === 'right' ? 'text-right' : header.align === 'center' ? 'text-center' : 'text-left'} ${header.sortable ? 'cursor-pointer hover:text-fg' : ''}`}
+                    style={{ color: sortKey === header.key ? 'rgb(var(--accent))' : undefined }}
+                  >
+                    {header.label}{sortKey === header.key ? (sortAsc ? ' ^' : ' v') : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {virtualItems.length > 0 && (
+                <tr><td colSpan={HEADERS.length} style={{ height: virtualItems[0].start, padding: 0, border: 'none' }} /></tr>
+              )}
+              {virtualItems.map(item => {
+                const row = filtered[item.index];
+                return (
+                  <ScoreRow
+                    key={row.symbol}
+                    row={row}
+                    expanded={expandedSymbol === row.symbol}
+                    onToggle={symbol => setExpandedSymbol(prev => prev === symbol ? null : symbol)}
+                    onOptionChain={setOcSymbol}
+                  />
+                );
+              })}
+              {virtualItems.length > 0 && (
+                <tr><td colSpan={HEADERS.length} style={{ height: totalSize - virtualItems[virtualItems.length - 1].end, padding: 0, border: 'none' }} /></tr>
+              )}
+            </tbody>
+          </table>
+
+          {filtered.length === 0 && !loading && (
+            <div className="flex h-48 items-center justify-center text-[13px] text-dim">
+              {scores.length === 0 ? 'No scores yet. Run compute to build the dashboard.' : 'No symbols match the active filters.'}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex shrink-0 items-center justify-between border-t border-border bg-panel/80 px-4 py-2 text-[11px] text-ghost">
         <span className="num">{filtered.length}/{scores.length} symbols</span>
@@ -221,6 +243,70 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
     <div className="metric-card">
       <div className="text-[10px] font-black uppercase text-ghost">{label}</div>
       <div className="num mt-1 truncate text-[19px] font-black" style={{ color }}>{value}</div>
+    </div>
+  );
+}
+
+function ScoreCard({
+  row,
+  expanded,
+  onToggle,
+  onOptionChain,
+}: {
+  row: ScoredSymbol;
+  expanded: boolean;
+  onToggle: (sym: string) => void;
+  onOptionChain: (sym: string) => void;
+}) {
+  return (
+    <div
+      className={`rounded-lg border border-border bg-panel p-3 cursor-pointer transition-colors hover:border-accent/40 hover:bg-lift/60 ${expanded ? 'border-accent/40 bg-lift' : ''}`}
+      onClick={() => onToggle(row.symbol)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-ticker text-fg">{row.symbol}</span>
+            {row.is_fno && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
+            {row.is_watchlist && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--amber))' }}>WL</span>}
+            {row.bb_squeeze && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--violet))' }}>SQ{row.squeeze_days}</span>}
+            {row.nr7 && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--sky))' }}>NR7</span>}
+          </div>
+          {row.company_name && <div className="mt-0.5 max-w-full truncate text-[10px] text-ghost">{row.company_name}</div>}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="num text-[10px] text-ghost">#{row.rank}</span>
+          <button
+            type="button"
+            onClick={event => { event.stopPropagation(); onOptionChain(row.symbol); }}
+            className="text-[10px] font-black text-accent opacity-60 hover:opacity-100"
+            title="View option chain"
+          >
+            OC
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+        <ScoreBar value={row.total_score} color="rgb(var(--accent))" label="Total" />
+        <ScoreBar value={row.momentum_score} color="rgb(var(--amber))" label="Mom" />
+        <ScoreBar value={row.trend_score} color="rgb(var(--bull))" label="Trend" />
+        <ScoreBar value={row.volatility_score} color="rgb(var(--violet))" label="Vol" />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[11px]">
+        <span className="num text-ghost">ADX <span className="text-fg">{row.adx_14 != null ? row.adx_14.toFixed(0) : '-'}</span></span>
+        <span className="num text-ghost">RSI <span style={{ color: rsiColor(row.rsi_14) }}>{row.rsi_14 != null ? row.rsi_14.toFixed(0) : '-'}</span></span>
+        <span className="num text-ghost">ADV <span className="text-fg">{fmtAdv(row.adv_20_cr)}</span></span>
+        <span
+          className="num font-black"
+          style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
+        >
+          {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '-'}
+        </span>
+      </div>
+
+      {expanded && <DailyChart symbol={row.symbol} height={200} />}
     </div>
   );
 }
@@ -287,13 +373,16 @@ function ScoreRow({
   );
 }
 
-function ScoreBar({ value, color }: { value: number; color: string }) {
+function ScoreBar({ value, color, label }: { value: number; color: string; label?: string }) {
   const pct = Math.min(100, Math.max(0, value));
   return (
-    <div className="flex items-center justify-end gap-2">
-      <span className="num text-[11px] font-black" style={{ color }}>{value.toFixed(0)}</span>
-      <div className="h-1.5 w-[54px] overflow-hidden rounded-full bg-border">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+    <div className="flex items-center gap-2">
+      {label && <span className="w-8 shrink-0 text-[9px] font-black uppercase text-ghost">{label}</span>}
+      <div className="flex flex-1 items-center justify-end gap-2">
+        <span className="num text-[11px] font-black" style={{ color }}>{value.toFixed(0)}</span>
+        <div className="h-1.5 w-[54px] overflow-hidden rounded-full bg-border">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+        </div>
       </div>
     </div>
   );

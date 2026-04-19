@@ -238,7 +238,7 @@ export function CockpitApp() {
             {view === 'admin' ? (
               <AdminPanel />
             ) : view === 'dashboard' ? (
-              <DashboardPanel active={view === 'dashboard'} />
+              <DashboardPanel active={view === 'dashboard'} viewMode={viewMode} />
             ) : view === 'screener' ? (
               <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} />
             ) : (
