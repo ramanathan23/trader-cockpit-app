@@ -42,7 +42,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
 ];
 
 export function DashboardPanel({ active }: DashboardPanelProps) {
-  const { stats, scores, loading, computing, fetched, loadDashboard, triggerCompute } = useDashboard();
+  const { stats, scores, loading, fetched, loadDashboard } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
   const [query, setQuery] = useState('');
@@ -132,14 +132,6 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={triggerCompute}
-              disabled={computing}
-              className="h-8 rounded-lg border border-accent/45 bg-accent/10 px-3 text-[11px] font-black text-accent disabled:opacity-50"
-            >
-              {computing ? 'Computing' : 'Compute'}
-            </button>
             <button
               type="button"
               onClick={() => loadDashboard({ watchlistOnly })}

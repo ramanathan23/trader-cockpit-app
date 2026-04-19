@@ -3,7 +3,6 @@
 import { memo } from 'react';
 import { filterSignals, signalColor, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
-import { ViewToggle } from '@/components/ui/ViewToggle';
 
 const TAB_SIGNAL_TYPE: Record<SignalCategory, SignalType> = {
   ALL: 'OPEN_DRIVE_ENTRY',
@@ -71,12 +70,10 @@ interface SignalToolbarProps {
   pendingCount: number;
   onTogglePause: () => void;
   onClear: () => void;
-  viewMode: 'card' | 'table';
-  onViewMode: (v: 'card' | 'table') => void;
+  viewMode?: never;
+  onViewMode?: never;
   activeView: 'dashboard' | 'live' | 'history' | 'screener' | 'admin';
   onViewChange: (v: 'dashboard' | 'live' | 'history' | 'screener' | 'admin') => void;
-  showHelp: boolean;
-  onToggleHelp: () => void;
 }
 
 export const SignalToolbar = memo(({
@@ -94,12 +91,8 @@ export const SignalToolbar = memo(({
   pendingCount,
   onTogglePause,
   onClear,
-  viewMode,
-  onViewMode,
   activeView,
   onViewChange,
-  showHelp,
-  onToggleHelp,
 }: SignalToolbarProps) => {
   const signalWorkspace = activeView === 'live' || activeView === 'history';
   const activeSubtypes = SUBTYPES_BY_CATEGORY[category];
@@ -203,7 +196,6 @@ export const SignalToolbar = memo(({
               <span className="chip num hidden lg:inline-flex" title="Filtered signals / total signals">
                 {filtered.length}/{signals.length}
               </span>
-
               <button
                 type="button"
                 onClick={onClear}
@@ -230,21 +222,6 @@ export const SignalToolbar = memo(({
               </button>
             </>
           )}
-
-          {activeView !== 'dashboard' && activeView !== 'admin' && <ViewToggle view={viewMode} onChange={onViewMode} />}
-
-          <button
-            type="button"
-            onClick={onToggleHelp}
-            title={showHelp ? 'Hide glossary' : 'Show glossary'}
-            aria-label={showHelp ? 'Hide glossary' : 'Show glossary'}
-            className={`icon-btn ${showHelp ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M9.5 9a2.7 2.7 0 1 1 4.4 2.1c-.9.7-1.4 1.1-1.4 2.4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.8" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

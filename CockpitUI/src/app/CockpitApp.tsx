@@ -131,9 +131,7 @@ export function CockpitApp() {
   const [view, setView] = useState<AppView>('dashboard');
   const [category, setCategory] = useState<SignalCategory>('ALL');
   const [minAdvCr, setMinAdvCr] = useState(0);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
-  const [histViewMode, setHistViewMode] = useState<'card' | 'table'>('table');
-  const [screenerViewMode, setScreenerViewMode] = useState<'card' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [showHelp, setShowHelp] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [subType, setSubType] = useState<SignalType | null>(null);
@@ -173,8 +171,6 @@ export function CockpitApp() {
   }, [history.signals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentSignals = view === 'history' ? history.signals : signals;
-  const currentViewMode = view === 'history' ? histViewMode : view === 'screener' ? screenerViewMode : viewMode;
-  const onCurrentViewMode = view === 'history' ? setHistViewMode : view === 'screener' ? setScreenerViewMode : setViewMode;
 
   const filteredCount = useMemo(
     () => filterSignals(currentSignals, category, minAdvCr, metricsCache, subType, fnoOnly).length,
@@ -191,6 +187,11 @@ export function CockpitApp() {
           theme={theme}
           tokenStatus={tokenStatus}
           onToggleTheme={() => setTheme(mode => mode === 'dark' ? 'light' : 'dark')}
+          viewMode={viewMode}
+          onViewMode={setViewMode}
+          showViewToggle={view !== 'admin'}
+          showHelp={showHelp}
+          onToggleHelp={() => setShowHelp(value => !value)}
         />
 
         <div className="flex min-h-0 flex-1">
@@ -202,28 +203,26 @@ export function CockpitApp() {
           />
 
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <SignalToolbar
-              category={category}
-              onCategory={setCategory}
-              subType={subType}
-              onSubType={setSubType}
-              fnoOnly={fnoOnly}
-              onFnoOnly={setFnoOnly}
-              minAdvCr={minAdvCr}
-              onMinAdv={setMinAdvCr}
-              signals={currentSignals}
-              metricsCache={metricsCache}
-              paused={paused}
-              pendingCount={pendingCount}
-              onTogglePause={togglePause}
-              onClear={clearSignals}
-              viewMode={currentViewMode}
-              onViewMode={onCurrentViewMode}
-              activeView={view}
-              onViewChange={setView}
-              showHelp={showHelp}
-              onToggleHelp={() => setShowHelp(value => !value)}
-            />
+            {(view === 'live' || view === 'history') && (
+              <SignalToolbar
+                category={category}
+                onCategory={setCategory}
+                subType={subType}
+                onSubType={setSubType}
+                fnoOnly={fnoOnly}
+                onFnoOnly={setFnoOnly}
+                minAdvCr={minAdvCr}
+                onMinAdv={setMinAdvCr}
+                signals={currentSignals}
+                metricsCache={metricsCache}
+                paused={paused}
+                pendingCount={pendingCount}
+                onTogglePause={togglePause}
+                onClear={clearSignals}
+                activeView={view}
+                onViewChange={setView}
+              />
+            )}
 
             {showHelp && <HelpLegend />}
 
@@ -241,7 +240,7 @@ export function CockpitApp() {
             ) : view === 'dashboard' ? (
               <DashboardPanel active={view === 'dashboard'} />
             ) : view === 'screener' ? (
-              <ScreenerPanel active={view === 'screener'} viewMode={screenerViewMode} onViewMode={setScreenerViewMode} />
+              <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} />
             ) : (
               <SignalFeed
                 signals={currentSignals}
@@ -252,7 +251,7 @@ export function CockpitApp() {
                 subType={subType}
                 fnoOnly={fnoOnly}
                 minAdvCr={minAdvCr}
-                viewMode={currentViewMode}
+                viewMode={viewMode}
                 emptyLabel={view === 'live' ? 'Waiting for live signals' : `No signals for ${history.date}`}
                 hasMore={view === 'history' ? history.hasMore : false}
                 onLoadMore={view === 'history' ? history.loadMore : undefined}

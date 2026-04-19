@@ -3,6 +3,7 @@
 import { PHASE_STYLE, type Bias, type IndexName, type MarketPhase } from '@/domain/market';
 import { unlockAudio } from '@/lib/audio';
 import type { TokenStatus } from '@/hooks/useTokenStatus';
+import { ViewToggle } from '@/components/ui/ViewToggle';
 
 const PHASE_TITLES: Record<string, string> = {
   DRIVE_WINDOW: '9:15-9:45. High-momentum open; trend entries need fast confirmation.',
@@ -20,6 +21,11 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   tokenStatus?: TokenStatus | null;
+  viewMode: 'card' | 'table';
+  onViewMode: (v: 'card' | 'table') => void;
+  showViewToggle: boolean;
+  showHelp: boolean;
+  onToggleHelp: () => void;
 }
 
 function ThemeIcon({ theme }: { theme: 'dark' | 'light' }) {
@@ -90,7 +96,7 @@ function tokenMeta(tokenStatus?: TokenStatus | null) {
   return { label: `Token ${days}d`, color: 'rgb(var(--bull))', title: `Expires ${expires.toLocaleString()}` };
 }
 
-export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus }: HeaderProps) {
+export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus, viewMode, onViewMode, showViewToggle, showHelp, onToggleHelp }: HeaderProps) {
   const ps = PHASE_STYLE[phase] ?? PHASE_STYLE['--'];
   const token = tokenMeta(tokenStatus);
 
@@ -134,6 +140,21 @@ export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus }
           </span>
 
           <span className="chip num">{clock}</span>
+
+          {showViewToggle && <ViewToggle view={viewMode} onChange={onViewMode} />}
+
+          <button
+            type="button"
+            onClick={event => { event.stopPropagation(); onToggleHelp(); }}
+            title={showHelp ? 'Hide glossary' : 'Show glossary'}
+            aria-label={showHelp ? 'Hide glossary' : 'Show glossary'}
+            className={`icon-btn ${showHelp ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9.5 9a2.7 2.7 0 1 1 4.4 2.1c-.9.7-1.4 1.1-1.4 2.4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+          </button>
 
           <button
             type="button"
