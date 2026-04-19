@@ -30,8 +30,8 @@ class ScoreReadMixin:
                     ds.is_watchlist, ds.computed_at,
                     sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
-                    sm.bb_squeeze, sm.squeeze_days, sm.nr7,
-                    sm.adx_14, sm.rsi_14, sm.weekly_bias
+                    ds.bb_squeeze, ds.squeeze_days, ds.nr7,
+                    ds.adx_14, ds.rsi_14, ds.weekly_bias
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
