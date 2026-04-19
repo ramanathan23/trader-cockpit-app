@@ -116,11 +116,12 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
     if (!containerRef.current) return;
 
     // Volume pane gets ~20% of total height
-    const volHeight = Math.round(height * 0.20);
-    const priceHeight = height - volHeight;
+    const numHeight = typeof height === 'number' ? height : parseInt(height as string, 10);
+    const volHeight = Math.round(numHeight * 0.20);
+    const priceHeight = numHeight - volHeight;
 
     const chart = createChart(containerRef.current, {
-      height,
+      height: numHeight,
       layout: {
         background: { color: 'transparent' },
         textColor: 'rgb(116, 142, 170)',
