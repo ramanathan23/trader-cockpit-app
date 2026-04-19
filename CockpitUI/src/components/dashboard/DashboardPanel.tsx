@@ -18,7 +18,8 @@ type SortKey =
   | 'structure_score'
   | 'adx_14'
   | 'rsi_14'
-  | 'adv_20_cr';
+  | 'adv_20_cr'
+  | 'comfort_score';
 
 type Segment = 'all' | 'fno' | 'equity';
 type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
@@ -41,6 +42,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'adv_20_cr', label: 'ADV', title: 'Average daily value', align: 'right', sortable: true },
   { key: 'weekly', label: 'W', title: 'Weekly bias', align: 'center', sortable: false },
   { key: 'close', label: 'Close', title: 'Previous close', align: 'right', sortable: false },
+  { key: 'comfort_score', label: 'Comfort', title: 'Comfort score (hold ease)', align: 'right', sortable: true },
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
 ];
 
@@ -321,6 +323,11 @@ function ScoreCard({
         <span className="num text-ghost">ADX <span className="text-fg">{row.adx_14 != null ? row.adx_14.toFixed(0) : '-'}</span></span>
         <span className="num text-ghost">RSI <span style={{ color: rsiColor(row.rsi_14) }}>{row.rsi_14 != null ? row.rsi_14.toFixed(0) : '-'}</span></span>
         <span className="num text-ghost">ADV <span className="text-fg">{fmtAdv(row.adv_20_cr)}</span></span>
+        {row.comfort_score != null && (
+          <span className="num text-ghost" title={row.comfort_interpretation ?? undefined}>
+            C <span style={{ color: comfortColor(row.comfort_score) }}>{row.comfort_score.toFixed(0)}</span>
+          </span>
+        )}
         <span
           className="num font-black"
           style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
@@ -370,6 +377,9 @@ function ScoreRow({
         <td className="text-center font-black" style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}>
           {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '-'}
         </td>
+        <td className="text-right num" title={row.comfort_interpretation ?? undefined} style={{ color: comfortColor(row.comfort_score) }}>
+          {row.comfort_score != null ? row.comfort_score.toFixed(0) : '-'}
+        </td>
         <td className="text-right num text-dim">{fmt2(row.prev_day_close)}</td>
         <td className="text-center">
           <button
@@ -409,6 +419,15 @@ function ScoreBar({ value, color, label }: { value: number; color: string; label
       </div>
     </div>
   );
+}
+
+function comfortColor(v: number | null | undefined): string {
+  if (v == null) return 'rgb(var(--ghost))';
+  if (v >= 80) return 'rgb(var(--bull))';
+  if (v >= 65) return 'rgb(var(--accent))';
+  if (v >= 50) return 'rgb(var(--amber))';
+  if (v >= 35) return 'rgb(var(--bear))';
+  return 'rgb(var(--bear))';
 }
 
 function rsiColor(v: number | null | undefined): string {

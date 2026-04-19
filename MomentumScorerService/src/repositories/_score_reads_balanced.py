@@ -30,11 +30,16 @@ class ScoreReadBalancedMixin:
                     sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     sm.bb_squeeze, sm.squeeze_days, sm.nr7,
-                    sm.adx_14, sm.rsi_14, sm.weekly_bias"""
+                    sm.adx_14, sm.rsi_14, sm.weekly_bias,
+                    (mp.predictions->>'comfort_score')::numeric AS comfort_score,
+                    mp.predictions->>'interpretation' AS comfort_interpretation"""
             base_join = """
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
-                LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol"""
+                LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
+                LEFT JOIN model_predictions mp ON mp.symbol = ds.symbol
+                    AND mp.model_name = 'comfort_scorer'
+                    AND mp.prediction_date = ds.score_date"""
 
             limit_param = "$2" if score_date else "$1"
 

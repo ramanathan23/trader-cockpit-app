@@ -39,6 +39,8 @@ export interface ScoredSymbol {
   adx_14:           number | null;
   rsi_14:           number | null;
   weekly_bias:      string | null;
+  comfort_score:          number | null;
+  comfort_interpretation: string | null;
 }
 
 export interface DashboardResponse {

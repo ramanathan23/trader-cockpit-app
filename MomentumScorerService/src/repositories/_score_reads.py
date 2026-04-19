@@ -31,10 +31,15 @@ class ScoreReadMixin:
                     sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     ds.bb_squeeze, ds.squeeze_days, ds.nr7,
-                    ds.adx_14, ds.rsi_14, ds.weekly_bias
+                    ds.adx_14, ds.rsi_14, ds.weekly_bias,
+                    (mp.predictions->>'comfort_score')::numeric AS comfort_score,
+                    mp.predictions->>'interpretation' AS comfort_interpretation
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
+                LEFT JOIN model_predictions mp ON mp.symbol = ds.symbol
+                    AND mp.model_name = 'comfort_scorer'
+                    AND mp.prediction_date = ds.score_date
                 WHERE {date_clause}
                 {watchlist_clause}
                 {fno_clause}
