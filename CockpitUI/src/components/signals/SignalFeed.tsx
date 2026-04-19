@@ -5,8 +5,8 @@ import { Activity } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterSignals, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
-import { DailyChart } from '@/components/dashboard/DailyChart';
-import { OptionChainPanel } from '@/components/dashboard/OptionChainPanel';
+import { SymbolModal } from '@/components/dashboard/SymbolModal';
+import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
 import { SignalCard } from './SignalCard';
 import { SignalRow } from './SignalRow';
 
@@ -113,49 +113,6 @@ const LatestSignalsBar = memo(({ signals, metricsCache, onChart }: {
 });
 LatestSignalsBar.displayName = 'LatestSignalsBar';
 
-function ChartModal({
-  symbol,
-  metrics,
-  onClose,
-  onOptionChain,
-}: {
-  symbol: string;
-  metrics?: InstrumentMetrics | null;
-  onClose: () => void;
-  onOptionChain: () => void;
-}) {
-  return (
-    <div
-      className="modal-backdrop"
-      onClick={onClose}
-      onKeyDown={event => { if (event.key === 'Escape') onClose(); }}
-      tabIndex={-1}
-    >
-      <div
-        className="surface-card max-h-[92vh] overflow-hidden"
-        style={{ width: 940, maxWidth: '96vw' }}
-        onClick={event => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[15px] font-black text-fg">{symbol}</span>
-            {metrics?.is_fno && <span className="chip" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            {metrics?.is_fno && (
-              <button type="button" onClick={onOptionChain} className="seg-btn active" style={{ color: 'rgb(var(--accent))' }}>
-                OC
-              </button>
-            )}
-            <button type="button" onClick={onClose} className="icon-btn h-8 w-8" title="Close" aria-label="Close">x</button>
-          </div>
-        </div>
-        <DailyChart symbol={symbol} height={460} />
-      </div>
-    </div>
-  );
-}
-
 export const SignalFeed = memo(({
   signals,
   metricsCache,
@@ -171,8 +128,8 @@ export const SignalFeed = memo(({
   onLoadMore,
 }: SignalFeedProps) => {
   const [noteModalId, setNoteModalId] = useState<string | null>(null);
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [ocSymbol, setOcSymbol] = useState<string | null>(null);
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<SymbolModalTab>('chart');
 
   const filtered = useMemo(
     () => filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly),
@@ -197,8 +154,14 @@ export const SignalFeed = memo(({
   }, [hasMore, onLoadMore]);
 
   const openNote = useCallback((id: string) => setNoteModalId(id), []);
-  const openChart = useCallback((sym: string) => setChartSymbol(sym), []);
-  const openOC = useCallback((sym: string) => setOcSymbol(sym), []);
+  const openChart = useCallback((sym: string) => {
+    setDetailSymbol(sym);
+    setDetailTab('chart');
+  }, []);
+  const openOC = useCallback((sym: string) => {
+    setDetailSymbol(sym);
+    setDetailTab('oc');
+  }, []);
 
   if (filtered.length === 0) {
     return (
@@ -221,18 +184,13 @@ export const SignalFeed = memo(({
           onClose={() => setNoteModalId(null)}
         />
       )}
-      {chartSymbol && (
-        <ChartModal
-          symbol={chartSymbol}
-          metrics={metricsCache[chartSymbol]}
-          onClose={() => setChartSymbol(null)}
-          onOptionChain={() => {
-            setChartSymbol(null);
-            setOcSymbol(chartSymbol);
-          }}
+      {detailSymbol && (
+        <SymbolModal
+          symbol={detailSymbol}
+          initialTab={detailTab}
+          onClose={() => setDetailSymbol(null)}
         />
       )}
-      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} />}
     </>
   );
 

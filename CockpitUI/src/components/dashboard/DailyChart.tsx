@@ -15,7 +15,7 @@ import type { OHLCBar } from '@/domain/chart';
 
 interface DailyChartProps {
   symbol: string;
-  height?: number;
+  height?: number | string;
 }
 
 function computeEMA(bars: OHLCBar[], period: number): { time: string; value: number }[] {

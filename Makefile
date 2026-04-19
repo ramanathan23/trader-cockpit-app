@@ -1,6 +1,15 @@
 PYTHON ?= python
 
-.PHONY: up down build logs shell-db sync sync-1min reset-1min sync-all scores-top scores-compute comfort-score comfort-score-date feed-status dhan-map dhan-status ui test-python coverage-python
+.PHONY: up down build logs shell-db \
+        sync sync-1min reset-1min sync-all sync-gaps sync-status \
+        symbols-load dhan-map dhan-status \
+        metrics-recompute \
+        scores-compute scores-top scores-dashboard \
+        comfort-score comfort-score-date \
+        models-list \
+        feed-status token-status screener \
+        notebooks ui \
+        test-python coverage-python
 
 up:
 	docker compose up -d --build --remove-orphans
@@ -17,6 +26,8 @@ logs:
 # Database shell
 shell-db:
 	docker compose run --rm --entrypoint sh db-init -lc 'psql -h "$${PGHOST}" -p "$${PGPORT}" -U "$${DB_USER}" -d "$${DB_NAME}"'
+
+# ── DataSyncService (8001) ────────────────────────────────────────────────────
 
 # Daily sync — auto-classifies every symbol (initial pull / gap fill / skip)
 sync:
@@ -46,9 +57,33 @@ sync-status:
 symbols-load:
 	curl -s -X POST http://localhost:8001/api/v1/symbols/load | python -m json.tool
 
+# Download Dhan instrument master and sync security IDs into DB
+dhan-map:
+	curl -s -X POST http://localhost:8001/api/v1/symbols/refresh-master | python -m json.tool
+
+# Check Dhan mapping coverage (how many of 2000+ stocks have a security ID)
+dhan-status:
+	curl -s http://localhost:8001/api/v1/symbols/dhan-status | python -m json.tool
+
+# Recompute symbol_metrics from price_data_daily
+metrics-recompute:
+	curl -s -X POST http://localhost:8001/api/v1/metrics/recompute | python -m json.tool
+
+# ── MomentumScorerService (8002) ──────────────────────────────────────────────
+
 # Trigger momentum score computation
 scores-compute:
 	curl -s -X POST http://localhost:8002/api/v1/scores/compute | python -m json.tool
+
+# Scoring dashboard — stats + top 20 scored symbols
+scores-top:
+	curl -s "http://localhost:8002/api/v1/dashboard?limit=20" | python -m json.tool
+
+# Full scoring dashboard (stats + symbols, default limit 50)
+scores-dashboard:
+	curl -s "http://localhost:8002/api/v1/dashboard" | python -m json.tool
+
+# ── ModelingService (8004) ────────────────────────────────────────────────────
 
 # Compute and persist comfort scores for all symbols (today's date)
 comfort-score:
@@ -58,27 +93,35 @@ comfort-score:
 comfort-score-date:
 	curl -s -X POST "http://localhost:8004/api/v1/models/comfort_scorer/score-all?score_date=$(DATE)" | python -m json.tool
 
-# Top 20 momentum scores
-scores-top:
-	curl -s "http://localhost:8002/api/v1/scores?limit=20" | python -m json.tool
+# List all registered models
+models-list:
+	curl -s "http://localhost:8004/api/v1/models" | python -m json.tool
 
-# ── Live Feed ─────────────────────────────────────────────────────────────────
-
-# Download Dhan instrument master and sync security IDs into DB
-dhan-map:
-	curl -s -X POST http://localhost:8001/api/v1/symbols/refresh-master | python -m json.tool
-
-# Check Dhan mapping coverage (how many of 2000+ stocks have a security ID)
-dhan-status:
-	curl -s http://localhost:8001/api/v1/symbols/dhan-status | python -m json.tool
+# ── LiveFeedService (8003) ────────────────────────────────────────────────────
 
 # Live feed health: instrument count, WebSocket connections, index bias
 feed-status:
 	curl -s http://localhost:8003/api/v1/status | python -m json.tool
 
+# Dhan access token presence and expiry
+token-status:
+	curl -s http://localhost:8003/api/v1/token/status | python -m json.tool
+
+# All instruments with pre-computed daily metrics for screening
+screener:
+	curl -s "http://localhost:8003/api/v1/screener" | python -m json.tool
+
+# ── UI / Notebooks ────────────────────────────────────────────────────────────
+
 # Open trading dashboard in default browser (Windows)
 ui:
 	start http://localhost:8003/api/v1/ui
+
+# Open Jupyter notebooks in default browser (Windows)
+notebooks:
+	start http://localhost:8888
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
 
 test-python:
 	$(PYTHON) scripts/run_python_tests.py --no-report

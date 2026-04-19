@@ -10,6 +10,7 @@ interface ScreenerCardsProps {
   loading: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  onChart?: (sym: string) => void;
 }
 
 function colorForPct(value?: number | null, invert = false): string {
@@ -27,12 +28,12 @@ function pctText(value?: number | null, forcePlus = false): string {
   return `${prefix}${value.toFixed(1)}%`;
 }
 
-const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
+const ScreenerCard = memo(({ row: r, onChart }: { row: ScreenerRow; onChart?: (sym: string) => void }) => {
   const f52hColor = r.f52h == null ? 'rgb(var(--ghost))' : r.f52h >= -2 ? 'rgb(var(--bull))' : r.f52h >= -10 ? 'rgb(var(--amber))' : 'rgb(var(--bear))';
   const f52lColor = r.f52l == null ? 'rgb(var(--ghost))' : r.f52l > 50 ? 'rgb(var(--bull))' : r.f52l > 20 ? 'rgb(var(--amber))' : r.f52l > 5 ? 'rgb(var(--fg))' : 'rgb(var(--bear))';
 
   return (
-    <article className="surface-card p-3 transition-colors hover:bg-lift">
+    <article className="surface-card p-3 transition-colors hover:bg-lift cursor-pointer" onClick={() => onChart?.(r.symbol)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-ticker text-fg">{r.symbol}</div>
@@ -93,7 +94,7 @@ function RangeMetric({ label, value, color, pct }: { label: string; value: strin
   );
 }
 
-export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore }: ScreenerCardsProps) => {
+export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart }: ScreenerCardsProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = useCallback(() => {
@@ -113,7 +114,7 @@ export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore }: Scree
   return (
     <div ref={parentRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {rows.map(row => <ScreenerCard key={row.symbol} row={row} />)}
+        {rows.map(row => <ScreenerCard key={row.symbol} row={row} onChart={onChart} />)}
       </div>
     </div>
   );

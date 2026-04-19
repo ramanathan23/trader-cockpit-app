@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, RotateCcw } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDashboard } from '@/hooks/useDashboard';
-import { DailyChart } from './DailyChart';
-import { OptionChainPanel } from './OptionChainPanel';
+import { ClusterChart } from './ClusterChart';
+import { SymbolModal } from './SymbolModal';
+import type { SymbolModalTab } from './SymbolModal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
 import type { ScoredSymbol } from '@/domain/dashboard';
 
@@ -26,7 +27,7 @@ type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
 
 interface DashboardPanelProps {
   active: boolean;
-  viewMode: 'card' | 'table';
+  viewMode: 'card' | 'table' | 'cluster';
 }
 
 const HEADERS: { key: string; label: string; title: string; align: 'left' | 'right' | 'center'; sortable: boolean }[] = [
@@ -54,8 +55,13 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('total_score');
   const [sortAsc, setSortAsc] = useState(false);
-  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-  const [ocSymbol, setOcSymbol] = useState<string | null>(null);
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<SymbolModalTab>('chart');
+
+  const openDetail = useCallback((sym: string, tab: SymbolModalTab = 'chart') => {
+    setDetailSymbol(sym);
+    setDetailTab(tab);
+  }, []);
 
   useEffect(() => {
     if (active && !fetched && !loading) loadDashboard({ watchlistOnly });
@@ -86,8 +92,11 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
     if (q) rows = rows.filter(row => row.symbol.includes(q) || row.company_name?.toUpperCase().includes(q));
 
     return [...rows].sort((a, b) => {
-      const av = a[sortKey] ?? 0;
-      const bv = b[sortKey] ?? 0;
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
       return sortAsc ? Number(av) - Number(bv) : Number(bv) - Number(av);
     });
   }, [scores, segment, biasFilter, query, sortKey, sortAsc]);
@@ -101,7 +110,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: index => expandedSymbol === filtered[index]?.symbol ? 324 : 44,
+    estimateSize: () => 44,
     overscan: 12,
   });
 
@@ -170,7 +179,9 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
         </div>
       </div>
 
-      {viewMode === 'card' ? (
+      {viewMode === 'cluster' ? (
+        <ClusterChart scores={filtered} loading={loading} />
+      ) : viewMode === 'card' ? (
         <div className="flex-1 overflow-y-auto p-4">
           {filtered.length === 0 && !loading && (
             <div className="flex h-48 items-center justify-center text-[13px] text-dim">
@@ -182,9 +193,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
               <ScoreCard
                 key={row.symbol}
                 row={row}
-                expanded={expandedSymbol === row.symbol}
-                onToggle={symbol => setExpandedSymbol(prev => prev === symbol ? null : symbol)}
-                onOptionChain={setOcSymbol}
+                onOpen={openDetail}
               />
             ))}
           </div>
@@ -229,9 +238,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
                   <ScoreRow
                     key={row.symbol}
                     row={row}
-                    expanded={expandedSymbol === row.symbol}
-                    onToggle={symbol => setExpandedSymbol(prev => prev === symbol ? null : symbol)}
-                    onOptionChain={setOcSymbol}
+                    onOpen={openDetail}
                   />
                 );
               })}
@@ -257,7 +264,13 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
         </span>
       </div>
 
-      {ocSymbol && <OptionChainPanel symbol={ocSymbol} onClose={() => setOcSymbol(null)} />}
+      {detailSymbol && (
+        <SymbolModal
+          symbol={detailSymbol}
+          initialTab={detailTab}
+          onClose={() => setDetailSymbol(null)}
+        />
+      )}
     </div>
   );
 }
@@ -274,19 +287,15 @@ function StatCard({ label, value, tone }: { label: string; value: string | numbe
 
 function ScoreCard({
   row,
-  expanded,
-  onToggle,
-  onOptionChain,
+  onOpen,
 }: {
   row: ScoredSymbol;
-  expanded: boolean;
-  onToggle: (sym: string) => void;
-  onOptionChain: (sym: string) => void;
+  onOpen: (sym: string, tab?: 'chart' | 'oc') => void;
 }) {
   return (
     <div
-      className={`rounded-lg border border-border bg-panel p-3 cursor-pointer transition-colors hover:border-accent/40 hover:bg-lift/60 ${expanded ? 'border-accent/40 bg-lift' : ''}`}
-      onClick={() => onToggle(row.symbol)}
+      className="rounded-lg border border-border bg-panel p-3 cursor-pointer transition-colors hover:border-accent/40 hover:bg-lift/60"
+      onClick={() => onOpen(row.symbol, 'chart')}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -303,7 +312,7 @@ function ScoreCard({
           <span className="num text-[10px] text-ghost">#{row.rank}</span>
           <button
             type="button"
-            onClick={event => { event.stopPropagation(); onOptionChain(row.symbol); }}
+            onClick={event => { event.stopPropagation(); onOpen(row.symbol, 'oc'); }}
             className="text-[10px] font-black text-accent opacity-60 hover:opacity-100"
             title="View option chain"
           >
@@ -336,25 +345,20 @@ function ScoreCard({
         </span>
       </div>
 
-      {expanded && <DailyChart symbol={row.symbol} height={200} />}
     </div>
   );
 }
 
 function ScoreRow({
   row,
-  expanded,
-  onToggle,
-  onOptionChain,
+  onOpen,
 }: {
   row: ScoredSymbol;
-  expanded: boolean;
-  onToggle: (sym: string) => void;
-  onOptionChain: (sym: string) => void;
+  onOpen: (sym: string, tab?: 'chart' | 'oc') => void;
 }) {
   return (
     <>
-      <tr className={`group cursor-pointer ${expanded ? 'bg-lift' : ''}`} onClick={() => onToggle(row.symbol)}>
+      <tr className="group cursor-pointer" onClick={() => onOpen(row.symbol, 'chart')}>
         <td className="text-center num text-dim">{row.rank}</td>
         <td className="whitespace-nowrap">
           <div className="flex items-center gap-2">
@@ -386,7 +390,7 @@ function ScoreRow({
             type="button"
             onClick={event => {
               event.stopPropagation();
-              onOptionChain(row.symbol);
+              onOpen(row.symbol, 'oc');
             }}
             className="text-[10px] font-black text-accent opacity-0 transition-opacity group-hover:opacity-100"
             title="View option chain"
@@ -395,13 +399,6 @@ function ScoreRow({
           </button>
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={HEADERS.length} className="bg-base p-0">
-            <DailyChart symbol={row.symbol} height={280} />
-          </td>
-        </tr>
-      )}
     </>
   );
 }

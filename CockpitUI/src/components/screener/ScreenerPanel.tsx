@@ -1,20 +1,23 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useScreener } from '@/hooks/useScreener';
 import { computeBreadthStats } from '@/domain/screener';
 import { ScreenerFilters } from './ScreenerFilters';
 import { ScreenerTable } from './ScreenerTable';
 import { ScreenerCards } from './ScreenerCards';
 import { ScreenerStatsBar } from './ScreenerStatsBar';
+import { SymbolModal } from '@/components/dashboard/SymbolModal';
 
 interface ScreenerPanelProps {
   active: boolean;
-  viewMode: 'card' | 'table';
-  onViewMode: (v: 'card' | 'table') => void;
+  viewMode: 'card' | 'table' | 'cluster';
+  onViewMode: (v: 'card' | 'table' | 'cluster') => void;
 }
 
 export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelProps) {
+  // cluster is dashboard-only; screener treats it as card
+  const effectiveMode: 'card' | 'table' = viewMode === 'table' ? 'table' : 'card';
 
   const {
     rows, filteredRows, loading, hasMore,
@@ -27,6 +30,7 @@ export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelPro
     totalCount,
   } = useScreener();
 
+  const [detailSymbol, setDetailSymbol] = useState<string | null>(null);
   const breadth = useMemo(() => computeBreadthStats(rows), [rows]);
 
   // Auto-load on first activation
@@ -50,10 +54,14 @@ export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelPro
 
       <ScreenerStatsBar stats={breadth} total={totalCount} />
 
-      {viewMode === 'table'
-        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
-        : <ScreenerCards rows={filteredRows} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
+      {effectiveMode === 'table'
+        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} />
+        : <ScreenerCards rows={filteredRows} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} />
       }
+
+      {detailSymbol && (
+        <SymbolModal symbol={detailSymbol} initialTab="chart" onClose={() => setDetailSymbol(null)} />
+      )}
     </div>
   );
 }
