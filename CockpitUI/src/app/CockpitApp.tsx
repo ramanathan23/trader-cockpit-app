@@ -13,9 +13,10 @@ import { SignalToolbar } from '@/components/signals/SignalToolbar';
 import { SignalFeed } from '@/components/signals/SignalFeed';
 import { ScreenerPanel } from '@/components/screener/ScreenerPanel';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { AdminPanel } from '@/components/admin/AdminPanel';
 import { ConnectionDot } from '@/components/ui/ConnectionDot';
 
-type AppView = 'dashboard' | 'live' | 'history' | 'screener';
+type AppView = 'dashboard' | 'live' | 'history' | 'screener' | 'admin';
 type ThemeMode = 'dark' | 'light';
 
 const VIEWS: { key: AppView; label: string; caption: string }[] = [
@@ -23,6 +24,7 @@ const VIEWS: { key: AppView; label: string; caption: string }[] = [
   { key: 'live', label: 'Live', caption: 'Signal tape' },
   { key: 'history', label: 'History', caption: 'Replay session' },
   { key: 'screener', label: 'Screener', caption: 'Opportunity scan' },
+  { key: 'admin', label: 'Admin', caption: 'Trigger jobs' },
 ];
 
 function HistoryBar({
@@ -234,7 +236,9 @@ export function CockpitApp() {
               />
             )}
 
-            {view === 'dashboard' ? (
+            {view === 'admin' ? (
+              <AdminPanel />
+            ) : view === 'dashboard' ? (
               <DashboardPanel active={view === 'dashboard'} />
             ) : view === 'screener' ? (
               <ScreenerPanel active={view === 'screener'} viewMode={screenerViewMode} onViewMode={setScreenerViewMode} />

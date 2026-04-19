@@ -73,8 +73,8 @@ interface SignalToolbarProps {
   onClear: () => void;
   viewMode: 'card' | 'table';
   onViewMode: (v: 'card' | 'table') => void;
-  activeView: 'dashboard' | 'live' | 'history' | 'screener';
-  onViewChange: (v: 'dashboard' | 'live' | 'history' | 'screener') => void;
+  activeView: 'dashboard' | 'live' | 'history' | 'screener' | 'admin';
+  onViewChange: (v: 'dashboard' | 'live' | 'history' | 'screener' | 'admin') => void;
   showHelp: boolean;
   onToggleHelp: () => void;
 }
@@ -114,7 +114,7 @@ export const SignalToolbar = memo(({
     <div className="shrink-0 border-b border-border bg-panel/88 px-3 py-3 xl:px-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="seg-group md:hidden">
-          {(['dashboard', 'live', 'history', 'screener'] as const).map(view => (
+          {(['dashboard', 'live', 'history', 'screener', 'admin'] as const).map(view => (
             <button
               key={view}
               type="button"
@@ -231,7 +231,7 @@ export const SignalToolbar = memo(({
             </>
           )}
 
-          {activeView !== 'dashboard' && <ViewToggle view={viewMode} onChange={onViewMode} />}
+          {activeView !== 'dashboard' && activeView !== 'admin' && <ViewToggle view={viewMode} onChange={onViewMode} />}
 
           <button
             type="button"
