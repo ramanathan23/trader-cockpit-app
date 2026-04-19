@@ -326,7 +326,6 @@ CREATE TABLE IF NOT EXISTS daily_scores (
     rank                INTEGER,
     is_watchlist        BOOLEAN       NOT NULL DEFAULT FALSE,
     computed_at         TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-    comfort_score       NUMERIC(6,2),
     -- Embedded indicator snapshot (eliminates look-ahead bias in ML training)
     rsi_14              NUMERIC(8,4),
     macd_hist           NUMERIC(12,6),
@@ -358,9 +357,6 @@ CREATE INDEX IF NOT EXISTS idx_daily_scores_watchlist
 
 CREATE INDEX IF NOT EXISTS idx_daily_scores_total
     ON daily_scores (score_date DESC, total_score DESC);
-
-CREATE INDEX IF NOT EXISTS idx_daily_scores_comfort
-    ON daily_scores (score_date DESC, comfort_score DESC);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- LiveFeedService
