@@ -1,176 +1,119 @@
 'use client';
 
-import { memo, useRef, useMemo, useCallback } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { memo, useCallback, useRef } from 'react';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
 
 interface ScreenerCardsProps {
-  rows:       ScreenerRow[];
-  loading:    boolean;
-  hasMore?:   boolean;
+  rows: ScreenerRow[];
+  loading: boolean;
+  hasMore?: boolean;
   onLoadMore?: () => void;
 }
 
-const ProximityBar = memo(({ pct, inverted = false }: { pct?: number | null; inverted?: boolean }) => {
-  if (pct == null) return null;
-  const raw   = inverted ? Math.min(0, pct) : pct;
-  const width = Math.min(100, Math.abs(raw));
-  const color = inverted
-    ? (raw >= -2 ? '#0dbd7d' : raw >= -10 ? '#e8933a' : '#f23d55')
-    : (raw > 50  ? '#0dbd7d' : raw > 20   ? '#e8933a' : '#f23d55');
+function colorForPct(value?: number | null, invert = false): string {
+  if (value == null) return 'rgb(var(--ghost))';
+  const score = invert ? -value : value;
+  if (score >= 2) return 'rgb(var(--bull))';
+  if (score >= 0) return 'rgb(var(--fg))';
+  if (score >= -3) return 'rgb(var(--amber))';
+  return 'rgb(var(--bear))';
+}
 
-  return (
-    <div className="w-full rounded-full h-[3px] overflow-hidden" style={{ background: '#172035' }}>
-      <div className="h-[3px] rounded-full transition-all" style={{ width: `${width}%`, background: color }} />
-    </div>
-  );
-});
-ProximityBar.displayName = 'ProximityBar';
+function pctText(value?: number | null, forcePlus = false): string {
+  if (value == null) return '-';
+  const prefix = value > 0 || (forcePlus && value >= 0) ? '+' : '';
+  return `${prefix}${value.toFixed(1)}%`;
+}
 
 const ScreenerCard = memo(({ row: r }: { row: ScreenerRow }) => {
-  const f52hColor = r.f52h == null ? '#2a3f58' : r.f52h >= -2 ? '#0dbd7d' : r.f52h >= -10 ? '#e8933a' : '#f23d55';
-  const f52lColor = r.f52l == null ? '#2a3f58' : r.f52l > 50  ? '#0dbd7d' : r.f52l > 20   ? '#e8933a' : '#f23d55';
-  const dvwapColor = r.dvwap_delta_pct == null ? '#2a3f58' : r.dvwap_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
-  const ema50Color = r.ema50_delta_pct == null ? '#2a3f58' : r.ema50_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
-  const ema200Color = r.ema200_delta_pct == null ? '#2a3f58' : r.ema200_delta_pct >= 0 ? '#0dbd7d' : '#f23d55';
+  const f52hColor = r.f52h == null ? 'rgb(var(--ghost))' : r.f52h >= -2 ? 'rgb(var(--bull))' : r.f52h >= -10 ? 'rgb(var(--amber))' : 'rgb(var(--bear))';
+  const f52lColor = r.f52l == null ? 'rgb(var(--ghost))' : r.f52l > 50 ? 'rgb(var(--bull))' : r.f52l > 20 ? 'rgb(var(--amber))' : r.f52l > 5 ? 'rgb(var(--fg))' : 'rgb(var(--bear))';
 
   return (
-    <div className="w-44 rounded-md border border-border bg-card hover:bg-lift transition-colors p-3 flex flex-col gap-2.5">
-      {/* Symbol + ADV */}
-      <div className="flex items-start justify-between">
-        <span className="font-bold text-[13px] tracking-wide text-fg">{r.symbol}</span>
+    <article className="surface-card p-3 transition-colors hover:bg-lift">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-ticker text-fg">{r.symbol}</div>
+          <div className="mt-1 text-[10px] text-ghost">ATR {r.atr_14 != null ? r.atr_14.toFixed(2) : '-'}</div>
+        </div>
         {r.adv_20_cr != null && (
-          <span
-            className="num text-[9px] font-bold px-1.5 py-0.5 rounded-sm"
-            style={{ color: advColor(r.adv_20_cr), background: `${advColor(r.adv_20_cr)}15` }}
-          >
-            {fmtAdv(r.adv_20_cr)}
-          </span>
+          <span className="chip" style={{ color: advColor(r.adv_20_cr) }}>{fmtAdv(r.adv_20_cr)}</span>
         )}
       </div>
 
-      {/* Close price + ATR */}
-      <div className="flex items-baseline gap-2">
-        <span className="num font-bold text-[15px] text-fg tabular-nums">{fmt2(r.display_price)}</span>
-        {r.atr_14 != null && (
-          <span className="text-[9px]" style={{ color: '#2a3f58' }}>
-            ATR <span className="num" style={{ color: '#e8933a' }}>{r.atr_14.toFixed(2)}</span>
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-1 text-[9px]">
-        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: dvwapColor, background: `${dvwapColor}15` }}>
-          DV {r.dvwap_delta_pct != null ? `${r.dvwap_delta_pct >= 0 ? '+' : ''}${r.dvwap_delta_pct.toFixed(1)}%` : '—'}
-        </span>
-        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: ema50Color, background: `${ema50Color}15` }}>
-          50E {r.ema50_delta_pct != null ? `${r.ema50_delta_pct >= 0 ? '+' : ''}${r.ema50_delta_pct.toFixed(1)}%` : '—'}
-        </span>
-        <span className="rounded-sm px-1.5 py-1 text-center font-bold" style={{ color: ema200Color, background: `${ema200Color}15` }}>
-          200E {r.ema200_delta_pct != null ? `${r.ema200_delta_pct >= 0 ? '+' : ''}${r.ema200_delta_pct.toFixed(1)}%` : '—'}
+      <div className="mt-4 flex items-baseline justify-between gap-3">
+        <span className="num text-[18px] font-black text-fg">{fmt2(r.display_price)}</span>
+        <span className="num text-[11px] font-black" style={{ color: colorForPct(r.week_return_pct) }}>
+          WK {pctText(r.week_return_pct, true)}
         </span>
       </div>
 
-      {/* 52H proximity */}
-      <div>
-        <div className="flex justify-between text-[9px] mb-1">
-          <span style={{ color: '#1e2e4a' }}>52H%</span>
-          <span className="num font-bold" style={{ color: f52hColor }}>
-            {r.f52h != null ? (r.f52h >= 0 ? '+' : '') + r.f52h.toFixed(1) + '%' : '—'}
-          </span>
-        </div>
-        <ProximityBar pct={r.f52h} inverted />
+      <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+        <Metric label="DVWAP" value={pctText(r.dvwap_delta_pct, true)} color={colorForPct(r.dvwap_delta_pct)} />
+        <Metric label="50E" value={pctText(r.ema50_delta_pct, true)} color={colorForPct(r.ema50_delta_pct)} />
+        <Metric label="200E" value={pctText(r.ema200_delta_pct, true)} color={colorForPct(r.ema200_delta_pct)} />
       </div>
 
-      {/* 52L proximity */}
-      <div>
-        <div className="flex justify-between text-[9px] mb-1">
-          <span style={{ color: '#1e2e4a' }}>52L%</span>
-          <span className="num font-bold" style={{ color: f52lColor }}>
-            {r.f52l != null ? '+' + r.f52l.toFixed(1) + '%' : '—'}
-          </span>
-        </div>
-        <ProximityBar pct={r.f52l} />
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+        <RangeMetric label="52H" value={pctText(r.f52h)} color={f52hColor} pct={Math.min(100, Math.abs(r.f52h ?? 0))} />
+        <RangeMetric label="52L" value={r.f52l != null ? `+${r.f52l.toFixed(1)}%` : '-'} color={f52lColor} pct={Math.min(100, Math.abs(r.f52l ?? 0))} />
       </div>
 
-      <div className="grid grid-cols-3 gap-1 text-[9px]" style={{ color: '#1e2e4a' }}>
-        <span>WK <span className="num" style={{ color: '#5a7796' }}>{r.week_return_pct != null ? `${r.week_return_pct >= 0 ? '+' : ''}${r.week_return_pct.toFixed(1)}%` : '—'}</span></span>
-        <span>W+ <span className="num" style={{ color: '#5a7796' }}>{r.week_gain_pct != null ? `+${r.week_gain_pct.toFixed(1)}%` : '—'}</span></span>
-        <span>W- <span className="num" style={{ color: '#5a7796' }}>{r.week_decline_pct != null ? `${r.week_decline_pct.toFixed(1)}%` : '—'}</span></span>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-ghost">
+        <span>W+ <b className="num text-dim">{pctText(r.week_gain_pct, true)}</b></span>
+        <span>W- <b className="num text-dim">{pctText(r.week_decline_pct)}</b></span>
       </div>
-    </div>
+    </article>
   );
 });
 ScreenerCard.displayName = 'ScreenerCard';
 
+function Metric({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-md border border-border bg-base/50 px-2 py-1.5 text-center">
+      <div className="text-[9px] font-black text-ghost">{label}</div>
+      <div className="num mt-0.5 font-black" style={{ color }}>{value}</div>
+    </div>
+  );
+}
+
+function RangeMetric({ label, value, color, pct }: { label: string; value: string; color: string; pct: number }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="font-black text-ghost">{label}</span>
+        <span className="num font-black" style={{ color }}>{value}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
 export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore }: ScreenerCardsProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
-
-  // Approximate cards per row: container ~full width, card ~176px + 12px gap
-  const COLS_PER_ROW = 8;
-  const ROW_HEIGHT = 220;
-
-  const chunkedRows = useMemo(() => {
-    const chunks: ScreenerRow[][] = [];
-    for (let i = 0; i < rows.length; i += COLS_PER_ROW) {
-      chunks.push(rows.slice(i, i + COLS_PER_ROW));
-    }
-    return chunks;
-  }, [rows]);
-
-  const rowVirtualizer = useVirtualizer({
-    count: chunkedRows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 3,
-  });
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
     if (!el || loading || !hasMore || !onLoadMore) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
-      onLoadMore();
-    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 420) onLoadMore();
   }, [loading, hasMore, onLoadMore]);
 
   if (loading && rows.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-xs animate-blink" style={{ color: '#2a3f58' }}>
-        Loading metrics…
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-xs gap-2" style={{ color: '#2a3f58' }}>
-        <span className="text-2xl opacity-20">⊞</span>
-        <span>No data — adjust filters</span>
-      </div>
-    );
+    return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">Loading metrics</div>;
   }
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
+  if (rows.length === 0) {
+    return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">No data matches the active filters.</div>;
+  }
 
   return (
     <div ref={parentRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
-      <div style={{ height: totalSize, position: 'relative' }}>
-        {virtualItems.map(vi => (
-          <div
-            key={vi.index}
-            style={{
-              position: 'absolute',
-              top: vi.start,
-              left: 0,
-              right: 0,
-            }}
-            className="flex flex-wrap gap-3"
-          >
-            {chunkedRows[vi.index].map(r => <ScreenerCard key={r.symbol} row={r} />)}
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {rows.map(row => <ScreenerCard key={row.symbol} row={row} />)}
       </div>
     </div>
   );

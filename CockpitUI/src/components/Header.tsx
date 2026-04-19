@@ -5,12 +5,12 @@ import { unlockAudio } from '@/lib/audio';
 import type { TokenStatus } from '@/hooks/useTokenStatus';
 
 const PHASE_TITLES: Record<string, string> = {
-  DRIVE_WINDOW:   'Drive Window (9:15–9:45): High-momentum open; best for trend-following entries',
-  EXECUTION:      'Execution Phase (9:45–11:30): Primary trading session; signals are most reliable here',
-  CLOSE_MOMENTUM: 'Close Momentum (2:30–3:15): Late-day directional move, often aligns with institutional flow',
-  SESSION_END:    'Session End (3:15–3:30): Last-minute order flows; avoid initiating new positions',
-  DEAD_ZONE:      'Dead Zone (11:30–2:30): Low conviction, sideways chop; reduce size and be selective',
-  '--':           'Market closed or phase data unavailable',
+  DRIVE_WINDOW: '9:15-9:45. High-momentum open; trend entries need fast confirmation.',
+  EXECUTION: '9:45-11:30. Primary execution window; signals have better context.',
+  DEAD_ZONE: '11:30-14:30. Lower conviction, more chop, stricter selection.',
+  CLOSE_MOMENTUM: '14:30-15:15. Late directional flow can resume.',
+  SESSION_END: '15:15-15:30. Avoid fresh risk unless already planned.',
+  '--': 'Market closed or phase unavailable.',
 };
 
 interface HeaderProps {
@@ -22,127 +22,132 @@ interface HeaderProps {
   tokenStatus?: TokenStatus | null;
 }
 
-export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus }: HeaderProps) {
-  const ps = PHASE_STYLE[phase] ?? PHASE_STYLE['--'];
-
-  // Compute human-readable expiry label
-  let tokenLabel = 'TOKEN';
-  let tokenColor = 'rgb(var(--ghost))';
-  let tokenTitle = 'Token status unknown';
-  if (tokenStatus) {
-    if (!tokenStatus.present) {
-      tokenLabel = 'NO TOKEN';
-      tokenColor = 'rgb(var(--bear))';
-      tokenTitle = 'Dhan access token not set';
-    } else if (tokenStatus.expired) {
-      tokenLabel = 'TOKEN EXPIRED';
-      tokenColor = 'rgb(var(--bear))';
-      tokenTitle = tokenStatus.expires_at
-        ? `Token expired at ${new Date(tokenStatus.expires_at).toLocaleString()}`
-        : 'Token is expired';
-    } else if (tokenStatus.expires_at) {
-      const exp = new Date(tokenStatus.expires_at);
-      const diffMs = exp.getTime() - Date.now();
-      const diffH  = Math.floor(diffMs / 3_600_000);
-      const diffM  = Math.floor((diffMs % 3_600_000) / 60_000);
-      if (diffH < 1) {
-        tokenLabel = `TOKEN ${diffM}m`;
-        tokenColor = 'rgb(var(--warn, 220 170 0))';
-      } else if (diffH < 24) {
-        tokenLabel = `TOKEN ${diffH}h`;
-        tokenColor = 'rgb(var(--bull))';
-      } else {
-        const diffD = Math.floor(diffH / 24);
-        tokenLabel = `TOKEN ${diffD}d`;
-        tokenColor = 'rgb(var(--bull))';
-      }
-      tokenTitle = `Token expires ${exp.toLocaleString()}`;
-    } else {
-      tokenLabel = 'TOKEN OK';
-      tokenColor = 'rgb(var(--bull))';
-      tokenTitle = 'Token present (no expiry info)';
-    }
+function ThemeIcon({ theme }: { theme: 'dark' | 'light' }) {
+  if (theme === 'dark') {
+    return (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M20 14.4A7.7 7.7 0 0 1 9.6 4a8.2 8.2 0 1 0 10.4 10.4Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
   }
 
   return (
-    <header
-      className="shrink-0 flex items-center justify-between gap-4 px-4 py-2.5 bg-panel border-b border-border z-20"
-      onClick={unlockAudio}
-      title="Click to unlock in-browser audio alerts"
-    >
-      {/* Brand */}
-      <div className="flex items-center gap-2.5">
-        {/* Accent dot */}
-        <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-        <h1 className="text-[11px] font-bold tracking-[0.22em] text-fg uppercase select-none">
-          Trader Cockpit
-        </h1>
-      </div>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 5V3m0 18v-2M5 12H3m18 0h-2M6.3 6.3 4.9 4.9m14.2 14.2-1.4-1.4m0-11.4 1.4-1.4M4.9 19.1l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-      <div className="flex items-center gap-3 sm:gap-5">
-        {/* Index bias — icon + name */}
-        <div className="hidden sm:flex items-center gap-4">
-          {(['nifty', 'banknifty', 'sensex'] as IndexName[]).map(idx => {
-            const b = bias[idx];
-            const up = b === 'BULLISH', dn = b === 'BEARISH';
-            return (
-              <div key={idx} className="flex items-center gap-1.5">
-                <span
-                  className="text-[9px] font-bold tracking-wider"
-                  title={`${idx.toUpperCase()} bias: ${up ? 'Bullish — price above key moving averages' : dn ? 'Bearish — price below key moving averages' : 'Neutral — no clear direction'}`}
-                  style={{ color: up ? 'rgb(var(--bull))' : dn ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
-                >
-                  {idx.toUpperCase()}
-                </span>
-                <span
-                  className="text-[13px] leading-none"
-                  style={{ color: up ? 'rgb(var(--bull))' : dn ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
-                >
-                  {up ? '↑' : dn ? '↓' : '·'}
-                </span>
-              </div>
-            );
-          })}
+function BiasPill({ name, value }: { name: IndexName; value: Bias }) {
+  const bullish = value === 'BULLISH';
+  const bearish = value === 'BEARISH';
+  const color = bullish ? 'rgb(var(--bull))' : bearish ? 'rgb(var(--bear))' : 'rgb(var(--ghost))';
+  const marker = bullish ? 'UP' : bearish ? 'DN' : 'FLAT';
+
+  return (
+    <span className="chip gap-1.5" title={`${name.toUpperCase()} bias: ${value}`}>
+      <span className="text-[9px] text-ghost">{name.toUpperCase()}</span>
+      <span className="num text-[10px]" style={{ color }}>{marker}</span>
+    </span>
+  );
+}
+
+function tokenMeta(tokenStatus?: TokenStatus | null) {
+  if (!tokenStatus) {
+    return { label: 'Token unknown', color: 'rgb(var(--ghost))', title: 'Dhan token status unavailable' };
+  }
+
+  if (!tokenStatus.present) {
+    return { label: 'No token', color: 'rgb(var(--bear))', title: 'Dhan access token is not set' };
+  }
+
+  if (tokenStatus.expired) {
+    return {
+      label: 'Token expired',
+      color: 'rgb(var(--bear))',
+      title: tokenStatus.expires_at ? `Expired at ${new Date(tokenStatus.expires_at).toLocaleString()}` : 'Token expired',
+    };
+  }
+
+  if (!tokenStatus.expires_at) {
+    return { label: 'Token ok', color: 'rgb(var(--bull))', title: 'Token present; expiry unavailable' };
+  }
+
+  const expires = new Date(tokenStatus.expires_at);
+  const ms = expires.getTime() - Date.now();
+  const minutes = Math.max(0, Math.floor(ms / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (hours < 1) {
+    return { label: `Token ${minutes}m`, color: 'rgb(var(--amber))', title: `Expires ${expires.toLocaleString()}` };
+  }
+
+  if (hours < 24) {
+    return { label: `Token ${hours}h`, color: 'rgb(var(--bull))', title: `Expires ${expires.toLocaleString()}` };
+  }
+
+  return { label: `Token ${days}d`, color: 'rgb(var(--bull))', title: `Expires ${expires.toLocaleString()}` };
+}
+
+export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus }: HeaderProps) {
+  const ps = PHASE_STYLE[phase] ?? PHASE_STYLE['--'];
+  const token = tokenMeta(tokenStatus);
+
+  return (
+    <header
+      className="shrink-0 border-b border-border bg-panel/95 px-4 py-3 backdrop-blur"
+      onClick={unlockAudio}
+      title="Click once to enable browser audio alerts"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 17h4l3-10 4 10h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M4 7h3m10 0h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-[14px] font-black uppercase text-fg">Trader Cockpit</h1>
+            <p className="hidden text-[11px] text-ghost sm:block">Momentum, signals, option chain, and universe breadth</p>
+          </div>
         </div>
 
-        {/* Divider */}
-        <div className="hidden sm:block w-px h-4 bg-border" />
+        <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
+          {(['nifty', 'banknifty', 'sensex'] as IndexName[]).map(idx => (
+            <BiasPill key={idx} name={idx} value={bias[idx]} />
+          ))}
+        </div>
 
-        <button
-          onClick={e => {
-            e.stopPropagation();
-            onToggleTheme();
-          }}
-          className="theme-chip flex items-center gap-1.5 rounded-md px-2 py-1 text-[9px] font-bold tracking-[0.14em] uppercase transition-colors"
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-        >
-          <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className="chip"
+            title={PHASE_TITLES[phase] ?? String(phase)}
+            style={{ color: ps.color, borderColor: `${ps.color}55`, background: `${ps.color}12` }}
+          >
+            {String(phase).replace(/_/g, ' ')}
+          </span>
 
-        {/* Phase badge */}
-        <span
-          className="text-[9px] font-black tracking-[0.14em] uppercase px-2.5 py-1 rounded select-none cursor-default"
-          title={PHASE_TITLES[phase] ?? phase}
-          style={{
-            background: `${ps.color}14`,
-            color:       ps.color,
-            border:      `1px solid ${ps.color}30`,
-          }}
-        >
-          {phase.replace(/_/g, ' ')}
-        </span>
+          <span className="chip hidden sm:inline-flex" title={token.title} style={{ color: token.color }}>
+            {token.label}
+          </span>
 
-        {/* Token status */}
-        <span
-          className="num text-[9px] font-bold tracking-[0.12em] uppercase select-none cursor-default"
-          style={{ color: tokenColor }}
-          title={tokenTitle}
-        >
-          {tokenLabel}
-        </span>
+          <span className="chip num">{clock}</span>
 
-        {/* Clock */}
-        <span className="num text-[11px] tabular-nums text-ghost">{clock}</span>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={event => {
+              event.stopPropagation();
+              onToggleTheme();
+            }}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            <ThemeIcon theme={theme} />
+          </button>
+        </div>
       </div>
     </header>
   );

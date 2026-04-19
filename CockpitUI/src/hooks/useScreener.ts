@@ -16,15 +16,16 @@ export type { ScreenerRangeFilter, ScreenerPreset };
 const PAGE_SIZE = 2000;
 
 export function useScreener() {
-  const [rows,    setRows]    = useState<ScreenerRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [query,   setQuery]   = useState('');
-  const [range,   setRange]   = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
-  const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
-  const [sortCol, setSortCol] = useState('adv_20_cr');
-  const [sortAsc, setSortAsc] = useState(false);
-  const [fnoOnly, setFnoOnly] = useState(false);
+  const [rows,         setRows]         = useState<ScreenerRow[]>([]);
+  const [loading,      setLoading]      = useState(false);
+  const [hasMore,      setHasMore]      = useState(false);
+  const [totalFromApi, setTotalFromApi] = useState(0);
+  const [query,        setQuery]        = useState('');
+  const [range,        setRange]        = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
+  const [presets,      setPresets]      = useState<Set<ScreenerPreset>>(new Set());
+  const [sortCol,      setSortCol]      = useState('adv_20_cr');
+  const [sortAsc,      setSortAsc]      = useState(false);
+  const [fnoOnly,      setFnoOnly]      = useState(false);
   const offsetRef = useRef(0);
 
   const loadScreener = useCallback(async () => {
@@ -35,9 +36,29 @@ export function useScreener() {
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);
+        const more = d.has_more ?? false;
         setRows(decorated);
-        setHasMore(d.has_more ?? false);
+        setHasMore(more);
+        setTotalFromApi(d.total ?? decorated.length);
         offsetRef.current = decorated.length;
+        setLoading(false);
+        // Background-load remaining pages so breadth stats cover full universe
+        if (more) {
+          let nextMore = more;
+          while (nextMore) {
+            try {
+              const r2 = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
+              if (!r2.ok) break;
+              const d2 = await r2.json();
+              const extra = decorateRows(d2.symbols ?? []);
+              setRows(prev => [...prev, ...extra]);
+              nextMore = d2.has_more ?? false;
+              offsetRef.current += extra.length;
+              setHasMore(nextMore);
+            } catch { break; }
+          }
+        }
+        return;
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -103,6 +124,6 @@ export function useScreener() {
     loadScreener,
     loadMore,
     resetFilters,
-    totalCount: rows.length,
+    totalCount: totalFromApi || rows.length,
   };
 }

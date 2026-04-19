@@ -5,6 +5,7 @@ Single responsibility: classify symbols by sync need and delegate to DailyFetche
 Fetch strategies live in daily_fetcher.py; persistence in sync_state_writer.py;
 classification logic in domain/daily_action.py.
 """
+import asyncio
 import logging
 
 import asyncpg
@@ -23,6 +24,7 @@ from ..repositories.sync_state_repository import SyncStateRepository
 from .daily_fetcher import DailyFetcher
 from .sync_state_writer import SyncStateWriter
 from .metrics_compute_service import MetricsComputeService
+from .minute_sync_service import MinuteSyncService
 from ._sync_orchestrator import run_daily_sync, build_gap_report
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,7 @@ class SyncService:
             pool,
             timeout_s=settings.db_metrics_recompute_timeout,
         )
+        self._minute  = MinuteSyncService(pool)
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
@@ -83,6 +86,24 @@ class SyncService:
         """Recompute symbol_metrics table from price_data_daily."""
         count = await self._metrics.recompute()
         return {"rows_written": count}
+
+    async def run_1min_sync(self) -> dict:
+        """Sync 1-minute OHLCV for all F&O stocks from Dhan historical API."""
+        return {"1m": await self._minute.run_sync()}
+
+    async def run_full_sync(self) -> dict:
+        """Run daily (yfinance) and 1-min (Dhan) sync in parallel."""
+        symbols = load_from_csv()
+        await self._symbols.upsert_many(symbols)
+        all_symbols     = [s.symbol for s in symbols]
+        daily_snapshots = await self._state.get_snapshots(all_symbols, "1d")
+        daily_ts_map    = {s.symbol: s.last_data_ts for s in daily_snapshots}
+        logger.info("run_full_sync: launching daily + 1min in parallel")
+        daily_result, minute_result = await asyncio.gather(
+            run_daily_sync(self._fetcher, self._metrics, all_symbols, daily_ts_map),
+            self._minute.run_sync(),
+        )
+        return {"1d": daily_result, "1m": minute_result}
 
     async def get_gap_report(self) -> dict:
         """Return per-symbol classification without fetching data (diagnostics)."""

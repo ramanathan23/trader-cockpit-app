@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: up down build logs shell-db sync scores-top scores-compute feed-status dhan-map dhan-status ui test-python coverage-python
+.PHONY: up down build logs shell-db sync sync-1min sync-all scores-top scores-compute feed-status dhan-map dhan-status ui test-python coverage-python
 
 up:
 	docker compose up -d --build --remove-orphans
@@ -18,9 +18,17 @@ logs:
 shell-db:
 	docker compose run --rm --entrypoint sh db-init -lc 'psql -h "$${PGHOST}" -p "$${PGPORT}" -U "$${DB_USER}" -d "$${DB_NAME}"'
 
-# Unified sync — auto-classifies every symbol (initial pull / gap fill / skip)
+# Daily sync — auto-classifies every symbol (initial pull / gap fill / skip)
 sync:
 	curl -s -X POST http://localhost:8001/api/v1/sync/run | python -m json.tool
+
+# 1-min sync — fetch Dhan 1-min OHLCV for F&O stocks only
+sync-1min:
+	curl -s -X POST http://localhost:8001/api/v1/sync/run-1min | python -m json.tool
+
+# Full sync — daily (yfinance) + 1-min (Dhan) in parallel
+sync-all:
+	curl -s -X POST http://localhost:8001/api/v1/sync/run-all | python -m json.tool
 
 # Show which symbols have data gaps (dry-run, no fetching)
 sync-gaps:

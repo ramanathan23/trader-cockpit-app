@@ -9,12 +9,35 @@ router = APIRouter()
 
 
 @router.post("/sync/run",
-             summary="Unified sync: auto-classifies each symbol and fills gaps (background)")
+             summary="Daily sync: auto-classifies each symbol and fills gaps (background)")
 async def run_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     background_tasks.add_task(svc.run_sync)
     return {
         "status": "started",
-        "message": "Sync running in background. Monitor progress at GET /api/v1/sync/status",
+        "message": "Daily sync running in background. Monitor at GET /api/v1/sync/status",
+    }
+
+
+@router.post("/sync/run-1min",
+             summary="1-min sync: fetch Dhan 1-min OHLCV for all F&O stocks (background)")
+async def run_1min_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
+    background_tasks.add_task(svc.run_1min_sync)
+    return {
+        "status": "started",
+        "message": "1-min F&O sync running in background. Monitor at GET /api/v1/sync/status",
+    }
+
+
+@router.post("/sync/run-all",
+             summary="Full sync: daily (yfinance) + 1-min Dhan in parallel (background)")
+async def run_full_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
+    background_tasks.add_task(svc.run_full_sync)
+    return {
+        "status": "started",
+        "message": (
+            "Daily + 1-min sync running in parallel in background. "
+            "Monitor at GET /api/v1/sync/status"
+        ),
     }
 
 

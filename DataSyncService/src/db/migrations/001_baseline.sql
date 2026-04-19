@@ -174,4 +174,4 @@ SELECT add_continuous_aggregate_policy(
     if_not_exists     => TRUE
 );
 
-DELETE FROM sync_state WHERE timeframe = '1m';
+-- 1m sync state is managed by MinuteSyncService (migration 004 creates price_data_1min).

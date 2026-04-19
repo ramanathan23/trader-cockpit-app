@@ -7,52 +7,43 @@ import { advColor } from '@/domain/signal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
 
 interface ScreenerTableProps {
-  rows:       ScreenerRow[];
-  sortCol:    string;
-  sortAsc:    boolean;
-  onSort:     (col: string) => void;
-  loading:    boolean;
-  hasMore?:   boolean;
+  rows: ScreenerRow[];
+  sortCol: string;
+  sortAsc: boolean;
+  onSort: (col: string) => void;
+  loading: boolean;
+  hasMore?: boolean;
   onLoadMore?: () => void;
-  onChart?:       (sym: string) => void;
+  onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
 }
 
-const COL_GROUPS = [
-  { label: 'PRICE DATA', cols: ['symbol', 'adv_20_cr', 'atr_14', 'display_price'] },
-  { label: 'INDICATORS', cols: ['dvwap_delta_pct', 'ema50_delta_pct', 'ema200_delta_pct'] },
-  { label: '52-WEEK & MOMENTUM', cols: ['f52h', 'f52l', 'week_return_pct', 'week_gain_pct', 'week_decline_pct'] },
+const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right' }[] = [
+  { key: 'symbol', label: 'Symbol', align: 'left' },
+  { key: 'adv_20_cr', label: 'ADV' },
+  { key: 'atr_14', label: 'ATR' },
+  { key: 'display_price', label: 'Price', title: 'Live price when available, otherwise previous close' },
+  { key: 'dvwap_delta_pct', label: 'DVWAP%', title: 'Percent above or below session VWAP' },
+  { key: 'ema50_delta_pct', label: '50E%', title: 'Percent above or below 50-day EMA' },
+  { key: 'ema200_delta_pct', label: '200E%', title: 'Percent above or below 200-day EMA' },
+  { key: 'f52h', label: '52H%', title: 'Distance from 52-week high' },
+  { key: 'f52l', label: '52L%', title: 'Distance from 52-week low' },
+  { key: 'week_return_pct', label: 'WK%', title: 'Five-session return' },
+  { key: 'week_gain_pct', label: 'W+%', title: 'Percent above rolling five-session low' },
+  { key: 'week_decline_pct', label: 'W-%', title: 'Percent below rolling five-session high' },
 ];
-
-const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right'; group?: string }[] = [
-  { key: 'symbol',        label: 'SYMBOL',  align: 'left', group: 'price' },
-  { key: 'adv_20_cr',     label: 'ADV', group: 'price' },
-  { key: 'atr_14',        label: 'ATR', group: 'price' },
-  { key: 'display_price', label: 'PRICE', title: 'Live price when available, otherwise previous close', group: 'price' },
-  { key: 'dvwap_delta_pct', label: 'DVWAP%', title: '% above or below the current session VWAP', group: 'indicators' },
-  { key: 'ema50_delta_pct', label: '50E%', title: '% above or below the 50-day EMA', group: 'indicators' },
-  { key: 'ema200_delta_pct', label: '200E%', title: '% above or below the 200-day EMA', group: 'indicators' },
-  { key: 'f52h',          label: '52H%',   title: '% below 52-week high (0 = at high)', group: 'momentum' },
-  { key: 'f52l',          label: '52L%',   title: '% above 52-week low', group: 'momentum' },
-  { key: 'week_return_pct', label: 'WK%', title: '% return versus 5 trading sessions ago', group: 'momentum' },
-  { key: 'week_gain_pct', label: 'W+%', title: '% above the rolling 5-session low', group: 'momentum' },
-  { key: 'week_decline_pct', label: 'W-%', title: '% below the rolling 5-session high', group: 'momentum' },
-];
-
-const SortArrow = ({ col, sortCol, sortAsc }: { col: string; sortCol: string; sortAsc: boolean }) =>
-  sortCol === col ? <span className="ml-0.5">{sortAsc ? '▲' : '▼'}</span> : null;
 
 function pctColor(value?: number | null, invert = false): string {
-  if (value == null) return '#5a7796';
+  if (value == null) return 'rgb(var(--ghost))';
   const score = invert ? -value : value;
-  if (score >= 2) return '#0dbd7d';
-  if (score >= 0) return '#c5d8f0';
-  if (score >= -3) return '#e8933a';
-  return '#f23d55';
+  if (score >= 2) return 'rgb(var(--bull))';
+  if (score >= 0) return 'rgb(var(--fg))';
+  if (score >= -3) return 'rgb(var(--amber))';
+  return 'rgb(var(--bear))';
 }
 
 function pctText(value?: number | null, forcePlus = false): string {
-  if (value == null) return '—';
+  if (value == null) return '-';
   const prefix = value > 0 || (forcePlus && value >= 0) ? '+' : '';
   return `${prefix}${value.toFixed(1)}%`;
 }
@@ -62,79 +53,59 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => 38,
     overscan: 20,
   });
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
     if (!el || loading || !hasMore || !onLoadMore) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
-      onLoadMore();
-    }
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 220) onLoadMore();
   }, [loading, hasMore, onLoadMore]);
 
   if (loading && rows.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-40 text-[11px] animate-blink" style={{ color: '#2a3f58' }}>
-        Loading metrics…
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: '#2a3f58' }}>
-        <span className="text-2xl opacity-30">&#9783;</span>
-        <span className="text-xs">No data — adjust filters</span>
-      </div>
-    );
+    return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">Loading metrics</div>;
   }
 
-  const virtualItems = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
+  if (rows.length === 0) {
+    return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">No data matches the active filters.</div>;
+  }
+
+  const items = rowVirtualizer.getVirtualItems();
+  const total = rowVirtualizer.getTotalSize();
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-auto" onScroll={handleScroll}>
-      <table className="w-full text-[11px] border-collapse">
-        <thead className="sticky top-0 bg-panel z-10">
-          {/* Column group headers */}
-          <tr className="border-b border-border/50">
-            <th colSpan={4} className="px-2 py-1 text-left text-[8px] font-bold tracking-wider uppercase text-ghost border-r border-border/30">
-              PRICE DATA
-            </th>
-            <th colSpan={3} className="px-2 py-1 text-left text-[8px] font-bold tracking-wider uppercase text-ghost border-r border-border/30">
-              INDICATORS
-            </th>
-            <th colSpan={5} className="px-2 py-1 text-left text-[8px] font-bold tracking-wider uppercase text-ghost">
-              52-WEEK & MOMENTUM
-            </th>
+    <div ref={parentRef} className="table-wrap flex-1" onScroll={handleScroll}>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th colSpan={4} className="border-r border-border/50 text-left">Price data</th>
+            <th colSpan={3} className="border-r border-border/50 text-left">Indicators</th>
+            <th colSpan={5} className="text-left">52-week and momentum</th>
           </tr>
-          <tr className="border-b border-border">
-            {COLS.map((c, i) => (
+          <tr>
+            {COLS.map(col => (
               <th
-                key={`${c.key}-${i}`}
-                title={c.title}
-                onClick={() => onSort(c.key)}
-                className={`px-2.5 py-1.5 font-bold text-[9px] tracking-[0.12em] cursor-pointer select-none whitespace-nowrap uppercase transition-colors hover:text-fg ${
-                  c.align === 'left' ? 'text-left' : 'text-right'
-                }`}
-                style={{ color: sortCol === c.key ? '#2d7ee8' : '#5a7796' }}
+                key={col.key}
+                title={col.title}
+                onClick={() => onSort(col.key)}
+                className={`${col.align === 'left' ? 'text-left' : 'text-right'} cursor-pointer hover:text-fg`}
+                style={{ color: sortCol === col.key ? 'rgb(var(--accent))' : undefined }}
               >
-                {c.label}
-                {sortCol === c.key && <span className="ml-0.5">{sortAsc ? '▲' : '▼'}</span>}
+                {col.label}{sortCol === col.key ? (sortAsc ? ' ^' : ' v') : ''}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {virtualItems.length > 0 && (
-            <tr><td colSpan={COLS.length} style={{ height: virtualItems[0].start, padding: 0, border: 'none' }} /></tr>
+          {items.length > 0 && (
+            <tr><td colSpan={COLS.length} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>
           )}
-          {virtualItems.map(vi => (
-            <ScreenerTableRow key={rows[vi.index].symbol} row={rows[vi.index]} onChart={onChart} onOptionChain={onOptionChain} />
+          {items.map(item => (
+            <ScreenerTableRow key={rows[item.index].symbol} row={rows[item.index]} onChart={onChart} onOptionChain={onOptionChain} />
           ))}
-          {virtualItems.length > 0 && (
-            <tr><td colSpan={COLS.length} style={{ height: totalSize - virtualItems[virtualItems.length - 1].end, padding: 0, border: 'none' }} /></tr>
+          {items.length > 0 && (
+            <tr><td colSpan={COLS.length} style={{ height: total - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>
           )}
         </tbody>
       </table>
@@ -143,61 +114,36 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
 });
 ScreenerTable.displayName = 'ScreenerTable';
 
-const ScreenerTableRow = memo(({ row: r, onChart, onOptionChain }: { 
+const ScreenerTableRow = memo(({ row: r, onChart }: {
   row: ScreenerRow;
   onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
 }) => {
   const f52hColor =
-    r.f52h == null ? '#5a7796' :
-    r.f52h >= -2   ? '#0dbd7d' :
-    r.f52h >= -10  ? '#e8933a' : '#f23d55';
+    r.f52h == null ? 'rgb(var(--ghost))' :
+    r.f52h >= -2 ? 'rgb(var(--bull))' :
+    r.f52h >= -10 ? 'rgb(var(--amber))' : 'rgb(var(--bear))';
 
   const f52lColor =
-    r.f52l == null ? '#5a7796' :
-    r.f52l > 50    ? '#0dbd7d' :
-    r.f52l > 20    ? '#e8933a' :
-    r.f52l > 5     ? '#c5d8f0' : '#f23d55';
+    r.f52l == null ? 'rgb(var(--ghost))' :
+    r.f52l > 50 ? 'rgb(var(--bull))' :
+    r.f52l > 20 ? 'rgb(var(--amber))' :
+    r.f52l > 5 ? 'rgb(var(--fg))' : 'rgb(var(--bear))';
 
   return (
-    <tr className="border-b border-border hover:bg-lift transition-colors group cursor-pointer"
-        style={{ height: '36px' }}
-        onClick={() => onChart?.(r.symbol)}>
-      <td className="px-2.5 py-1.5 text-ticker text-fg">{r.symbol}</td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums text-[10px]"
-          style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : '#5a7796' }}>
-        <span className="num">{fmtAdv(r.adv_20_cr)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums text-[10px]" style={{ color: '#e8933a' }}>
-        <span className="num">{r.atr_14 != null ? r.atr_14.toFixed(2) : '—'}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums text-[12px] font-bold text-fg">
-        <span className="num">{fmt2(r.display_price)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.dvwap_delta_pct) }}>
-        <span className="num">{pctText(r.dvwap_delta_pct, true)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.ema50_delta_pct) }}>
-        <span className="num">{pctText(r.ema50_delta_pct, true)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.ema200_delta_pct) }}>
-        <span className="num">{pctText(r.ema200_delta_pct, true)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: f52hColor }}>
-        <span className="num">{r.f52h != null ? (r.f52h >= 0 ? '+' : '') + r.f52h.toFixed(1) + '%' : '—'}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: f52lColor }}>
-        <span className="num">{r.f52l != null ? '+' + r.f52l.toFixed(1) + '%' : '—'}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.week_return_pct) }}>
-        <span className="num">{pctText(r.week_return_pct, true)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.week_gain_pct, true) }}>
-        <span className="num">{pctText(r.week_gain_pct, true)}</span>
-      </td>
-      <td className="px-2.5 py-1.5 text-right tabular-nums font-bold text-[10px]" style={{ color: pctColor(r.week_decline_pct, true) }}>
-        <span className="num">{pctText(r.week_decline_pct)}</span>
-      </td>
+    <tr className="cursor-pointer" onClick={() => onChart?.(r.symbol)}>
+      <td className="text-left text-ticker text-fg">{r.symbol}</td>
+      <td className="text-right"><span className="num font-bold" style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : 'rgb(var(--ghost))' }}>{fmtAdv(r.adv_20_cr)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: 'rgb(var(--amber))' }}>{r.atr_14 != null ? r.atr_14.toFixed(2) : '-'}</span></td>
+      <td className="text-right"><span className="num text-[13px] font-black text-fg">{fmt2(r.display_price)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>{pctText(r.dvwap_delta_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>{pctText(r.ema50_delta_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>{pctText(r.ema200_delta_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: f52hColor }}>{pctText(r.f52h)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: f52lColor }}>{r.f52l != null ? `+${r.f52l.toFixed(1)}%` : '-'}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_return_pct) }}>{pctText(r.week_return_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_gain_pct, true) }}>{pctText(r.week_gain_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_decline_pct, true) }}>{pctText(r.week_decline_pct)}</span></td>
     </tr>
   );
 });

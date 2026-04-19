@@ -7,9 +7,11 @@ logger = logging.getLogger(__name__)
 
 _TABLE_MAP: dict[str, str] = {
     "1d": "price_data_daily",
+    "1m": "price_data_1min",
 }
 _QUERY_TABLE: dict[str, str] = {
     "1d": "price_data_daily",
+    "1m": "price_data_1min",
 }
 
 

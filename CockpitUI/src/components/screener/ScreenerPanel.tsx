@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useScreener } from '@/hooks/useScreener';
 import { computeBreadthStats } from '@/domain/screener';
 import { ScreenerFilters } from './ScreenerFilters';
@@ -10,10 +10,11 @@ import { ScreenerStatsBar } from './ScreenerStatsBar';
 
 interface ScreenerPanelProps {
   active: boolean;
+  viewMode: 'card' | 'table';
+  onViewMode: (v: 'card' | 'table') => void;
 }
 
-export function ScreenerPanel({ active }: ScreenerPanelProps) {
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelProps) {
 
   const {
     rows, filteredRows, loading, hasMore,
@@ -45,10 +46,10 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
         onReset={resetFilters}
         totalCount={totalCount}  filteredCount={filteredRows.length}
         loading={loading}        onRefresh={loadScreener}
-        viewMode={viewMode}      onViewMode={setViewMode}
+        viewMode={viewMode}      onViewMode={onViewMode}
       />
 
-      <ScreenerStatsBar stats={breadth} total={rows.length} />
+      <ScreenerStatsBar stats={breadth} total={totalCount} />
 
       {viewMode === 'table'
         ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />

@@ -9,35 +9,33 @@ interface ScreenerStatsBarProps {
 }
 
 function statColor(pct: number): string {
-  if (pct >= 60) return '#0dbd7d';
-  if (pct >= 40) return '#e8933a';
-  return '#f23d55';
+  if (pct >= 60) return 'rgb(var(--bull))';
+  if (pct >= 40) return 'rgb(var(--amber))';
+  return 'rgb(var(--bear))';
 }
 
-export const ScreenerStatsBar = memo(({ stats, total }: ScreenerStatsBarProps) => {
-  return (
-    <div className="shrink-0 border-b border-subtle bg-base/70 px-4 py-2">
-      <div className="flex flex-wrap gap-2">
-        <div className="min-w-28 rounded-md border border-border bg-card px-3 py-2">
-          <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-muted">Universe</div>
-          <div className="mt-1 text-[17px] font-black tabular-nums text-fg">{total}</div>
-        </div>
-        {stats.map(stat => (
-          <div key={stat.key} className="min-w-36 rounded-md border border-border bg-card px-3 py-2">
-            <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-muted">{stat.label}</div>
-            <div className="mt-1 flex items-baseline justify-between gap-3">
-              <span className="text-[17px] font-black tabular-nums text-fg">
-                {stat.count}<span className="text-[12px] text-muted">/{stat.eligible}</span>
-              </span>
-              <span className="text-[13px] font-bold tabular-nums" style={{ color: statColor(stat.pct) }}>
-                {stat.pct.toFixed(0)}%
-              </span>
-            </div>
-          </div>
-        ))}
+export const ScreenerStatsBar = memo(({ stats, total }: ScreenerStatsBarProps) => (
+  <div className="shrink-0 border-b border-border bg-base/45 px-4 py-3">
+    <div className="flex gap-2 overflow-x-auto">
+      <div className="metric-card">
+        <div className="text-[10px] font-black uppercase text-ghost">Universe</div>
+        <div className="num mt-1 text-[19px] font-black text-fg">{total}</div>
       </div>
+      {stats.map(stat => (
+        <div key={stat.key} className="metric-card">
+          <div className="text-[10px] font-black uppercase text-ghost">{stat.label}</div>
+          <div className="mt-1 flex items-baseline justify-between gap-4">
+            <span className="num text-[19px] font-black text-fg">
+              {stat.count}<span className="text-[12px] text-ghost">/{stat.eligible}</span>
+            </span>
+            <span className="num text-[14px] font-black" style={{ color: statColor(stat.pct) }}>
+              {stat.pct.toFixed(0)}%
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
-  );
-});
+  </div>
+));
 
 ScreenerStatsBar.displayName = 'ScreenerStatsBar';

@@ -9,13 +9,16 @@ logger = logging.getLogger(__name__)
 
 _TABLE_MAP: dict[str, str] = {
     "1d": "price_data_daily",
+    "1m": "price_data_1min",
 }
 _CONFLICT_COLUMNS: dict[str, str] = {
     "1d": "symbol, time",
+    "1m": "symbol, time",
 }
 _COLUMNS = ("time", "symbol", "open", "high", "low", "close", "volume")
 _INGEST_CHUNK_SIZE: dict[str, int] = {
     "1d": 50_000,
+    "1m": 100_000,
 }
 
 

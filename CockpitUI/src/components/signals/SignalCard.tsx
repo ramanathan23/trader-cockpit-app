@@ -2,239 +2,236 @@
 
 import { memo, useState } from 'react';
 import {
-  dirColor, pctColor, signalColor, signalDesc, signalShort, advColor,
-  type Direction, type Signal,
+  advColor,
+  dirColor,
+  pctColor,
+  signalColor,
+  signalDesc,
+  signalShort,
+  type Direction,
+  type Signal,
 } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { fmt2, fmtAdv, spct, timeStr } from '@/lib/fmt';
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-const BiasTag = memo(({ label, bias }: { label: string; bias: Direction }) => {
-  const c  = dirColor(bias);
-  const up = bias === 'BULLISH';
-  return (
-    <span
-      className="num text-[9px] font-bold"
-      style={{ color: c }}
-      title={`${label} timeframe: ${up ? 'Bullish — price above key MA, upward momentum' : 'Bearish — price below key MA, downward pressure'}`}
-    >
-      {label}{up ? '▲' : '▼'}
-    </span>
-  );
-});
+const BiasTag = memo(({ label, bias }: { label: string; bias: Direction }) => (
+  <span className="num rounded border border-border bg-base/50 px-1.5 py-0.5 text-[9px] font-black" style={{ color: dirColor(bias) }}>
+    {label} {bias === 'BULLISH' ? 'UP' : 'DN'}
+  </span>
+));
 BiasTag.displayName = 'BiasTag';
 
 const MetricCell = memo(({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) => (
-  <div className="flex flex-col gap-0.5" title={title}>
-    <span className="text-[8px] font-bold tracking-wider uppercase text-ghost">{label}</span>
-    <span className="num text-[10px] tabular-nums">{children}</span>
+  <div className="min-w-0" title={title}>
+    <div className="text-[9px] font-black uppercase text-ghost">{label}</div>
+    <div className="num mt-0.5 truncate text-[11px] font-bold">{children}</div>
   </div>
 ));
 MetricCell.displayName = 'MetricCell';
 
 const LevelRow = memo(({ entry, stop, target }: {
-  entry?: number | null; stop?: number | null; target?: number | null;
+  entry?: number | null;
+  stop?: number | null;
+  target?: number | null;
 }) => {
-  if (entry == null && stop == null) return null;
+  if (entry == null && stop == null && target == null) return null;
+
   return (
-    <div className="flex items-center gap-3 px-3 py-2 border-t border-border text-[11px]">
-      {entry  != null && <span title="Entry zone — buy in this price range" className="text-ghost">E <span className="num font-semibold" style={{ color: '#e8933a' }}>{fmt2(entry)}</span></span>}
-      {stop   != null && <span title="Stop Loss — exit if price falls below this level" className="text-ghost">SL <span className="num font-semibold" style={{ color: '#f23d55' }}>{fmt2(stop)}</span></span>}
-      {target != null && <span title="Target 1 — first profit-taking level" className="text-ghost">T1 <span className="num font-semibold" style={{ color: '#0dbd7d' }}>{fmt2(target)}</span></span>}
+    <div className="grid grid-cols-3 gap-2 border-t border-border px-3 py-2 text-[10px] text-ghost">
+      <span>E <b className="num" style={{ color: 'rgb(var(--amber))' }}>{fmt2(entry)}</b></span>
+      <span>SL <b className="num" style={{ color: 'rgb(var(--bear))' }}>{fmt2(stop)}</b></span>
+      <span>T1 <b className="num" style={{ color: 'rgb(var(--bull))' }}>{fmt2(target)}</b></span>
     </div>
   );
 });
 LevelRow.displayName = 'LevelRow';
 
 const NoteBar = memo(({ id, note, onSave }: {
-  id: string; note?: string; onSave: (id: string, text: string) => void;
+  id: string;
+  note?: string;
+  onSave: (id: string, text: string) => void;
 }) => {
   const [editing, setEditing] = useState(false);
-  const [draft,   setDraft]   = useState('');
-  const startEdit = () => { setDraft(note ?? ''); setEditing(true); };
-  const commit    = () => { onSave(id, draft); setEditing(false); };
-  const cancel    = () => setEditing(false);
+  const [draft, setDraft] = useState('');
+
+  const startEdit = () => {
+    setDraft(note ?? '');
+    setEditing(true);
+  };
+
+  const commit = () => {
+    onSave(id, draft);
+    setEditing(false);
+  };
 
   if (editing) {
     return (
-      <div className="border-t border-border px-3 py-1.5">
+      <div className="border-t border-border px-3 py-2" onClick={event => event.stopPropagation()}>
         <textarea
-          autoFocus rows={2} value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-            if (e.key === 'Escape') cancel();
+          autoFocus
+          rows={2}
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              commit();
+            }
+            if (event.key === 'Escape') setEditing(false);
           }}
-          placeholder="Add a note…"
-          className="w-full bg-base border border-border rounded text-[10px] text-fg px-1.5 py-1 resize-none focus:outline-none focus:border-accent"
-          style={{ background: 'rgb(var(--base))', colorScheme: 'inherit' }}
+          placeholder="Add a note"
+          className="field min-h-[58px] w-full resize-none py-2 text-[11px]"
+          style={{ colorScheme: 'inherit' }}
         />
-        <div className="flex gap-2 justify-end mt-1">
-          <button onClick={cancel} className="text-[9px] text-ghost hover:text-dim transition-colors">cancel</button>
-          <button onClick={commit} className="text-[9px] font-bold text-accent">save</button>
+        <div className="mt-2 flex justify-end gap-2">
+          <button type="button" onClick={() => setEditing(false)} className="text-[10px] font-semibold text-ghost hover:text-fg">Cancel</button>
+          <button type="button" onClick={commit} className="text-[10px] font-black text-accent">Save</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="border-t border-border px-3 py-2 flex items-start gap-1.5 min-h-[28px]">
-      {note && <span className="text-[10px] leading-snug flex-1 break-words text-dim">{note}</span>}
+    <div className="flex min-h-[36px] items-center gap-2 border-t border-border px-3 py-2">
+      {note ? <span className="line-clamp-2 flex-1 text-[11px] leading-snug text-dim">{note}</span> : <span className="flex-1 text-[11px] text-ghost">No note</span>}
       <button
-        onClick={startEdit}
-        className="text-[9px] shrink-0 ml-auto text-ghost hover:text-dim transition-colors"
+        type="button"
+        onClick={event => {
+          event.stopPropagation();
+          startEdit();
+        }}
+        className="text-[10px] font-black text-ghost hover:text-fg"
       >
-        {note ? '✎' : '+ note'}
+        Note
       </button>
     </div>
   );
 });
 NoteBar.displayName = 'NoteBar';
 
-// ── Main card ─────────────────────────────────────────────────────────────────
-
 interface SignalCardProps {
   signal: Signal;
   metrics?: InstrumentMetrics | null;
   note?: string;
   onSave: (id: string, text: string) => void;
-  onChart?:       (sym: string) => void;
+  onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
 }
 
 export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, onOptionChain }: SignalCardProps) => {
   const color = signalColor(s.signal_type);
-  const dc    = dirColor(s.direction);
+  const directionColor = dirColor(s.direction);
 
   return (
-    <div
-      className={`relative flex rounded-md overflow-hidden border border-border bg-card shadow-card group${s._fromCatchup ? '' : ' animate-enter pulse-new'}`}
+    <article
+      className={`surface-card group relative overflow-hidden transition-colors hover:bg-lift ${s._fromCatchup ? '' : 'animate-enter pulse-new'}`}
       onClick={() => onChart?.(s.symbol)}
-      style={{ cursor: 'pointer' }}
+      title={`Open ${s.symbol} chart`}
     >
+      <div className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
 
-      {/* Left accent stripe (4px, signal color) */}
-      <div className="w-1 shrink-0" style={{ background: color }} />
-
-      {/* Card body */}
-      <div className="flex-1 flex flex-col min-w-0">
-
-        {/* ── Header row ──────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-2.5 pt-2.5 pb-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {/* Direction dot */}
-            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: dc }} />
-            {/* Symbol */}
-            <span className="text-ticker text-fg truncate">{s.symbol}</span>
-            {/* Repeat badge */}
-            {s._count > 1 && (
-              <span
-                className="num text-[9px] font-black px-1 py-0.5 rounded-sm shrink-0"
-                style={{ background: '#e8933a20', color: '#e8933a' }}
-              >
-                {s._count}×
-              </span>
-            )}
-            {/* F&O badge */}
-            {m?.is_fno && (
-              <span className="shrink-0 text-[7px] font-black px-1 py-0.5 rounded-sm"
-                    style={{ background: '#9b72f718', color: '#9b72f7' }}>F&amp;O</span>
-            )}
+      <div className="px-3 pb-2 pt-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: directionColor }} />
+              <span className="truncate text-ticker text-fg">{s.symbol}</span>
+              {s._count > 1 && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--amber))' }}>{s._count}x</span>}
+              {m?.is_fno && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
+            </div>
+            <div className="mt-1 text-[10px] text-ghost">{timeStr(s.timestamp)}</div>
           </div>
 
-          {/* Signal type pill */}
           <span
-            className="text-signal-badge uppercase px-2 py-1 rounded shrink-0 ml-1"
-            style={{ color, background: `${color}20`, border: `1px solid ${color}40` }}
+            className="shrink-0 rounded-md border px-2 py-1 text-signal-badge uppercase"
+            style={{ color, background: `${color}18`, borderColor: `${color}40` }}
             title={signalDesc(s.signal_type)}
           >
             {signalShort(s.signal_type)}
           </span>
         </div>
 
-        {/* ── Hero price + MTF ────────────────────────────────────── */}
-        <div className="flex items-end justify-between px-2.5 pb-2.5 pt-1">
-          <span className="num text-price text-fg leading-none">
-            {s.price != null ? s.price.toFixed(2) : '—'}
-          </span>
-          <div className="flex flex-col items-end gap-0.5">
+        <div className="mt-4 flex items-end justify-between gap-4">
+          <span className="num text-price text-fg">{fmt2(s.price)}</span>
+          <div className="text-right">
             {s.volume_ratio != null && (
-              <span className="num text-[10px] tabular-nums text-ghost">
-                Vol <span style={{ color: '#e8933a' }}>{s.volume_ratio.toFixed(1)}×</span>
-              </span>
-            )}
-            {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH' ||
-              s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && (
-              <div className="flex gap-2">
-                {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH') && <BiasTag label="15m" bias={s.bias_15m} />}
-                {(s.bias_1h  === 'BULLISH' || s.bias_1h  === 'BEARISH') && <BiasTag label="1h"  bias={s.bias_1h}  />}
+              <div className="num text-[12px] font-black" style={{ color: 'rgb(var(--amber))' }}>
+                {s.volume_ratio.toFixed(1)}x vol
               </div>
             )}
+            <div className="mt-1 flex justify-end gap-1.5">
+              {(s.bias_15m === 'BULLISH' || s.bias_15m === 'BEARISH') && <BiasTag label="15m" bias={s.bias_15m} />}
+              {(s.bias_1h === 'BULLISH' || s.bias_1h === 'BEARISH') && <BiasTag label="1h" bias={s.bias_1h} />}
+            </div>
           </div>
         </div>
-
-        {/* ── Trade levels ────────────────────────────────────────── */}
-        <LevelRow entry={s.entry_low} stop={s.stop} target={s.target_1} />
-
-        {/* ── Metrics grid ────────────────────────────────────────── */}
-        {m && (
-          <div className="grid grid-cols-3 gap-x-2.5 gap-y-2.5 px-2.5 py-2.5 border-t border-border">
-            {m.week52_high && s.price != null && (
-              <MetricCell label="52H" title="% below 52-week high — 0% = at record high; negative = below high">
-                <span style={{ color: pctColor(s.price, m.week52_high) }}>{spct(s.price, m.week52_high)}</span>
-              </MetricCell>
-            )}
-            {m.week52_low && s.price != null && (
-              <MetricCell label="52L" title="% above 52-week low — higher is healthier (further from lows)">
-                <span style={{ color: pctColor(s.price, m.week52_low) }}>{spct(s.price, m.week52_low)}</span>
-              </MetricCell>
-            )}
-            {m.atr_14 != null && (
-              <MetricCell label="ATR" title="Average True Range (14-day) — daily volatility in price units. Use for stop sizing.">
-                <span style={{ color: '#e8933a' }}>{fmt2(m.atr_14)}</span>
-              </MetricCell>
-            )}
-            {m.adv_20_cr != null && (
-              <MetricCell label="ADV" title="Avg Daily Value traded (20-day, ₹Crores) — liquidity. 5Cr=small, 25Cr=mid, 100Cr+=large cap">
-                <span style={{ color: advColor(m.adv_20_cr) }}>{fmtAdv(m.adv_20_cr)}</span>
-              </MetricCell>
-            )}
-            {m.day_chg_pct != null && (
-              <MetricCell label="Δ%" title="Today's price change from previous close">
-                <span style={{ color: m.day_chg_pct >= 0 ? '#0dbd7d' : '#f23d55' }}>
-                  {m.day_chg_pct >= 0 ? '+' : ''}{m.day_chg_pct.toFixed(2)}%
-                </span>
-              </MetricCell>
-            )}
-            {/* O=H / O=L indicator */}
-            {m.day_high && m.day_open && Math.abs(m.day_high - m.day_open) / m.day_open < 0.001 && (
-              <span className="text-[8px] font-black rounded-sm px-1 py-0.5 self-center"
-                style={{ background: '#f23d5520', color: '#f23d55' }}>O=H↓</span>
-            )}
-            {m.day_low && m.day_open && Math.abs(m.day_open - m.day_low) / m.day_open < 0.001 && (
-              <span className="text-[8px] font-black rounded-sm px-1 py-0.5 self-center"
-                style={{ background: '#0dbd7d20', color: '#0dbd7d' }}>O=L↑</span>
-            )}
-          </div>
-        )}
-
-        {/* ── Footer ──────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-border">
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            {m?.is_fno && (
-              <button
-                onClick={e => { e.stopPropagation(); onOptionChain?.(s.symbol); }}
-                className="text-[9px] font-bold text-accent hover:text-fg transition-colors"
-                title="View option chain">OC</button>
-            )}
-          </div>
-          <span className="num text-[9px] tabular-nums text-ghost">{timeStr(s.timestamp)}</span>
-        </div>
-
-        <NoteBar id={s.id} note={note} onSave={onSave} />
       </div>
-    </div>
+
+      <LevelRow entry={s.entry_low} stop={s.stop} target={s.target_1} />
+
+      {m && (
+        <div className="grid grid-cols-3 gap-3 border-t border-border px-3 py-3">
+          {m.week52_high && s.price != null && (
+            <MetricCell label="52H" title="Distance from 52-week high">
+              <span style={{ color: pctColor(s.price, m.week52_high) }}>{spct(s.price, m.week52_high)}</span>
+            </MetricCell>
+          )}
+          {m.week52_low && s.price != null && (
+            <MetricCell label="52L" title="Distance from 52-week low">
+              <span style={{ color: pctColor(s.price, m.week52_low) }}>{spct(s.price, m.week52_low)}</span>
+            </MetricCell>
+          )}
+          {m.atr_14 != null && (
+            <MetricCell label="ATR">
+              <span style={{ color: 'rgb(var(--amber))' }}>{fmt2(m.atr_14)}</span>
+            </MetricCell>
+          )}
+          {m.adv_20_cr != null && (
+            <MetricCell label="ADV">
+              <span style={{ color: advColor(m.adv_20_cr) }}>{fmtAdv(m.adv_20_cr)}</span>
+            </MetricCell>
+          )}
+          {m.day_chg_pct != null && (
+            <MetricCell label="CHG%">
+              <span style={{ color: m.day_chg_pct >= 0 ? 'rgb(var(--bull))' : 'rgb(var(--bear))' }}>
+                {m.day_chg_pct >= 0 ? '+' : ''}{m.day_chg_pct.toFixed(2)}%
+              </span>
+            </MetricCell>
+          )}
+          {m.day_high && m.day_open && Math.abs(m.day_high - m.day_open) / m.day_open < 0.001 && (
+            <MetricCell label="Open">
+              <span style={{ color: 'rgb(var(--bear))' }}>O=H</span>
+            </MetricCell>
+          )}
+          {m.day_low && m.day_open && Math.abs(m.day_open - m.day_low) / m.day_open < 0.001 && (
+            <MetricCell label="Open">
+              <span style={{ color: 'rgb(var(--bull))' }}>O=L</span>
+            </MetricCell>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-t border-border px-3 py-2">
+        <div className="flex items-center gap-2">
+          {m?.is_fno && (
+            <button
+              type="button"
+              onClick={event => {
+                event.stopPropagation();
+                onOptionChain?.(s.symbol);
+              }}
+              className="text-[10px] font-black text-accent opacity-0 transition-opacity group-hover:opacity-100"
+              title="View option chain"
+            >
+              OC
+            </button>
+          )}
+        </div>
+        {s.score != null && <span className="chip num h-5 min-h-0 px-1.5">Score {s.score.toFixed(0)}</span>}
+      </div>
+
+      <NoteBar id={s.id} note={note} onSave={onSave} />
+    </article>
   );
 });
 

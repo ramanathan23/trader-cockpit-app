@@ -52,9 +52,9 @@ const config: Config = {
         'blink':    'blink 1.2s ease-in-out infinite',
       },
       fontSize: {
-        'ticker': ['18px', { lineHeight: '1.2', fontWeight: '700', letterSpacing: '-0.01em' }],
-        'price': ['22px', { lineHeight: '1.1', fontWeight: '700', letterSpacing: '-0.015em' }],
-        'signal-badge': ['10px', { lineHeight: '1', fontWeight: '800', letterSpacing: '0.08em' }],
+        'ticker': ['17px', { lineHeight: '1.2', fontWeight: '750', letterSpacing: '0' }],
+        'price': ['22px', { lineHeight: '1.1', fontWeight: '780', letterSpacing: '0' }],
+        'signal-badge': ['10px', { lineHeight: '1', fontWeight: '800', letterSpacing: '0' }],
         'meta': ['10px', { lineHeight: '1.4', fontWeight: '500' }],
       },
     },

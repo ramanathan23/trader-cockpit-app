@@ -2,39 +2,48 @@
 
 import { memo, useState } from 'react';
 import {
-  DEFAULT_RANGE, SCREENER_PRESETS, isRangeActive,
-  type ScreenerPreset, type ScreenerRangeFilter,
+  DEFAULT_RANGE,
+  SCREENER_PRESETS,
+  isRangeActive,
+  type ScreenerPreset,
+  type ScreenerRangeFilter,
 } from '@/domain/screener';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 
 const ADV_TIERS = [
-  { label: 'All',    cr: 0   },
-  { label: '5Cr+',   cr: 5   },
-  { label: '25Cr+',  cr: 25  },
+  { label: 'All', cr: 0 },
+  { label: '5Cr+', cr: 5 },
+  { label: '25Cr+', cr: 25 },
   { label: '100Cr+', cr: 100 },
   { label: '500Cr+', cr: 500 },
 ];
 
 interface ScreenerFiltersProps {
-  query:        string;
-  onQuery:      (q: string) => void;
-  range:        ScreenerRangeFilter;
-  onRange:      (r: ScreenerRangeFilter) => void;
-  presets:      Set<ScreenerPreset>;
-  onPreset:     (p: ScreenerPreset) => void;
-  fnoOnly:      boolean;
-  onFnoOnly:    (v: boolean) => void;
-  onReset:      () => void;
-  totalCount:   number;
+  query: string;
+  onQuery: (q: string) => void;
+  range: ScreenerRangeFilter;
+  onRange: (r: ScreenerRangeFilter) => void;
+  presets: Set<ScreenerPreset>;
+  onPreset: (p: ScreenerPreset) => void;
+  fnoOnly: boolean;
+  onFnoOnly: (v: boolean) => void;
+  onReset: () => void;
+  totalCount: number;
   filteredCount: number;
-  loading:      boolean;
-  onRefresh:    () => void;
-  viewMode:     'card' | 'table';
-  onViewMode:   (v: 'card' | 'table') => void;
+  loading: boolean;
+  onRefresh: () => void;
+  viewMode: 'card' | 'table';
+  onViewMode: (v: 'card' | 'table') => void;
 }
 
 function RangeInput({
-  label, field, min, unit = '', range, onRange, placeholder = '∞',
+  label,
+  field,
+  min,
+  unit = '',
+  range,
+  onRange,
+  placeholder = 'inf',
 }: {
   label: string;
   field: keyof ScreenerRangeFilter;
@@ -48,17 +57,17 @@ function RangeInput({
   const displayVal = (val === Infinity || val === -Infinity) ? '' : String(val);
 
   return (
-    <span className="flex items-center gap-1 text-[11px] text-muted">
+    <span className="flex items-center gap-1 text-[11px] text-ghost">
       {label}
       <input
         type="number"
         value={displayVal}
         placeholder={placeholder}
-        className="w-16 bg-base border border-border rounded px-1.5 py-0.5 text-fg text-[11px] tabular-nums focus:outline-none focus:border-[#58a6ff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        onChange={e => {
-          const raw = e.target.value;
+        className="field h-8 w-20 text-[11px]"
+        onChange={event => {
+          const raw = event.target.value;
           const parsed = raw === '' ? (min ? 0 : Infinity) : parseFloat(raw);
-          onRange({ ...range, [field]: isNaN(parsed) ? (min ? 0 : Infinity) : parsed });
+          onRange({ ...range, [field]: Number.isNaN(parsed) ? (min ? 0 : Infinity) : parsed });
         }}
       />
       {unit && <span>{unit}</span>}
@@ -67,187 +76,166 @@ function RangeInput({
 }
 
 export const ScreenerFilters = memo(({
-  query, onQuery, range, onRange, presets, onPreset, fnoOnly, onFnoOnly, onReset,
-  totalCount, filteredCount, loading, onRefresh, viewMode, onViewMode,
+  query,
+  onQuery,
+  range,
+  onRange,
+  presets,
+  onPreset,
+  fnoOnly,
+  onFnoOnly,
+  onReset,
+  totalCount,
+  filteredCount,
+  loading,
+  onRefresh,
+  viewMode,
+  onViewMode,
 }: ScreenerFiltersProps) => {
   const [expanded, setExpanded] = useState(false);
   const rangeActive = isRangeActive(range, fnoOnly);
-  const hasFilters = query || rangeActive || presets.size > 0;
-
-  // Quick ADV tier — sets advMin and clears advMax
+  const hasFilters = Boolean(query) || rangeActive || presets.size > 0;
   const advMin = range.advMin;
+
   const setAdvTier = (cr: number) => onRange({ ...range, advMin: cr, advMax: Infinity });
 
   return (
-    <div className="shrink-0 bg-surface border-b border-subtle z-10">
-      {/* ── Primary filter row ── */}
-      <div className="flex items-center flex-wrap gap-2 px-4 py-1.5">
-        {/* Symbol search */}
+    <div className="shrink-0 border-b border-border bg-panel/78">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <input
           type="text"
           value={query}
-          onChange={e => onQuery(e.target.value)}
-          placeholder="Search symbol…"
-          className="bg-subtle border border-border text-fg text-xs rounded px-2 py-1 w-36 focus:outline-none focus:border-[#58a6ff]"
+          onChange={event => onQuery(event.target.value)}
+          placeholder="Search symbol"
+          className="field w-44 text-[12px]"
         />
 
-        {/* ADV tier quick-filter */}
-        <div className="flex items-center gap-1">
-          <span className="text-muted text-[11px]">ADV</span>
-          {ADV_TIERS.map(t => (
+        <div className="seg-group">
+          {ADV_TIERS.map(tier => (
             <button
-              key={t.cr}
-              onClick={() => setAdvTier(t.cr)}
-              className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
-                advMin === t.cr && range.advMax === Infinity
-                  ? 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]'
-                  : 'bg-subtle border-border text-muted hover:border-[#58a6ff] hover:text-fg'
-              }`}
+              key={tier.cr}
+              type="button"
+              onClick={() => setAdvTier(tier.cr)}
+              className={`seg-btn ${advMin === tier.cr && range.advMax === Infinity ? 'active' : ''}`}
+              style={advMin === tier.cr && range.advMax === Infinity ? { color: 'rgb(var(--amber))' } : undefined}
             >
-              {t.label}
+              {tier.label}
             </button>
           ))}
         </div>
 
-        {/* FNO toggle */}
         <button
+          type="button"
           onClick={() => onFnoOnly(!fnoOnly)}
-          className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
-            fnoOnly
-              ? 'bg-[#2d1f3a] border-[#c678dd] text-[#c678dd]'
-              : 'bg-subtle border-border text-muted hover:border-[#c678dd] hover:text-fg'
-          }`}
+          className={`seg-btn border border-border ${fnoOnly ? 'active' : ''}`}
+          style={fnoOnly ? { color: 'rgb(var(--violet))' } : undefined}
         >
-          F&amp;O
+          F&O
         </button>
 
-        {/* Preset tags — multi-select AND logic */}
-        <div className="flex items-center gap-1">
-          {SCREENER_PRESETS.filter(p => !p.group).map(p => (
+        <div className="seg-group">
+          {SCREENER_PRESETS.filter(preset => !preset.group).map(preset => (
             <button
-              key={p.key}
-              onClick={() => onPreset(p.key)}
-              className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
-                presets.has(p.key)
-                  ? 'bg-[#2d2118] border-[#d29922] text-[#d29922]'
-                  : 'bg-subtle border-border text-muted hover:border-[#d29922] hover:text-fg'
-              }`}
+              key={preset.key}
+              type="button"
+              onClick={() => onPreset(preset.key)}
+              className={`seg-btn ${presets.has(preset.key) ? 'active' : ''}`}
+              style={presets.has(preset.key) ? { color: 'rgb(var(--accent))' } : undefined}
             >
-              {p.label}
+              {preset.label}
             </button>
           ))}
         </div>
 
-        {/* CAM preset tags */}
-        <div className="flex items-center gap-1">
-          <span className="text-muted text-[11px]">CAM</span>
-          {SCREENER_PRESETS.filter(p => p.group === 'cam').map(p => (
+        <div className="seg-group">
+          {SCREENER_PRESETS.filter(preset => preset.group === 'cam').map(preset => (
             <button
-              key={p.key}
-              onClick={() => onPreset(p.key)}
-              className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
-                presets.has(p.key)
-                  ? 'bg-[#1f1a2e] border-[#9b72f7] text-[#9b72f7]'
-                  : 'bg-subtle border-border text-muted hover:border-[#9b72f7] hover:text-fg'
-              }`}
+              key={preset.key}
+              type="button"
+              onClick={() => onPreset(preset.key)}
+              className={`seg-btn ${presets.has(preset.key) ? 'active' : ''}`}
+              style={presets.has(preset.key) ? { color: 'rgb(var(--violet))' } : undefined}
             >
-              {p.label}
+              {preset.label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
-          {/* Advanced filter toggle */}
+        <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setExpanded(x => !x)}
-            className={`text-[11px] font-bold px-2 py-1 rounded border transition-colors ${
+            type="button"
+            onClick={() => setExpanded(value => !value)}
+            className={`h-8 rounded-lg border px-3 text-[11px] font-black transition-colors ${
               expanded || rangeActive
-                ? 'bg-[#1a2233] border-[#58a6ff] text-[#58a6ff]'
-                : 'bg-subtle border-border text-muted hover:border-[#58a6ff] hover:text-fg'
+                ? 'border-accent/45 bg-accent/10 text-accent'
+                : 'border-border bg-base/50 text-dim hover:border-rim hover:text-fg'
             }`}
           >
-            {expanded ? '▲ FILTERS' : '▼ FILTERS'}
-            {rangeActive && <span className="ml-1 text-[10px] bg-[#58a6ff] text-base px-1 rounded-full">•</span>}
+            {expanded ? 'Hide filters' : 'More filters'}
           </button>
 
-          {/* Clear all */}
           {hasFilters && (
             <button
+              type="button"
               onClick={onReset}
-              className="text-[11px] text-muted hover:text-[#f85149] border border-border hover:border-[#f85149] px-2 py-1 rounded transition-colors"
+              className="h-8 rounded-lg border border-border bg-base/50 px-3 text-[11px] font-bold text-dim hover:border-bear/50 hover:text-bear"
             >
-              RESET
+              Reset
             </button>
           )}
 
-          {/* Count */}
-          <span className="text-muted text-[11px] tabular-nums hidden sm:block">
-            {filteredCount} / {totalCount}
-          </span>
+          <span className="chip num hidden sm:inline-flex">{filteredCount}/{totalCount}</span>
 
-          {/* Refresh */}
           <button
+            type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="text-[11px] font-bold px-2.5 py-1 rounded border border-border text-muted hover:border-[#58a6ff] hover:text-[#58a6ff] transition-colors disabled:opacity-40"
+            className="icon-btn"
+            title="Refresh screener"
+            aria-label="Refresh screener"
           >
-            {loading ? 'Loading…' : '↻ Refresh'}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 12a8 8 0 0 1-13.7 5.7M4 12A8 8 0 0 1 17.7 6.3M18 3v4h-4M6 21v-4h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
 
-          {/* View toggle */}
           <ViewToggle view={viewMode} onChange={onViewMode} />
         </div>
       </div>
 
-      {/* ── Advanced range filter row ── */}
       {expanded && (
-        <div className="flex items-center flex-wrap gap-x-6 gap-y-2 px-4 py-2 border-t border-subtle bg-base/50 animate-slide-in">
-          {/* ATR */}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border bg-base/35 px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted font-bold tracking-wide">ATR</span>
-            <RangeInput label="min" field="atrMin" min  range={range} onRange={onRange} placeholder="0" />
-            <span className="text-border text-[11px]">—</span>
+            <span className="text-[11px] font-black uppercase text-ghost">ATR</span>
+            <RangeInput label="min" field="atrMin" min range={range} onRange={onRange} placeholder="0" />
             <RangeInput label="max" field="atrMax" range={range} onRange={onRange} />
           </div>
 
-          {/* CLOSE price */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted font-bold tracking-wide">CLOSE</span>
-            <RangeInput label="min" field="closeMin" min  range={range} onRange={onRange} placeholder="0" />
-            <span className="text-border text-[11px]">—</span>
+            <span className="text-[11px] font-black uppercase text-ghost">Close</span>
+            <RangeInput label="min" field="closeMin" min range={range} onRange={onRange} placeholder="0" />
             <RangeInput label="max" field="closeMax" range={range} onRange={onRange} />
           </div>
 
-          {/* ADV range (fine-grained) */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted font-bold tracking-wide">ADV Cr</span>
+            <span className="text-[11px] font-black uppercase text-ghost">ADV</span>
             <RangeInput label="min" field="advMin" min range={range} onRange={onRange} placeholder="0" />
-            <span className="text-border text-[11px]">—</span>
             <RangeInput label="max" field="advMax" range={range} onRange={onRange} unit="Cr" />
           </div>
 
-          {/* 52H% — distance from 52-week high */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted font-bold tracking-wide">52H%</span>
-            <RangeInput label="from" field="f52hMin" range={range} onRange={onRange} placeholder="-∞" />
-            <span className="text-border text-[11px]">—</span>
-            <RangeInput label="to"   field="f52hMax" range={range} onRange={onRange} placeholder="0" />
-            <span className="text-muted text-[11px]">%</span>
+            <span className="text-[11px] font-black uppercase text-ghost">52H%</span>
+            <RangeInput label="from" field="f52hMin" range={range} onRange={onRange} placeholder="-inf" />
+            <RangeInput label="to" field="f52hMax" range={range} onRange={onRange} placeholder="0" />
           </div>
 
-          {/* 52L% — distance from 52-week low */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted font-bold tracking-wide">52L%</span>
+            <span className="text-[11px] font-black uppercase text-ghost">52L%</span>
             <RangeInput label="from" field="f52lMin" min range={range} onRange={onRange} placeholder="0" />
-            <span className="text-border text-[11px]">—</span>
-            <RangeInput label="to"   field="f52lMax" range={range} onRange={onRange} />
-            <span className="text-muted text-[11px]">%</span>
+            <RangeInput label="to" field="f52lMax" range={range} onRange={onRange} />
           </div>
 
-          <button
-            onClick={() => onRange(DEFAULT_RANGE)}
-            className="text-[11px] text-muted hover:text-[#f85149] transition-colors ml-2"
-          >
+          <button type="button" onClick={() => onRange(DEFAULT_RANGE)} className="text-[11px] font-bold text-ghost hover:text-fg">
             Reset ranges
           </button>
         </div>

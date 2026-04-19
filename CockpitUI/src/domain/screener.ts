@@ -68,10 +68,10 @@ export const SCREENER_PRESETS: { key: ScreenerPreset; label: string; group?: str
   { key: 'near52l', label: 'NEAR 52L' },
   { key: 'nearpdh', label: 'NEAR PDH' },
   { key: 'nearpdl', label: 'NEAR PDL' },
-  { key: 'camH4x',   label: 'CAM H4↑', group: 'cam' },
-  { key: 'camS4x',   label: 'CAM S4↓', group: 'cam' },
-  { key: 'camH3rej', label: 'CAM H3⤵', group: 'cam' },
-  { key: 'camS3rej', label: 'CAM S3⤴', group: 'cam' },
+  { key: 'camH4x',   label: 'CAM H4+', group: 'cam' },
+  { key: 'camS4x',   label: 'CAM S4-', group: 'cam' },
+  { key: 'camH3rej', label: 'CAM H3 REJ', group: 'cam' },
+  { key: 'camS3rej', label: 'CAM S3 REJ', group: 'cam' },
 ];
 
 /** Compute Camarilla pivot levels from previous-day OHLC. */
