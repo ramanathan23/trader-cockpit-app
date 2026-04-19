@@ -1,1 +1,1 @@
-"""ComfortScorer model - predicts hold comfort score (0-100) for stocks."""
+"""ComfortScorer model - scores chart comfort (0-100) for momentum stocks."""

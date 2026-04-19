@@ -10,20 +10,19 @@ from ...core.base_model import BaseModel, ModelMetadata
 from .features import FeatureExtractor
 from ._model_io import load_comfort_model
 from ._model_predict import predict_comfort
-from ._model_train import train_comfort_model
 
 logger = logging.getLogger(__name__)
 
 
 class ComfortScorerModel(BaseModel):
-    """Predicts hold comfort score (0-100) for stocks."""
+    """Scores chart comfort (0-100) for momentum trading."""
 
     def __init__(self, model_base_path: str):
         super().__init__(name="comfort_scorer", model_base_path=model_base_path)
         self.feature_extractor: Optional[FeatureExtractor] = None
 
     async def load(self, version: Optional[str] = None) -> None:
-        """Load LightGBM model from disk."""
+        """Load chart-comfort rule set."""
         self.model, self.metadata, self.feature_extractor, self.version = (
             await load_comfort_model(self.model_base_path, self.name, version, self.db_pool)
         )
@@ -40,16 +39,14 @@ class ComfortScorerModel(BaseModel):
         """Predict comfort score."""
         if self.model is None:
             raise RuntimeError(f"Model {self.name} not loaded")
-        return predict_comfort(self.model, features)
+        return predict_comfort(features)
 
     async def train(
         self, start_date: date, end_date: date, reason: str = "manual"
     ) -> ModelMetadata:
-        """Train new comfort scorer model."""
-        if not self.db_pool:
-            raise RuntimeError("Cannot train without db_pool")
-        return await train_comfort_model(
-            self.db_pool, self.model_base_path, self.name, start_date, end_date, reason
+        """Comfort scorer is rule-based and is not trained."""
+        raise RuntimeError(
+            "comfort_scorer uses chart_comfort_v2 rules; adjust the rules instead of retraining"
         )
 
     async def evaluate(

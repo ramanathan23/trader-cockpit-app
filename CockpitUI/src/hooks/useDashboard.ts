@@ -22,8 +22,9 @@ export function useDashboard() {
       if (opts?.watchlistOnly) params.set('watchlist_only', 'true');
       if (opts?.date) params.set('score_date', opts.date);
       params.set('limit', '1000');
+      params.set('_ts', String(Date.now()));
 
-      const res = await fetch(`/scorer/dashboard?${params}`);
+      const res = await fetch(`/scorer/dashboard?${params}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`Dashboard fetch failed: ${res.status}`);
       const data: DashboardResponse = await res.json();
       setStats(data.stats);

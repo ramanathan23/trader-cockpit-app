@@ -1,14 +1,12 @@
-"""Training dataset builder and LightGBM trainer for ComfortScorer."""
+"""Training dataset builder compatibility wrapper for ComfortScorer."""
 
 from datetime import date
 from typing import Tuple
 
 import pandas as pd
 import asyncpg
-import lightgbm as lgb
 
 from ._dataset_builder import build_dataset
-from ._lgbm_trainer import train_lightgbm
 from ._normalizers import (
     normalize_return,
     normalize_drawdown,
@@ -18,7 +16,7 @@ from ._normalizers import (
 
 
 class ComfortScorerTrainer:
-    """Build training dataset and train LightGBM model."""
+    """Build legacy datasets; model training has been retired."""
 
     def __init__(self, db_pool: asyncpg.Pool):
         self.db_pool = db_pool
@@ -28,13 +26,6 @@ class ComfortScorerTrainer:
     ) -> Tuple[pd.DataFrame, pd.Series]:
         """Build training dataset from historical scores + forward outcomes."""
         return await build_dataset(self.db_pool, start_date, end_date)
-
-    @staticmethod
-    def train_lightgbm(
-        X: pd.DataFrame, y: pd.Series, val_split: float = 0.2
-    ) -> Tuple[lgb.Booster, dict]:
-        """Train LightGBM regression model."""
-        return train_lightgbm(X, y, val_split)
 
     @staticmethod
     def _normalize_return(ret: float) -> float:
