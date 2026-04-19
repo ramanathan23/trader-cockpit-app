@@ -200,7 +200,6 @@ export const SignalFeed = memo(({
 
     return (
       <>
-        <LatestSignalsBar signals={filtered.slice(0, 5)} metricsCache={metricsCache} onChart={openChart} />
         <div
           ref={tableParentRef}
           className="table-wrap flex-1"
@@ -244,7 +243,6 @@ export const SignalFeed = memo(({
 
   return (
     <>
-      <LatestSignalsBar signals={filtered.slice(0, 5)} metricsCache={metricsCache} onChart={openChart} />
       <div
         ref={cardParentRef}
         className="relative flex-1 overflow-y-auto p-3"
