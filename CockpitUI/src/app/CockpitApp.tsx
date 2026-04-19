@@ -131,7 +131,7 @@ export function CockpitApp() {
   const [view, setView] = useState<AppView>('dashboard');
   const [category, setCategory] = useState<SignalCategory>('ALL');
   const [minAdvCr, setMinAdvCr] = useState(0);
-  const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster'>('cluster');
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [showHelp, setShowHelp] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('dark');
   const [subType, setSubType] = useState<SignalType | null>(null);
@@ -238,7 +238,7 @@ export function CockpitApp() {
             {view === 'admin' ? (
               <AdminPanel />
             ) : view === 'dashboard' ? (
-              <DashboardPanel active={view === 'dashboard'} viewMode={viewMode} />
+              <DashboardPanel active={view === 'dashboard'} />
             ) : view === 'screener' ? (
               <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} />
             ) : (
@@ -251,7 +251,7 @@ export function CockpitApp() {
                 subType={subType}
                 fnoOnly={fnoOnly}
                 minAdvCr={minAdvCr}
-                viewMode={viewMode === 'cluster' ? 'card' : viewMode}
+                viewMode={viewMode}
                 emptyLabel={view === 'live' ? 'Waiting for live signals' : `No signals for ${history.date}`}
                 hasMore={view === 'history' ? history.hasMore : false}
                 onLoadMore={view === 'history' ? history.loadMore : undefined}

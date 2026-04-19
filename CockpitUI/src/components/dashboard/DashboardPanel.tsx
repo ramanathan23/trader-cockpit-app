@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Crosshair, LayoutGrid, List, RotateCcw } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ClusterChart } from './ClusterChart';
@@ -27,7 +27,6 @@ type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
 
 interface DashboardPanelProps {
   active: boolean;
-  viewMode: 'card' | 'table' | 'cluster';
 }
 
 const HEADERS: { key: string; label: string; title: string; align: 'left' | 'right' | 'center'; sortable: boolean }[] = [
@@ -47,9 +46,10 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
 ];
 
-export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
+export function DashboardPanel({ active }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster'>('table');
   const [segment, setSegment] = useState<Segment>('all');
   const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [query, setQuery] = useState('');
@@ -69,6 +69,10 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
 
   useEffect(() => {
     if (fetched) loadDashboard({ watchlistOnly });
+  }, [watchlistOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!watchlistOnly && viewMode === 'cluster') setViewMode('table');
   }, [watchlistOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -157,6 +161,37 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="seg-group">
+              {watchlistOnly && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cluster')}
+                  title="Cluster chart"
+                  aria-label="Cluster chart"
+                  className={`seg-btn px-2 ${viewMode === 'cluster' ? 'active' : ''}`}
+                >
+                  <Crosshair size={14} aria-hidden="true" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                title="Card view"
+                aria-label="Card view"
+                className={`seg-btn px-2 ${viewMode === 'card' ? 'active' : ''}`}
+              >
+                <LayoutGrid size={14} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                title="Table view"
+                aria-label="Table view"
+                className={`seg-btn px-2 ${viewMode === 'table' ? 'active' : ''}`}
+              >
+                <List size={14} aria-hidden="true" />
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => loadDashboard({ watchlistOnly })}

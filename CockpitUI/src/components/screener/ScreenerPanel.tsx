@@ -11,12 +11,11 @@ import { SymbolModal } from '@/components/dashboard/SymbolModal';
 
 interface ScreenerPanelProps {
   active: boolean;
-  viewMode: 'card' | 'table' | 'cluster';
-  onViewMode: (v: 'card' | 'table' | 'cluster') => void;
+  viewMode: 'card' | 'table';
+  onViewMode: (v: 'card' | 'table') => void;
 }
 
 export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelProps) {
-  // cluster is dashboard-only; screener treats it as card
   const effectiveMode: 'card' | 'table' = viewMode === 'table' ? 'table' : 'card';
 
   const {

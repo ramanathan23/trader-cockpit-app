@@ -1,24 +1,15 @@
 'use client';
 
-import { Crosshair, LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List } from 'lucide-react';
 
 interface ViewToggleProps {
-  view: 'card' | 'table' | 'cluster';
-  onChange: (v: 'card' | 'table' | 'cluster') => void;
+  view: 'card' | 'table';
+  onChange: (v: 'card' | 'table') => void;
 }
 
 export function ViewToggle({ view, onChange }: ViewToggleProps) {
   return (
     <div className="seg-group">
-      <button
-        type="button"
-        onClick={() => onChange('cluster')}
-        title="Cluster chart"
-        aria-label="Cluster chart"
-        className={`seg-btn px-2 ${view === 'cluster' ? 'active' : ''}`}
-      >
-        <Crosshair size={14} aria-hidden="true" />
-      </button>
       <button
         type="button"
         onClick={() => onChange('card')}

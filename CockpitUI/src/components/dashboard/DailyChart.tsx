@@ -76,6 +76,7 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
   const containerRef    = useRef<HTMLDivElement>(null);
   const vpCanvasRef     = useRef<HTMLCanvasElement>(null);
   const chartRef        = useRef<IChartApi | null>(null);
+  const profileRef      = useRef<{ price: number; vol: number; pct: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [legend,  setLegend]  = useState<LegendData | null>(null);
@@ -115,13 +116,10 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Volume pane gets ~20% of total height
-    const numHeight = typeof height === 'number' ? height : parseInt(height as string, 10);
-    const volHeight = Math.round(numHeight * 0.20);
-    const priceHeight = numHeight - volHeight;
+    const initHeight = containerRef.current.offsetHeight || (typeof height === 'number' ? height : 400);
 
     const chart = createChart(containerRef.current, {
-      height: numHeight,
+      height: initHeight,
       layout: {
         background: { color: 'transparent' },
         textColor: 'rgb(116, 142, 170)',
@@ -238,6 +236,7 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
 
         // Volume profile overlay
         const profile = buildVolumeProfile(bars);
+        profileRef.current = profile;
         drawVolumeProfile(profile, candleSeries);
 
         // Redraw VP on visible range change (scroll / zoom)
@@ -254,8 +253,9 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
       });
 
     const ro = new ResizeObserver(entries => {
-      const { width } = entries[0].contentRect;
-      chart.applyOptions({ width });
+      const { width, height: h } = entries[0].contentRect;
+      chart.applyOptions({ width, height: h });
+      drawVolumeProfile(profileRef.current, candleSeries);
     });
     ro.observe(containerRef.current);
 
@@ -274,7 +274,7 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
   };
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {/* Legend overlay */}
       <div className="absolute top-1 left-2 z-20 flex items-center gap-3 text-[9px] pointer-events-none">
         {legend ? (
@@ -321,9 +321,9 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
       <canvas
         ref={vpCanvasRef}
         className="absolute inset-0 pointer-events-none z-[5]"
-        style={{ width: '100%', height }}
+        style={{ width: '100%', height: '100%' }}
       />
-      <div ref={containerRef} style={{ width: '100%', height }} />
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
 });
