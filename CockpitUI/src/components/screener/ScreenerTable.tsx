@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useCallback, useRef } from 'react';
+import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
@@ -92,7 +93,17 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
                 className={`${col.align === 'left' ? 'text-left' : 'text-right'} cursor-pointer hover:text-fg`}
                 style={{ color: sortCol === col.key ? 'rgb(var(--accent))' : undefined }}
               >
-                {col.label}{sortCol === col.key ? (sortAsc ? ' ^' : ' v') : ''}
+                <span className="inline-flex items-center gap-0.5">
+                  {col.label}
+                  <span className="inline-flex opacity-60">
+                    {sortCol === col.key
+                      ? sortAsc
+                        ? <ChevronUp size={11} aria-hidden="true" />
+                        : <ChevronDown size={11} aria-hidden="true" />
+                      : <ChevronsUpDown size={11} className="opacity-50" aria-hidden="true" />
+                    }
+                  </span>
+                </span>
               </th>
             ))}
           </tr>

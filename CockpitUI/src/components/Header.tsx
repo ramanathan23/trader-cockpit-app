@@ -1,5 +1,6 @@
 'use client';
 
+import { Activity, HelpCircle, Moon, Sun } from 'lucide-react';
 import { PHASE_STYLE, type Bias, type IndexName, type MarketPhase } from '@/domain/market';
 import { unlockAudio } from '@/lib/audio';
 import type { TokenStatus } from '@/hooks/useTokenStatus';
@@ -28,21 +29,7 @@ interface HeaderProps {
   onToggleHelp: () => void;
 }
 
-function ThemeIcon({ theme }: { theme: 'dark' | 'light' }) {
-  if (theme === 'dark') {
-    return (
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M20 14.4A7.7 7.7 0 0 1 9.6 4a8.2 8.2 0 1 0 10.4 10.4Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
 
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5V3m0 18v-2M5 12H3m18 0h-2M6.3 6.3 4.9 4.9m14.2 14.2-1.4-1.4m0-11.4 1.4-1.4M4.9 19.1l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function BiasPill({ name, value }: { name: IndexName; value: Bias }) {
   const bullish = value === 'BULLISH';
@@ -109,10 +96,7 @@ export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus, 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 17h4l3-10 4 10h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M4 7h3m10 0h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+            <Activity size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <h1 className="truncate text-[14px] font-black uppercase text-fg">Trader Cockpit</h1>
@@ -150,10 +134,7 @@ export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus, 
             aria-label={showHelp ? 'Hide glossary' : 'Show glossary'}
             className={`icon-btn ${showHelp ? 'border-accent/50 bg-accent/10 text-accent' : ''}`}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M9.5 9a2.7 2.7 0 1 1 4.4 2.1c-.9.7-1.4 1.1-1.4 2.4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" strokeWidth="1.8" />
-            </svg>
+            <HelpCircle size={15} aria-hidden="true" />
           </button>
 
           <button
@@ -166,7 +147,7 @@ export function Header({ phase, bias, clock, theme, onToggleTheme, tokenStatus, 
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
           >
-            <ThemeIcon theme={theme} />
+            {theme === 'dark' ? <Moon size={15} aria-hidden="true" /> : <Sun size={15} aria-hidden="true" />}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import { Trash2 } from 'lucide-react';
 import { filterSignals, signalColor, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 
@@ -203,9 +204,7 @@ export const SignalToolbar = memo(({
                 title="Clear signal tape"
                 aria-label="Clear signal tape"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 7h12m-10 0 1 13h6l1-13M10 7V4h4v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <Trash2 size={15} aria-hidden="true" />
               </button>
 
               <button

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, RotateCcw } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDashboard } from '@/hooks/useDashboard';
 import { DailyChart } from './DailyChart';
@@ -20,6 +21,7 @@ type SortKey =
   | 'adv_20_cr';
 
 type Segment = 'all' | 'fno' | 'equity';
+type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
 
 interface DashboardPanelProps {
   active: boolean;
@@ -46,6 +48,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard();
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [segment, setSegment] = useState<Segment>('all');
+  const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('total_score');
   const [sortAsc, setSortAsc] = useState(false);
@@ -75,6 +78,9 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
     let rows = scores;
     if (segment === 'fno') rows = rows.filter(row => row.is_fno === true);
     if (segment === 'equity') rows = rows.filter(row => row.is_fno !== true);
+    if (biasFilter === 'bull') rows = rows.filter(row => row.weekly_bias === 'BULLISH');
+    if (biasFilter === 'bear') rows = rows.filter(row => row.weekly_bias === 'BEARISH');
+    if (biasFilter === 'neutral') rows = rows.filter(row => row.weekly_bias === 'NEUTRAL' || row.weekly_bias == null);
     if (q) rows = rows.filter(row => row.symbol.includes(q) || row.company_name?.toUpperCase().includes(q));
 
     return [...rows].sort((a, b) => {
@@ -82,7 +88,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
       const bv = b[sortKey] ?? 0;
       return sortAsc ? Number(av) - Number(bv) : Number(bv) - Number(av);
     });
-  }, [scores, segment, query, sortKey, sortAsc]);
+  }, [scores, segment, biasFilter, query, sortKey, sortAsc]);
 
   const handleSort = useCallback((key: SortKey) => {
     setSortAsc(prev => sortKey === key ? !prev : key === 'rank');
@@ -132,6 +138,13 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
             ))}
           </div>
 
+          <div className="seg-group">
+            <button type="button" onClick={() => setBiasFilter('all')} className={`seg-btn ${biasFilter === 'all' ? 'active' : ''}`}>Bias</button>
+            <button type="button" onClick={() => setBiasFilter('bull')} className={`seg-btn ${biasFilter === 'bull' ? 'active' : ''}`} style={biasFilter === 'bull' ? { color: 'rgb(var(--bull))' } : undefined}>Bull</button>
+            <button type="button" onClick={() => setBiasFilter('bear')} className={`seg-btn ${biasFilter === 'bear' ? 'active' : ''}`} style={biasFilter === 'bear' ? { color: 'rgb(var(--bear))' } : undefined}>Bear</button>
+            <button type="button" onClick={() => setBiasFilter('neutral')} className={`seg-btn ${biasFilter === 'neutral' ? 'active' : ''}`}>Neut</button>
+          </div>
+
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
@@ -141,9 +154,7 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
               title="Refresh dashboard"
               aria-label="Refresh dashboard"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M20 12a8 8 0 0 1-13.7 5.7M4 12A8 8 0 0 1 17.7 6.3M18 3v4h-4M6 21v-4h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <RotateCcw size={15} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -189,7 +200,19 @@ export function DashboardPanel({ active, viewMode }: DashboardPanelProps) {
                     className={`${header.align === 'right' ? 'text-right' : header.align === 'center' ? 'text-center' : 'text-left'} ${header.sortable ? 'cursor-pointer hover:text-fg' : ''}`}
                     style={{ color: sortKey === header.key ? 'rgb(var(--accent))' : undefined }}
                   >
-                    {header.label}{sortKey === header.key ? (sortAsc ? ' ^' : ' v') : ''}
+                    <span className="inline-flex items-center gap-0.5">
+                      {header.label}
+                      {header.sortable && (
+                        <span className="inline-flex opacity-60">
+                          {sortKey === header.key
+                            ? sortAsc
+                              ? <ChevronUp size={11} aria-hidden="true" />
+                              : <ChevronDown size={11} aria-hidden="true" />
+                            : <ChevronsUpDown size={11} className="opacity-50" aria-hidden="true" />
+                          }
+                        </span>
+                      )}
+                    </span>
                   </th>
                 ))}
               </tr>

@@ -7,6 +7,7 @@ import { fmt2 } from '@/lib/fmt';
 interface OptionChainPanelProps {
   symbol: string;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 const ATM_COUNT = 5;
@@ -76,7 +77,7 @@ function assessChain(strikes: OptionStrike[], spotPrice: number): { label: strin
   };
 }
 
-export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps) => {
+export const OptionChainPanel = memo(({ symbol, onClose, embedded = false }: OptionChainPanelProps) => {
   const [expiries, setExpiries] = useState<string[]>([]);
   const [selectedExp, setSelectedExp] = useState<string | null>(null);
   const [chain, setChain] = useState<OptionChainResponse | null>(null);
@@ -141,6 +142,93 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
     return assessChain(visibleStrikes, chain.spot_price);
   }, [chain, visibleStrikes]);
 
+  const tableContent = (
+    <>
+      {assessment && !loading && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-base/35 px-4 py-2 text-[11px]">
+          <span className="font-black" style={{ color: assessment.color }}>{assessment.label}</span>
+          {assessment.reasons.map(reason => <span key={reason} className="text-ghost">{reason}</span>)}
+        </div>
+      )}
+
+      {loading && <div className="flex flex-1 items-center justify-center text-[13px] text-dim">Loading option chain</div>}
+      {error && !loading && <div className="flex flex-1 items-center justify-center text-[13px] text-bear">Error: {error}</div>}
+
+      {chain && !loading && !error && (
+        <div className="table-wrap flex-1">
+          <table className="data-table text-[11px]">
+            <thead>
+              <tr>
+                <th colSpan={7} className="text-right" style={{ color: 'rgb(var(--bull))' }}>Calls</th>
+                <th className="text-center" style={{ color: 'rgb(var(--accent))' }}>Strike</th>
+                <th colSpan={7} className="text-left" style={{ color: 'rgb(var(--bear))' }}>Puts</th>
+              </tr>
+              <tr>
+                {['OI', 'Vol', 'IV', 'Delta', 'Bid', 'Ask', 'LTP'].map(h => <th key={`c-${h}`} className="text-right">{h}</th>)}
+                <th className="text-center">Strike</th>
+                {['LTP', 'Bid', 'Ask', 'Delta', 'IV', 'Vol', 'OI'].map(h => <th key={`p-${h}`} className="text-left">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleStrikes.map(strike => {
+                const isATM = atmStrike != null && strike.strike_price === atmStrike;
+                const itmCall = chain.spot_price > strike.strike_price;
+                const itmPut = chain.spot_price < strike.strike_price;
+                return (
+                  <tr key={strike.strike_price} className={isATM ? 'bg-accent/10' : ''}>
+                    <td className="text-right num text-dim">{fmtOI(strike.call_oi)}</td>
+                    <td className="text-right num text-dim">{fmtOI(strike.call_volume)}</td>
+                    <td className="text-right num text-amber">{fmtIV(strike.call_iv)}</td>
+                    <td className="text-right num text-dim">{fmtGreek(strike.call_delta)}</td>
+                    <td className="text-right num text-dim">{fmt2(strike.call_bid)}</td>
+                    <td className="text-right num text-dim">{fmt2(strike.call_ask)}</td>
+                    <td className="text-right num font-black" style={{ color: itmCall ? 'rgb(var(--bull))' : 'rgb(var(--fg))' }}>{fmt2(strike.call_ltp)}</td>
+                    <td className="text-center num font-black" style={{ color: isATM ? 'rgb(var(--accent))' : 'rgb(var(--fg))' }}>
+                      {strike.strike_price}{isATM ? ' ATM' : ''}
+                    </td>
+                    <td className="text-left num font-black" style={{ color: itmPut ? 'rgb(var(--bear))' : 'rgb(var(--fg))' }}>{fmt2(strike.put_ltp)}</td>
+                    <td className="text-left num text-dim">{fmt2(strike.put_bid)}</td>
+                    <td className="text-left num text-dim">{fmt2(strike.put_ask)}</td>
+                    <td className="text-left num text-dim">{fmtGreek(strike.put_delta)}</td>
+                    <td className="text-left num text-amber">{fmtIV(strike.put_iv)}</td>
+                    <td className="text-left num text-dim">{fmtOI(strike.put_volume)}</td>
+                    <td className="text-left num text-dim">{fmtOI(strike.put_oi)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2">
+          {chain && <span className="chip num" style={{ color: 'rgb(var(--accent))' }}>Spot {fmt2(chain.spot_price)}</span>}
+          {expiries.length > 0 && (
+            <div className="seg-group">
+              {expiries.slice(0, 4).map(expiry => (
+                <button
+                  key={expiry}
+                  type="button"
+                  onClick={() => setSelectedExp(expiry)}
+                  className={`seg-btn ${selectedExp === expiry ? 'active' : ''}`}
+                  style={selectedExp === expiry ? { color: 'rgb(var(--accent))' } : undefined}
+                >
+                  {expiry}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {tableContent}
+      </div>
+    );
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -173,63 +261,7 @@ export const OptionChainPanel = memo(({ symbol, onClose }: OptionChainPanelProps
             <button type="button" onClick={onClose} className="icon-btn" title="Close" aria-label="Close">x</button>
           </div>
         </div>
-
-        {assessment && !loading && (
-          <div className="flex flex-wrap items-center gap-3 border-b border-border bg-base/35 px-4 py-2 text-[11px]">
-            <span className="font-black" style={{ color: assessment.color }}>{assessment.label}</span>
-            {assessment.reasons.map(reason => <span key={reason} className="text-ghost">{reason}</span>)}
-          </div>
-        )}
-
-        {loading && <div className="flex flex-1 items-center justify-center text-[13px] text-dim">Loading option chain</div>}
-        {error && !loading && <div className="flex flex-1 items-center justify-center text-[13px] text-bear">Error: {error}</div>}
-
-        {chain && !loading && !error && (
-          <div className="table-wrap flex-1">
-            <table className="data-table text-[11px]">
-              <thead>
-                <tr>
-                  <th colSpan={7} className="text-right" style={{ color: 'rgb(var(--bull))' }}>Calls</th>
-                  <th className="text-center" style={{ color: 'rgb(var(--accent))' }}>Strike</th>
-                  <th colSpan={7} className="text-left" style={{ color: 'rgb(var(--bear))' }}>Puts</th>
-                </tr>
-                <tr>
-                  {['OI', 'Vol', 'IV', 'Delta', 'Bid', 'Ask', 'LTP'].map(h => <th key={`c-${h}`} className="text-right">{h}</th>)}
-                  <th className="text-center">Strike</th>
-                  {['LTP', 'Bid', 'Ask', 'Delta', 'IV', 'Vol', 'OI'].map(h => <th key={`p-${h}`} className="text-left">{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleStrikes.map(strike => {
-                  const isATM = atmStrike != null && strike.strike_price === atmStrike;
-                  const itmCall = chain.spot_price > strike.strike_price;
-                  const itmPut = chain.spot_price < strike.strike_price;
-                  return (
-                    <tr key={strike.strike_price} className={isATM ? 'bg-accent/10' : ''}>
-                      <td className="text-right num text-dim">{fmtOI(strike.call_oi)}</td>
-                      <td className="text-right num text-dim">{fmtOI(strike.call_volume)}</td>
-                      <td className="text-right num text-amber">{fmtIV(strike.call_iv)}</td>
-                      <td className="text-right num text-dim">{fmtGreek(strike.call_delta)}</td>
-                      <td className="text-right num text-dim">{fmt2(strike.call_bid)}</td>
-                      <td className="text-right num text-dim">{fmt2(strike.call_ask)}</td>
-                      <td className="text-right num font-black" style={{ color: itmCall ? 'rgb(var(--bull))' : 'rgb(var(--fg))' }}>{fmt2(strike.call_ltp)}</td>
-                      <td className="text-center num font-black" style={{ color: isATM ? 'rgb(var(--accent))' : 'rgb(var(--fg))' }}>
-                        {strike.strike_price}{isATM ? ' ATM' : ''}
-                      </td>
-                      <td className="text-left num font-black" style={{ color: itmPut ? 'rgb(var(--bear))' : 'rgb(var(--fg))' }}>{fmt2(strike.put_ltp)}</td>
-                      <td className="text-left num text-dim">{fmt2(strike.put_bid)}</td>
-                      <td className="text-left num text-dim">{fmt2(strike.put_ask)}</td>
-                      <td className="text-left num text-dim">{fmtGreek(strike.put_delta)}</td>
-                      <td className="text-left num text-amber">{fmtIV(strike.put_iv)}</td>
-                      <td className="text-left num text-dim">{fmtOI(strike.put_volume)}</td>
-                      <td className="text-left num text-dim">{fmtOI(strike.put_oi)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {tableContent}
       </div>
     </div>
   );

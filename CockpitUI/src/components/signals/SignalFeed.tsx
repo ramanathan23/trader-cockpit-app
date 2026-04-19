@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { Activity } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { filterSignals, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
@@ -203,9 +204,7 @@ export const SignalFeed = memo(({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-ghost">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 14h4l2-7 4 10 2-5h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Activity size={22} aria-hidden="true" />
         </div>
         <span className="text-[13px] font-semibold text-dim">{emptyLabel ?? 'No signals'}</span>
       </div>

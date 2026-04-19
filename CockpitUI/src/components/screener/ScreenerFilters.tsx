@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
 import {
   DEFAULT_RANGE,
   SCREENER_PRESETS,
@@ -189,9 +190,7 @@ export const ScreenerFilters = memo(({
             title="Refresh screener"
             aria-label="Refresh screener"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M20 12a8 8 0 0 1-13.7 5.7M4 12A8 8 0 0 1 17.7 6.3M18 3v4h-4M6 21v-4h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <RotateCcw size={15} aria-hidden="true" />
           </button>
         </div>
       </div>
