@@ -33,7 +33,7 @@ async def build_dataset(
                 sm.atr_ratio, sm.atr_5, sm.bb_width, sm.kc_width,
                 sm.rs_vs_nifty
             FROM daily_scores ds
-            JOIN symbol_metrics sm ON ds.symbol = sm.symbol
+            LEFT JOIN symbol_metrics sm ON ds.symbol = sm.symbol
             WHERE ds.score_date >= $1
               AND ds.score_date <= $2
               AND ds.total_score > 50

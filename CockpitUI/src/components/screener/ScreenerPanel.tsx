@@ -16,7 +16,7 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
 
   const {
-    filteredRows, loading, hasMore,
+    rows, filteredRows, loading, hasMore,
     query, setQuery,
     range, setRange,
     presets, togglePreset,
@@ -26,7 +26,7 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
     totalCount,
   } = useScreener();
 
-  const breadth = useMemo(() => computeBreadthStats(filteredRows), [filteredRows]);
+  const breadth = useMemo(() => computeBreadthStats(rows), [rows]);
 
   // Auto-load on first activation
   useEffect(() => {
@@ -48,7 +48,7 @@ export function ScreenerPanel({ active }: ScreenerPanelProps) {
         viewMode={viewMode}      onViewMode={setViewMode}
       />
 
-      <ScreenerStatsBar stats={breadth} total={filteredRows.length} />
+      <ScreenerStatsBar stats={breadth} total={rows.length} />
 
       {viewMode === 'table'
         ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />

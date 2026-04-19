@@ -13,7 +13,7 @@ import {
 
 export type { ScreenerRangeFilter, ScreenerPreset };
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 2000;
 
 export function useScreener() {
   const [rows,    setRows]    = useState<ScreenerRow[]>([]);

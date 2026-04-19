@@ -24,7 +24,7 @@ async def trigger_compute(
 async def get_dashboard(
     repo: ScoreRepoDep,
     score_date: date | None = Query(default=None, description="YYYY-MM-DD, latest if omitted"),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=50, ge=1, le=2000),
     offset: int = Query(default=0, ge=0),
     watchlist_only: bool = Query(default=False),
     segment: str | None = Query(default=None, pattern="^(fno|equity)$", description="fno | equity — omit for all"),
