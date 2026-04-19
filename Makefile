@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: up down build logs shell-db sync sync-1min sync-all scores-top scores-compute feed-status dhan-map dhan-status ui test-python coverage-python
+.PHONY: up down build logs shell-db sync sync-1min reset-1min sync-all scores-top scores-compute comfort-score comfort-score-date feed-status dhan-map dhan-status ui test-python coverage-python
 
 up:
 	docker compose up -d --build --remove-orphans
@@ -26,6 +26,10 @@ sync:
 sync-1min:
 	curl -s -X POST http://localhost:8001/api/v1/sync/run-1min | python -m json.tool
 
+# Reset 1-min data — truncates price_data_1min and clears sync_state (forces full re-fetch)
+reset-1min:
+	curl -s -X POST http://localhost:8001/api/v1/sync/reset-1min | python -m json.tool
+
 # Full sync — daily (yfinance) + 1-min (Dhan) in parallel
 sync-all:
 	curl -s -X POST http://localhost:8001/api/v1/sync/run-all | python -m json.tool
@@ -45,6 +49,14 @@ symbols-load:
 # Trigger momentum score computation
 scores-compute:
 	curl -s -X POST http://localhost:8002/api/v1/scores/compute | python -m json.tool
+
+# Compute and persist comfort scores for all symbols (today's date)
+comfort-score:
+	curl -s -X POST "http://localhost:8004/api/v1/models/comfort_scorer/score-all" | python -m json.tool
+
+# Compute comfort scores for a specific date: make comfort-score-date DATE=2026-04-18
+comfort-score-date:
+	curl -s -X POST "http://localhost:8004/api/v1/models/comfort_scorer/score-all?score_date=$(DATE)" | python -m json.tool
 
 # Top 20 momentum scores
 scores-top:

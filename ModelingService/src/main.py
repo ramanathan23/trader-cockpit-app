@@ -8,6 +8,7 @@ from .db.connection import create_pool, run_migrations
 from .api.routes import router
 from .core.model_registry import ModelRegistry
 from .repositories.prediction_repository import PredictionRepository
+from .services.scoring_service import ScoringService
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -37,11 +38,15 @@ async def lifespan(app: FastAPI):
     )
     await registry.initialize()
     
+    # Initialize services
+    scoring_service = ScoringService(pool, registry, prediction_repo)
+
     # Store in app state
     app.state.pool = pool
     app.state.registry = registry
     app.state.prediction_repo = prediction_repo
-    
+    app.state.scoring_service = scoring_service
+
     logger.info(f"ModelingService ready. Models loaded: {len(registry.models)}")
     yield
     

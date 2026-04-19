@@ -1,5 +1,6 @@
 """Repository for model predictions storage."""
 
+import json
 import logging
 from datetime import date
 from typing import List
@@ -37,7 +38,7 @@ class PredictionRepository:
                 prediction.model_version,
                 prediction.symbol,
                 prediction.prediction_date,
-                prediction.predictions,
+                json.dumps(prediction.predictions),
                 prediction.confidence,
             )
             return row['id']

@@ -3,8 +3,10 @@ ScoreService — orchestrates batch unified score computation and persistence.
 """
 import asyncio
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
+
+import pandas as pd
 
 import asyncpg
 
@@ -23,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 _IST = ZoneInfo("Asia/Kolkata")
 _WATCHLIST_SIZE = 50
+
+
+def _last_trading_date(price_data: dict[str, pd.DataFrame]) -> date:
+    """Return most recent trading date from fetched price data."""
+    dates = [df["time"].max() for df in price_data.values() if not df.empty]
+    if not dates:
+        return datetime.now(tz=_IST).date()
+    latest = max(dates)
+    return latest.date() if hasattr(latest, "date") else latest
 
 
 class ScoreService(ScoreWatchlistMixin):
@@ -50,6 +61,8 @@ class ScoreService(ScoreWatchlistMixin):
         )
 
         price_data = await self._prices.fetch_ohlcv_batch(symbols, "1d", settings.score_lookback_bars)
+        score_date = _last_trading_date(price_data)
+        logger.info("Score date resolved to last trading day: %s", score_date)
         nifty500_roc_60 = self._extract_benchmark_roc(price_data)
         price_data, skipped = self._apply_liquidity_filter(price_data)
         if skipped:
@@ -68,9 +81,8 @@ class ScoreService(ScoreWatchlistMixin):
         valid_results = _collect_valid_results(results)
         fno_results, equity_results = _partition_by_fno(valid_results, fno_set)
 
-        today = datetime.now(tz=_IST).date()
         scored = await _persist_ranked_groups(
-            self._pool, self._scores, [fno_results, equity_results], today, _WATCHLIST_SIZE,
+            self._pool, self._scores, [fno_results, equity_results], score_date, _WATCHLIST_SIZE,
         )
         fno_wl    = min(_WATCHLIST_SIZE, len(fno_results))
         equity_wl = min(_WATCHLIST_SIZE, len(equity_results))

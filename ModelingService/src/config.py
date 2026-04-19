@@ -16,6 +16,9 @@ class Settings(BaseServiceSettings):
     max_model_age_days: int = Field(default=90)
     training_concurrency: int = Field(default=1)
     
+    # ── Scoring ───────────────────────────────────────────────────────────────
+    score_concurrency: int = Field(default=20)
+
     # ── Comfort Scorer ────────────────────────────────────────────────────────
     comfort_scorer_retrain_threshold_rmse: float = Field(default=8.0)
     comfort_scorer_shadow_days: int = Field(default=7)

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 from .deps import SyncStateRepoDep, SyncServiceDep
 
@@ -52,6 +52,20 @@ async def symbol_sync_status(symbol: str, repo: SyncStateRepoDep):
     if not rows:
         raise HTTPException(404, f"No sync state found for symbol '{symbol}'")
     return rows
+
+
+@router.post("/sync/reset-1min",
+             summary="Wipe price_data_1min and reset sync_state — forces full 90-day re-fetch")
+async def reset_1min(request: Request):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        await conn.execute("TRUNCATE TABLE price_data_1min")
+        await conn.execute("DELETE FROM sync_state WHERE timeframe = '1m'")
+    logger.info("[1m] Reset complete — price_data_1min truncated, sync_state cleared")
+    return {
+        "status": "reset",
+        "message": "price_data_1min truncated and 1m sync_state cleared. Run sync-1min to re-fetch.",
+    }
 
 
 @router.get("/sync/gaps",

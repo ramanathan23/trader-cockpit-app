@@ -1,13 +1,13 @@
 """
-Dhan Historical Charts API — low-level async client.
+Dhan Intraday Charts API — low-level async client.
 
-Endpoint: POST https://api.dhan.co/v2/charts/historical
+Endpoint: POST https://api.dhan.co/v2/charts/intraday
   securityId      : Dhan numeric security ID (as string)
   exchangeSegment : "NSE_EQ" | "BSE_EQ" | "NSE_FNO" | ...
   instrument      : "EQUITY" for spot equities
-  interval        : "1" for 1-minute bars
-  fromDate        : "YYYY-MM-DD"
-  toDate          : "YYYY-MM-DD"   (max 90 calendar days per request)
+  interval        : "1" | "5" | "15" | "25" | "60" (minutes)
+  fromDate        : "YYYY-MM-DD HH:MM:SS"
+  toDate          : "YYYY-MM-DD HH:MM:SS"  (max 90 calendar days per request)
 
 Response: { "open": [...], "high": [...], "low": [...],
             "close": [...], "volume": [...], "timestamp": [...] }
@@ -63,8 +63,8 @@ async def fetch_1min_ohlcv(
         "instrument":      _INSTRUMENT_EQUITY,
         "interval":        _INTERVAL_1MIN,
         "ott":             False,
-        "fromDate":        from_date.strftime("%Y-%m-%d"),
-        "toDate":          to_date.strftime("%Y-%m-%d"),
+        "fromDate":        from_date.strftime("%Y-%m-%d") + " 00:00:00",
+        "toDate":          to_date.strftime("%Y-%m-%d") + " 23:59:59",
     }
     try:
         resp = await client.post(url, json=payload)

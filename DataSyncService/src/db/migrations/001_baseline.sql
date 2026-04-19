@@ -1,11 +1,9 @@
--- DataSyncService baseline schema.
--- Consolidated from the existing incremental migrations and verified against the
--- current local database catalog on 2026-04-16.
---
--- All statements remain idempotent so the service can continue applying them on
--- startup without a migration history table.
+-- DataSyncService: consolidated schema.
+-- Covers all tables owned by this service. Idempotent — safe to re-run on startup.
 
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
+-- ── symbols ───────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS symbols (
     symbol            VARCHAR(30) PRIMARY KEY,
@@ -16,7 +14,8 @@ CREATE TABLE IF NOT EXISTS symbols (
     face_value        NUMERIC(10,2),
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     dhan_security_id  BIGINT,
-    exchange_segment  VARCHAR(20)
+    exchange_segment  VARCHAR(20),
+    is_fno            BOOLEAN     NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbols_series
@@ -25,6 +24,12 @@ CREATE INDEX IF NOT EXISTS idx_symbols_series
 CREATE INDEX IF NOT EXISTS idx_symbols_dhan_id
     ON symbols(dhan_security_id)
     WHERE dhan_security_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_symbols_is_fno
+    ON symbols(is_fno)
+    WHERE is_fno = TRUE;
+
+-- ── price_data_daily ──────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS price_data_daily (
     time    TIMESTAMPTZ NOT NULL,
@@ -64,6 +69,8 @@ SELECT add_compression_policy(
     if_not_exists => TRUE
 );
 
+-- ── sync_state ────────────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS sync_state (
     symbol         VARCHAR(30) NOT NULL,
     timeframe      VARCHAR(10) NOT NULL,
@@ -89,6 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_sync_state_timeframe_last_data
 CREATE INDEX IF NOT EXISTS idx_sync_state_timeframe_last_synced
     ON sync_state(timeframe, last_synced_at ASC NULLS FIRST);
 
+-- ── index_futures ─────────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS index_futures (
     id                SERIAL      PRIMARY KEY,
     underlying        VARCHAR(20) NOT NULL,
@@ -105,14 +114,18 @@ CREATE INDEX IF NOT EXISTS idx_index_futures_active
     ON index_futures(underlying)
     WHERE is_active = TRUE;
 
+-- ── symbol_metrics ────────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS symbol_metrics (
     symbol             VARCHAR(30) PRIMARY KEY,
     computed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- 52-week range + core metrics
     week52_high        NUMERIC(14,4),
     week52_low         NUMERIC(14,4),
     atr_14             NUMERIC(14,4),
     adv_20_cr          NUMERIC(10,2),
     trading_days       INTEGER,
+    -- prior period OHLC
     prev_day_high      NUMERIC(14,4),
     prev_day_low       NUMERIC(14,4),
     prev_day_close     NUMERIC(14,4),
@@ -120,15 +133,39 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
     prev_week_low      NUMERIC(14,4),
     prev_month_high    NUMERIC(14,4),
     prev_month_low     NUMERIC(14,4),
+    -- trend
     ema_50             NUMERIC(14,4),
     ema_200            NUMERIC(14,4),
+    -- weekly performance
     week_return_pct    NUMERIC(9,4),
     week_gain_pct      NUMERIC(9,4),
-    week_decline_pct   NUMERIC(9,4)
+    week_decline_pct   NUMERIC(9,4),
+    -- volatility compression
+    atr_5              NUMERIC(14,4),
+    adx_14             NUMERIC(6,2),
+    plus_di            NUMERIC(6,2),
+    minus_di           NUMERIC(6,2),
+    bb_width           NUMERIC(10,6),
+    kc_width           NUMERIC(10,6),
+    bb_squeeze         BOOLEAN      DEFAULT FALSE,
+    squeeze_days       INTEGER      DEFAULT 0,
+    nr7                BOOLEAN      DEFAULT FALSE,
+    atr_ratio          NUMERIC(6,4),
+    -- momentum
+    rsi_14             NUMERIC(6,2),
+    macd_hist          NUMERIC(12,4),
+    roc_5              NUMERIC(9,4),
+    roc_20             NUMERIC(9,4),
+    roc_60             NUMERIC(9,4),
+    vol_ratio_20       NUMERIC(6,2),
+    rs_vs_nifty        NUMERIC(9,4),
+    weekly_bias        VARCHAR(10)  DEFAULT 'NEUTRAL'
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_computed_at
     ON symbol_metrics (computed_at DESC);
+
+-- ── Continuous aggregates ─────────────────────────────────────────────────────
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_weekly
 WITH (timescaledb.continuous) AS
@@ -174,4 +211,85 @@ SELECT add_continuous_aggregate_policy(
     if_not_exists     => TRUE
 );
 
--- 1m sync state is managed by MinuteSyncService (migration 004 creates price_data_1min).
+-- ── price_data_1min ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS price_data_1min (
+    time    TIMESTAMPTZ NOT NULL,
+    symbol  VARCHAR(30) NOT NULL,
+    open    NUMERIC(10,4),
+    high    NUMERIC(10,4),
+    low     NUMERIC(10,4),
+    close   NUMERIC(10,4),
+    volume  BIGINT,
+    CONSTRAINT pk_price_1min PRIMARY KEY (symbol, time)
+);
+
+SELECT create_hypertable(
+    'price_data_1min', 'time',
+    partitioning_column    => 'symbol',
+    number_partitions      => 4,
+    chunk_time_interval    => INTERVAL '1 week',
+    create_default_indexes => FALSE,
+    if_not_exists          => TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_1min_time_desc
+    ON price_data_1min (time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_price_1min_symbol_time_desc
+    ON price_data_1min (symbol, time DESC);
+
+ALTER TABLE price_data_1min SET (
+    timescaledb.compress,
+    timescaledb.compress_orderby   = 'time DESC',
+    timescaledb.compress_segmentby = 'symbol'
+);
+
+SELECT add_compression_policy(
+    'price_data_1min',
+    INTERVAL '7 days',
+    if_not_exists => TRUE
+);
+
+-- ── F&O universe seed ─────────────────────────────────────────────────────────
+
+UPDATE symbols SET is_fno = FALSE WHERE is_fno = TRUE;
+
+UPDATE symbols
+SET    is_fno = TRUE
+WHERE  symbol IN (
+    '360ONE', 'ABB', 'APLAPOLLO', 'AUBANK', 'ADANIENSOL', 'ADANIENT',
+    'ADANIGREEN', 'ADANIPORTS', 'ADANIPOWER', 'ABCAPITAL', 'ALKEM', 'AMBER',
+    'AMBUJACEM', 'ANGELONE', 'APOLLOHOSP', 'ASHOKLEY', 'ASIANPAINT', 'ASTRAL',
+    'AUROPHARMA', 'DMART', 'AXISBANK', 'BSE', 'BAJAJ-AUTO', 'BAJFINANCE',
+    'BAJAJFINSV', 'BAJAJHLDNG', 'BANDHANBNK', 'BANKBARODA', 'BANKINDIA', 'BDL',
+    'BEL', 'BHARATFORG', 'BHEL', 'BPCL', 'BHARTIARTL', 'BIOCON', 'BLUESTARCO',
+    'BOSCHLTD', 'BRITANNIA', 'CGPOWER', 'CANBK', 'CDSL', 'CHOLAFIN', 'CIPLA',
+    'COALINDIA', 'COCHINSHIP', 'COFORGE', 'COLPAL', 'CAMS', 'CONCOR',
+    'CROMPTON', 'CUMMINSIND', 'DLF', 'DABUR', 'DALBHARAT', 'DELHIVERY',
+    'DIVISLAB', 'DIXON', 'DRREDDY', 'ETERNAL', 'EICHERMOT', 'EXIDEIND',
+    'FORCEMOT', 'NYKAA', 'FORTIS', 'GAIL', 'GMRAIRPORT', 'GLENMARK',
+    'GODFRYPHLP', 'GODREJCP', 'GODREJPROP', 'GRASIM', 'HCLTECH', 'HDFCAMC',
+    'HDFCBANK', 'HDFCLIFE', 'HAVELLS', 'HEROMOTOCO', 'HINDALCO', 'HAL',
+    'HINDPETRO', 'HINDUNILVR', 'HINDZINC', 'POWERINDIA', 'HUDCO', 'HYUNDAI',
+    'ICICIBANK', 'ICICIGI', 'ICICIPRULI', 'IDFCFIRSTB', 'ITC', 'INDIANB',
+    'IEX', 'IOC', 'IRFC', 'IREDA', 'INDUSTOWER', 'INDUSINDBK', 'NAUKRI',
+    'INFY', 'INOXWIND', 'INDIGO', 'JINDALSTEL', 'JSWENERGY', 'JSWSTEEL',
+    'JIOFIN', 'JUBLFOOD', 'KEI', 'KPITTECH', 'KALYANKJIL', 'KAYNES',
+    'KFINTECH', 'KOTAKBANK', 'LTF', 'LICHSGFIN', 'LTM', 'LT', 'LAURUSLABS',
+    'LICI', 'LODHA', 'LUPIN', 'M&M', 'MANAPPURAM', 'MANKIND', 'MARICO',
+    'MARUTI', 'MFSL', 'MAXHEALTH', 'MAZDOCK', 'MOTILALOFS', 'MPHASIS', 'MCX',
+    'MUTHOOTFIN', 'NBCC', 'NHPC', 'NMDC', 'NTPC', 'NATIONALUM', 'NESTLEIND',
+    'NAM-INDIA', 'NUVAMA', 'OBEROIRLTY', 'ONGC', 'OIL', 'PAYTM', 'OFSS',
+    'POLICYBZR', 'PGEL', 'PIIND', 'PNBHOUSING', 'PAGEIND', 'PATANJALI',
+    'PERSISTENT', 'PETRONET', 'PIDILITIND', 'PPLPHARMA', 'POLYCAB', 'PFC',
+    'POWERGRID', 'PREMIERENE', 'PRESTIGE', 'PNB', 'RBLBANK', 'RECLTD', 'RVNL',
+    'RELIANCE', 'SBICARD', 'SBILIFE', 'SHREECEM', 'SRF', 'SAMMAANCAP',
+    'MOTHERSON', 'SHRIRAMFIN', 'SIEMENS', 'SOLARINDS', 'SONACOMS', 'SBIN',
+    'SAIL', 'SUNPHARMA', 'SUPREMEIND', 'SUZLON', 'SWIGGY', 'TATACONSUM',
+    'TVSMOTOR', 'TCS', 'TATAELXSI', 'TMPV', 'TATAPOWER', 'TATASTEEL',
+    'TATATECH', 'TECHM', 'FEDERALBNK', 'INDHOTEL', 'PHOENIXLTD', 'TITAN',
+    'TORNTPHARM', 'TORNTPOWER', 'TRENT', 'TIINDIA', 'UNOMINDA', 'UPL',
+    'ULTRACEMCO', 'UNIONBANK', 'UNITDSPR', 'VBL', 'VEDL', 'VMM', 'IDEA',
+    'VOLTAS', 'WAAREEENER', 'WIPRO', 'YESBANK', 'ZYDUSLIFE'
+);

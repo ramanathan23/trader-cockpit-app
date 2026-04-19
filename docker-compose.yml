@@ -174,7 +174,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ml_models:/models
+      - ./ModelingService/models:/models
       - ./ModelingService/src:/app/src:ro
       - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
     networks:

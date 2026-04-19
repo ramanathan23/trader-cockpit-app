@@ -47,7 +47,7 @@ class DhanHistoricalFetcher:
         self,
         client_id: str,
         access_token: str,
-        url: str = "https://api.dhan.co/v2/charts/historical",
+        url: str = "https://api.dhan.co/v2/charts/intraday",
         rate_per_sec: int = 10,
         daily_budget: int = 10_000,
         budget_safety: int = 100,
@@ -71,6 +71,10 @@ class DhanHistoricalFetcher:
         if self._reset_day != today:
             self._daily_used = 0
             self._reset_day  = today
+
+    def refresh_token(self, access_token: str) -> None:
+        """Update the Dhan access token used for all subsequent requests."""
+        self._headers["access-token"] = access_token
 
     def remaining_budget(self) -> int:
         self._maybe_reset()

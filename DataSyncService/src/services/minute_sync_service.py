@@ -20,6 +20,7 @@ import logging
 from datetime import datetime
 
 import asyncpg
+import redis.asyncio as aioredis
 
 from shared.constants import IST
 from shared.utils import ensure_utc
@@ -49,6 +50,7 @@ class MinuteSyncService:
             daily_budget  = settings.dhan_daily_budget,
             budget_safety = settings.dhan_budget_safety,
         )
+        self._redis  = aioredis.from_url(settings.redis_url, decode_responses=True)
         self._prices = PriceRepository(pool)
         self._state  = SyncStateRepository(pool)
         self._writer = SyncStateWriter(pool, self._prices, self._state)
@@ -57,6 +59,7 @@ class MinuteSyncService:
 
     async def run_sync(self) -> dict:
         """Classify F&O symbols and sync 1-min data from Dhan."""
+        await self._refresh_token_from_redis()
         symbols = await self._load_fno_symbols()
         if not symbols:
             logger.warning(
@@ -127,6 +130,18 @@ class MinuteSyncService:
         }
 
     # ── Internal ──────────────────────────────────────────────────────────────
+
+    async def _refresh_token_from_redis(self) -> None:
+        """Pull the latest Dhan token from Redis (written by LiveFeedService /token API)."""
+        try:
+            token = await self._redis.get("dhan:access_token")
+            if token:
+                self._fetcher.refresh_token(token)
+                logger.debug("[1m] Refreshed Dhan token from Redis")
+            else:
+                logger.debug("[1m] Redis key dhan:access_token absent — using existing token")
+        except Exception:
+            logger.warning("[1m] Could not read token from Redis — using existing token", exc_info=True)
 
     async def _load_fno_symbols(self) -> list[dict]:
         """Return F&O symbols that have a Dhan security ID mapped."""
