@@ -1,9 +1,4 @@
-"""
-SessionManager: encapsulates market-hour logic and session-phase classification.
-
-All time comparisons are performed in IST.  Phase boundaries are aligned to
-the 5-minute candle grid so callers can rely on phase not changing mid-candle.
-"""
+from __future__ import annotations
 
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
@@ -12,13 +7,10 @@ from ..domain.session_phase import SessionPhase
 
 _IST = ZoneInfo("Asia/Kolkata")
 
-# ── Phase boundary times (IST) ─────────────────────────────────────────────────
-# Expressed as (hour, minute) for fast comparison.
-
 _PHASES: list[tuple[tuple[int, int], SessionPhase]] = [
-    ((9,  15), SessionPhase.PRE_SIGNAL),       # market open — first 5-min candle building
-    ((9,  20), SessionPhase.DRIVE_WINDOW),      # first complete 5-min candle ready
-    ((9,  45), SessionPhase.EXECUTION),         # 5 drive candles evaluated (5×5 = 25 min)
+    ((9,  15), SessionPhase.PRE_SIGNAL),
+    ((9,  20), SessionPhase.DRIVE_WINDOW),
+    ((9,  45), SessionPhase.EXECUTION),
     ((11,  0), SessionPhase.TRANSITION),
     ((11, 30), SessionPhase.MID_SESSION),
     ((14,  0), SessionPhase.DEAD_ZONE),
@@ -29,11 +21,7 @@ _PHASES: list[tuple[tuple[int, int], SessionPhase]] = [
 
 
 class SessionManager:
-    """
-    Stateless helper — all methods are pure functions of the current time.
-
-    Instantiate once; inject into anything that needs phase or market-hour info.
-    """
+    """Stateless helper — all methods are pure functions of the current time."""
 
     def now_ist(self) -> datetime:
         return datetime.now(tz=_IST)
@@ -42,10 +30,8 @@ class SessionManager:
         """Return the SessionPhase for the given time (default: now)."""
         ist = (at or self.now_ist()).astimezone(_IST)
         t   = (ist.hour, ist.minute)
-
         if t < (9, 15):
             return SessionPhase.PRE_MARKET
-
         phase = SessionPhase.PRE_MARKET
         for boundary, next_phase in _PHASES:
             if t >= boundary:
@@ -60,18 +46,12 @@ class SessionManager:
         return phase not in (SessionPhase.PRE_MARKET, SessionPhase.POST_MARKET)
 
     def is_trading_window(self, at: datetime | None = None) -> bool:
-        """
-        True during phases where signals are actionable.
-        Excludes PRE_MARKET, PRE_SIGNAL, SESSION_END, POST_MARKET.
-        """
+        """True during phases where signals are actionable."""
         phase = self.current_phase(at)
         return phase in (
-            SessionPhase.DRIVE_WINDOW,
-            SessionPhase.EXECUTION,
-            SessionPhase.TRANSITION,
-            SessionPhase.MID_SESSION,
-            SessionPhase.DEAD_ZONE,
-            SessionPhase.CLOSE_MOMENTUM,
+            SessionPhase.DRIVE_WINDOW, SessionPhase.EXECUTION,
+            SessionPhase.TRANSITION,   SessionPhase.MID_SESSION,
+            SessionPhase.DEAD_ZONE,    SessionPhase.CLOSE_MOMENTUM,
         )
 
     def seconds_until_market_open(self, at: datetime | None = None) -> float:
@@ -82,10 +62,7 @@ class SessionManager:
         return max(0.0, delta)
 
     def spike_vol_threshold(self, phase: SessionPhase) -> float:
-        """
-        Volume-ratio threshold for spike detection varies by session phase.
-        Dead zone requires a higher bar because base volume is thin.
-        """
+        """Volume-ratio threshold for spike detection (dead zone requires higher bar)."""
         return {
             SessionPhase.DRIVE_WINDOW:   2.5,
             SessionPhase.EXECUTION:      3.0,

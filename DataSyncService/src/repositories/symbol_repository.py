@@ -1,62 +1,24 @@
-"""
-Symbol persistence: CSV loading and database upserts.
-"""
+"""Symbol persistence: CSV loading and database upserts."""
 
 import logging
-from datetime import date
-from pathlib import Path
 
 import asyncpg
-import pandas as pd
 
-from ..domain.symbol import Symbol
+from ._symbol_csv import load_from_csv  # noqa: F401 — re-exported for callers
 
 logger = logging.getLogger(__name__)
-
-_SYMBOLS_CSV = Path(__file__).parent.parent / "data" / "symbols.csv"
-
-
-def load_from_csv(csv_path: Path = _SYMBOLS_CSV) -> list[Symbol]:
-    """
-    Parse NSE symbols.csv and return EQ-series equity records plus any INDEX
-    benchmark rows (e.g. NIFTY500) needed by the scorer.
-
-    Uses pandas with skipinitialspace=True to handle the leading spaces
-    present in column names of the NSE-published CSV format.
-    """
-    df = pd.read_csv(csv_path, skipinitialspace=True)
-    df.columns = df.columns.str.strip()
-
-    included = df[df["SERIES"].str.strip().isin(["EQ", "INDEX"])].copy()
-    included["DATE OF LISTING"] = pd.to_datetime(
-        included["DATE OF LISTING"], format="mixed", dayfirst=True, errors="coerce"
-    ).dt.date
-
-    symbols: list[Symbol] = []
-    for _, row in included.iterrows():
-        isin = str(row.get("ISIN NUMBER", "")).strip()
-        face = row.get("FACE VALUE")
-        series = str(row["SERIES"]).strip()
-        symbols.append(Symbol(
-            symbol=str(row["SYMBOL"]).strip(),
-            company_name=str(row["NAME OF COMPANY"]).strip(),
-            series=series,
-            isin=isin if isin and isin != "nan" else None,
-            listed_date=row["DATE OF LISTING"] if isinstance(row["DATE OF LISTING"], date) else None,
-            face_value=float(face) if pd.notna(face) else None,
-        ))
-    return symbols
 
 
 class SymbolRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
-    async def upsert_many(self, symbols: list[Symbol]) -> int:
+    async def upsert_many(self, symbols) -> int:
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await conn.executemany("""
-                    INSERT INTO symbols (symbol, company_name, series, isin, listed_date, face_value)
+                    INSERT INTO symbols
+                        (symbol, company_name, series, isin, listed_date, face_value)
                     VALUES ($1, $2, $3, $4, $5, $6)
                     ON CONFLICT (symbol) DO UPDATE SET
                         company_name = EXCLUDED.company_name,
@@ -92,10 +54,11 @@ class SymbolRepository:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT
-                    COUNT(*)                                             AS total,
-                    COUNT(dhan_security_id)                             AS mapped,
-                    COUNT(*) - COUNT(dhan_security_id)                  AS unmapped
+                    COUNT(*)                           AS total,
+                    COUNT(dhan_security_id)            AS mapped,
+                    COUNT(*) - COUNT(dhan_security_id) AS unmapped
                 FROM symbols
                 WHERE series = 'EQ'
             """)
         return dict(row)
+

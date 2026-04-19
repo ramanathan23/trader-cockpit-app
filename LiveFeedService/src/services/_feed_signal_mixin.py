@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from ..domain.candle import Candle
+from ..domain.index_bias import IndexBias
+from ..domain.instrument_meta import InstrumentMeta
+from ..signals.engine import SignalEngine
+
+logger = logging.getLogger(__name__)
+_IST = ZoneInfo("Asia/Kolkata")
+
+
+class _FeedSignalMixin:
+    async def update_token(self, new_token: str) -> None:
+        """Persist a new Dhan access token and reconnect all WebSocket feeds."""
+        await self._token_store.set(new_token)
+        if self._sub_mgr:
+            await self._sub_mgr.reconnect_all()
+
+    def _check_session_reset(self) -> None:
+        today = datetime.now(tz=_IST).date()
+        if self._session_date is None:
+            self._session_date = today
+            return
+        if self._session_date == today:
+            return
+        self._session_date = today
+        self._index_bias   = IndexBias()
+        if self._tick_router:
+            self._tick_router.reset_session()
+        for engine in self._engines.values():
+            engine.reset()
+        logger.info("Session reset for %s", today)
+
+    async def _on_candle(self, meta: InstrumentMeta, candle: Candle) -> None:
+        self._candles_completed += 1
+        await self._writer.add(candle)
+        if meta.is_index_future and meta.underlying:
+            self._update_index_bias(meta.underlying, candle)
+        if not meta.is_index_future:
+            engine = self._get_or_create_engine(meta)
+            for signal in engine.on_candle(candle, self._index_bias):
+                self._signals_emitted += 1
+                await self._publisher.publish(signal)
+                logger.info("[SIGNAL] %s %s %s score=%.2f",
+                            signal.symbol, signal.signal_type.value,
+                            signal.direction.value, signal.score)
+
+    def _update_index_bias(self, underlying: str, candle: Candle) -> None:
+        direction = candle.direction
+        if underlying == "NIFTY":
+            self._index_bias.nifty     = direction
+        elif underlying == "BANKNIFTY":
+            self._index_bias.banknifty = direction
+        elif underlying == "SENSEX":
+            self._index_bias.sensex    = direction
+
+    def _get_or_create_engine(self, meta: InstrumentMeta) -> SignalEngine:
+        if meta.symbol not in self._engines:
+            s       = self._settings
+            metrics = self._metrics_service.get_daily(meta.symbol) or {}
+            self._engines[meta.symbol] = SignalEngine(
+                symbol           = meta.symbol,
+                builder          = self._tick_router.get_builder(meta.dhan_security_id),
+                session_manager  = self._session_mgr,
+                drive_candles    = s.drive_candles,
+                min_body_ratio   = s.drive_min_body_ratio,
+                confirmed_thresh = s.drive_confirmed_thresh,
+                weak_thresh      = s.drive_weak_thresh,
+                spike_window     = s.spike_window,
+                spike_cooldown        = s.spike_cooldown,
+                absorption_cooldown   = s.absorption_cooldown,
+                absorption_near_pct   = s.absorption_near_pct,
+                exhaustion_downtrend_candles = s.exhaustion_downtrend_candles,
+                exhaustion_vol_ratio_min     = s.exhaustion_vol_ratio_min,
+                exhaustion_lower_lows        = s.exhaustion_lower_lows,
+                range_lookback   = s.range_lookback,
+                range_vol_ratio  = s.range_vol_ratio,
+                range_max_pct    = s.range_max_pct,
+                vwap_hysteresis_min = s.vwap_hysteresis_min,
+                min_adv_cr       = s.min_adv_cr,
+                confluence_15m   = s.confluence_15m_candles,
+                confluence_1h    = s.confluence_1h_candles,
+                confluence_min_move_pct = s.confluence_min_move_pct,
+                daily_metrics    = metrics,
+            )
+        return self._engines[meta.symbol]

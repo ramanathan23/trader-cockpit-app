@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
+from _runner import run
+from _coverage_ops import combine_and_report
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICES = (
@@ -12,12 +13,6 @@ SERVICES = (
     "LiveFeedService",
     "MomentumScorerService",
 )
-
-
-def run(command: list[str], cwd: Path) -> None:
-    completed = subprocess.run(command, cwd=cwd)
-    if completed.returncode != 0:
-        raise SystemExit(completed.returncode)
 
 
 def main() -> None:
@@ -39,63 +34,17 @@ def main() -> None:
         if data_file.exists():
             data_file.unlink()
 
-        command = [
-            sys.executable,
-            "-m",
-            "coverage",
-            "run",
-            "--rcfile",
-            str(ROOT / ".coveragerc"),
-            f"--data-file={data_file}",
-            "-m",
-            "pytest",
-            "-c",
-            "pytest.ini",
-        ]
-        run(command, service_dir)
+        run(
+            [sys.executable, "-m", "coverage", "run",
+             "--rcfile", str(ROOT / ".coveragerc"),
+             f"--data-file={data_file}",
+             "-m", "pytest", "-c", "pytest.ini"],
+            service_dir,
+        )
         data_files.append(data_file)
 
-    if args.no_report:
-        return
-
-    combined_file = ROOT / ".coverage"
-    if combined_file.exists():
-        combined_file.unlink()
-
-    run(
-        [
-            sys.executable,
-            "-m",
-            "coverage",
-            "combine",
-            *[str(path) for path in data_files],
-        ],
-        ROOT,
-    )
-    run(
-        [
-            sys.executable,
-            "-m",
-            "coverage",
-            "report",
-            "--rcfile",
-            str(ROOT / ".coveragerc"),
-        ],
-        ROOT,
-    )
-    run(
-        [
-            sys.executable,
-            "-m",
-            "coverage",
-            "xml",
-            "--rcfile",
-            str(ROOT / ".coveragerc"),
-            "-o",
-            str(ROOT / "coverage.xml"),
-        ],
-        ROOT,
-    )
+    if not args.no_report:
+        combine_and_report(ROOT, data_files)
 
 
 if __name__ == "__main__":
