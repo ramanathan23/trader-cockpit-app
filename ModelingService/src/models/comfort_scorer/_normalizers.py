@@ -35,32 +35,19 @@ def normalize_volatility(vol_pct: float) -> float:
 
 
 def extract_features_from_row(row) -> list:
-    """Extract features from DB row (simplified, matches features.py order)."""
+    """Extract 22 features from daily_scores DB row."""
+    def _f(v, default=0.0):
+        return default if v is None else float(v)
     return [
-        float(row['total_score']),
-        float(row['momentum_score']),
-        float(row['trend_score']),
-        float(row['volatility_score']),
-        float(row['structure_score']),
-        float(row['rsi_14'] or 50.0),
-        float(row['macd_hist'] or 0.0),
-        float(row['roc_5'] or 0.0),
-        float(row['roc_20'] or 0.0),
-        float(row['roc_60'] or 0.0),
-        float(row['vol_ratio_20'] or 1.0),
-        float(row['adx_14'] or 20.0),
-        float(row['plus_di'] or 20.0),
-        float(row['minus_di'] or 20.0),
-        1.0 if row['weekly_bias'] == 'BULLISH' else (
-            -1.0 if row['weekly_bias'] == 'BEARISH' else 0.0
-        ),
-        float(row['bb_squeeze'] or False),
-        float(row['squeeze_days'] or 0),
-        float(row['nr7'] or False),
-        float(row['atr_ratio'] or 1.0),
-        float(row['atr_5'] or 0.0),
-        float(row['bb_width'] or 0.0),
-        float(row['kc_width'] or 0.0),
-        float(row['rs_vs_nifty'] or 0.0),
-        0.8, 0.0, 20.0, 15.0, 50.0,
+        _f(row['total_score']),       _f(row['momentum_score']),
+        _f(row['trend_score']),       _f(row['volatility_score']),
+        _f(row['structure_score']),
+        _f(row['rsi_14'], 50.0),      _f(row['macd_hist']),
+        _f(row['roc_5']),             _f(row['roc_20']),
+        _f(row['roc_60']),            _f(row['vol_ratio_20'], 1.0),
+        _f(row['adx_14']),            _f(row['plus_di']),    _f(row['minus_di']),
+        1.0 if row['bb_squeeze'] else 0.0,
+        _f(row['squeeze_days']),      1.0 if row['nr7'] else 0.0,
+        _f(row['atr_ratio'], 1.0),    _f(row['atr_5']),
+        _f(row['bb_width']),          _f(row['kc_width']),   _f(row['rs_vs_nifty']),
     ]

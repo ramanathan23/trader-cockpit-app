@@ -56,9 +56,9 @@ class ComfortScorerModel(BaseModel):
         self, predictions: List[float], actuals: List[float]
     ) -> Dict[str, float]:
         """Compute RMSE, MAE, R2 for comfort predictions."""
-        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
         return {
-            "rmse": round(float(mean_squared_error(actuals, predictions, squared=False)), 2),
+            "rmse": round(float(root_mean_squared_error(actuals, predictions)), 2),
             "mae": round(float(mean_absolute_error(actuals, predictions)), 2),
             "r2": round(float(r2_score(actuals, predictions)), 3),
         }
