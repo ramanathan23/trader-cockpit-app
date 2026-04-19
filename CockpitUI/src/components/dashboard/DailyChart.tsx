@@ -98,17 +98,38 @@ export const DailyChart = memo(({ symbol, height = 300 }: DailyChartProps) => {
 
       const maxBarW = rect.width * 0.15; // VP bars max 15% of chart width
 
+      // Determine price-pane height by sampling the coordinate range of the series.
+      // priceToCoordinate returns coords in chart space; the price pane sits at the
+      // top and the volume sub-pane is below it.  We clip drawing to that region so
+      // VP bars don't bleed into the volume histogram pane.
+      const chartApi = chartRef.current;
+      let pricePaneBottom = rect.height;
+      if (chartApi) {
+        const panes = chartApi.panes();
+        if (panes.length > 0) {
+          // First pane height in CSS pixels
+          pricePaneBottom = panes[0].getHeight() * (dpr > 1 ? 1 : 1); // already CSS px
+        }
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, rect.width, pricePaneBottom);
+      ctx.clip();
+
+      const barH = Math.max(1, pricePaneBottom / profile.length - 1);
       for (const row of profile) {
         const y = series.priceToCoordinate(row.price);
         if (y == null) continue;
         const barW = row.pct * maxBarW;
-        const barH = Math.max(1, rect.height / profile.length - 1);
         ctx.fillStyle = row.pct > 0.7
           ? 'rgba(147, 130, 220, 0.35)'
           : 'rgba(147, 130, 220, 0.15)';
         // Draw from right edge inward
         ctx.fillRect(rect.width - barW, y - barH / 2, barW, barH);
       }
+
+      ctx.restore();
     },
     [],
   );
