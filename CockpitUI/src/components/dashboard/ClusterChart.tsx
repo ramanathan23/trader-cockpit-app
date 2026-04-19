@@ -12,8 +12,8 @@ const PW = W - PAD.left - PAD.right;
 const PH = H - PAD.top - PAD.bottom;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-function toX(momentum: number) {
-  return PAD.left + (momentum / 100) * PW;
+function toX(totalScore: number) {
+  return PAD.left + (totalScore / 100) * PW;
 }
 function toY(comfort: number) {
   return PAD.top + (1 - comfort / 100) * PH;
@@ -89,8 +89,6 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
   }
 
   const plotable = scores.filter(s => s.comfort_score != null);
-  const midX = toX(50);
-  const midY = toY(50);
   const axisX = PAD.left + PW / 2;
   const axisY = PAD.top + PH / 2;
 
@@ -125,38 +123,14 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
           stroke="rgb(var(--border))" strokeWidth={1}
         />
 
-        {/* ── quadrant dividers ── */}
-        <line
-          x1={midX} y1={PAD.top}
-          x2={midX} y2={PAD.top + PH}
-          stroke="rgb(var(--rim))" strokeWidth={1} strokeDasharray="5 4"
-        />
-        <line
-          x1={PAD.left} y1={midY}
-          x2={PAD.left + PW} y2={midY}
-          stroke="rgb(var(--rim))" strokeWidth={1} strokeDasharray="5 4"
-        />
-
-        {/* ── quadrant labels ── */}
-        <text x={PAD.left + 10} y={PAD.top + 18} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-          Low Mom · High Comfort
-        </text>
-        <text x={midX + 10} y={PAD.top + 18} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-          High Mom · High Comfort ★
-        </text>
-        <text x={PAD.left + 10} y={PAD.top + PH - 10} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-          Low Mom · Low Comfort
-        </text>
-        <text x={midX + 10} y={PAD.top + PH - 10} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-          High Mom · Low Comfort
-        </text>
+        {/* ── quadrant dividers removed ── */}
 
         {/* ── axis title ── */}
         <text
           x={axisX} y={H - 8}
           fill="rgb(var(--dim))" fontSize={11} textAnchor="middle" fontFamily="monospace"
         >
-          Momentum Score →
+          Total Score →
         </text>
         <text
           x={14} y={axisY}
@@ -202,7 +176,7 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
 
         {/* ── dots ── */}
         {plotable.map(row => {
-          const cx = toX(row.momentum_score);
+          const cx = toX(row.total_score);
           const cy = toY(row.comfort_score!);
           const r = dotRadius(row.total_score);
           const color = dotColor(row);

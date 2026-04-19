@@ -121,6 +121,17 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
 
+  const derivedStats = useMemo(() => {
+    const withComfort = filtered.filter(r => r.comfort_score != null);
+    const sweetSpot = withComfort.filter(r => r.total_score >= 70 && r.comfort_score! >= 65).length;
+    const highComfort = withComfort.filter(r => r.comfort_score! >= 65).length;
+    const bullish = filtered.filter(r => r.weekly_bias === 'BULLISH').length;
+    const avgComfort = withComfort.length > 0
+      ? (withComfort.reduce((s, r) => s + r.comfort_score!, 0) / withComfort.length).toFixed(1)
+      : '-';
+    return { sweetSpot, highComfort, bullish, avgComfort };
+  }, [filtered]);
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-border bg-panel/72 px-4 py-3">
@@ -207,10 +218,10 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <StatCard label="Score date" value={stats.score_date || '-'} />
-          <StatCard label="Scored" value={stats.total_scored} />
-          <StatCard label="Average" value={stats.avg_score} />
-          <StatCard label="High conviction" value={stats.high_conviction} tone="bull" />
-          <StatCard label="Above avg" value={stats.above_average} tone="accent" />
+          <StatCard label="Sweet spot" title="Total ≥70 and Comfort ≥65" value={derivedStats.sweetSpot} tone="bull" />
+          <StatCard label="High comfort" title="Comfort ≥65" value={derivedStats.highComfort} tone="accent" />
+          <StatCard label="Avg comfort" title="Mean comfort score" value={derivedStats.avgComfort} />
+          <StatCard label="Bullish" title="Weekly bias bullish" value={derivedStats.bullish} tone="bull" />
         </div>
       </div>
 
@@ -310,10 +321,10 @@ export function DashboardPanel({ active }: DashboardPanelProps) {
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: string | number; tone?: 'bull' | 'accent' }) {
+function StatCard({ label, value, tone, title }: { label: string; value: string | number; tone?: 'bull' | 'accent'; title?: string }) {
   const color = tone === 'bull' ? 'rgb(var(--bull))' : tone === 'accent' ? 'rgb(var(--accent))' : 'rgb(var(--fg))';
   return (
-    <div className="metric-card">
+    <div className="metric-card" title={title}>
       <div className="text-[10px] font-black uppercase text-ghost">{label}</div>
       <div className="num mt-1 truncate text-[19px] font-black" style={{ color }}>{value}</div>
     </div>
