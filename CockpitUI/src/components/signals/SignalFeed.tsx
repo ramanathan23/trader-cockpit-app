@@ -82,36 +82,6 @@ const NoteModal = memo(({ id, note, onSave, onClose }: {
 });
 NoteModal.displayName = 'NoteModal';
 
-const LatestSignalsBar = memo(({ signals, metricsCache, onChart }: {
-  signals: Signal[];
-  metricsCache: Record<string, InstrumentMetrics | null>;
-  onChart: (sym: string) => void;
-}) => {
-  if (signals.length === 0) return null;
-
-  return (
-    <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-border/60 bg-base/45 px-3 py-2">
-      {signals.map(signal => (
-        <button
-          key={signal.id}
-          type="button"
-          onClick={() => onChart(signal.symbol)}
-          className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-[10px] whitespace-nowrap transition-colors hover:bg-lift"
-          title={`Open ${signal.symbol} chart`}
-        >
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ background: signal.direction === 'BULLISH' ? 'rgb(var(--bull))' : signal.direction === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
-          />
-          <span className="font-black text-fg">{signal.symbol}</span>
-          <span className="text-ghost">{signal.signal_type.replace(/_/g, ' ')}</span>
-          {metricsCache[signal.symbol]?.is_fno && <span className="text-violet">F&O</span>}
-        </button>
-      ))}
-    </div>
-  );
-});
-LatestSignalsBar.displayName = 'LatestSignalsBar';
 
 export const SignalFeed = memo(({
   signals,
