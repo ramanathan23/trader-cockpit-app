@@ -235,17 +235,10 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
             {/* symbol row */}
             <text x={ttX + 10} y={ttY + 20} fill="rgb(var(--fg))" fontSize={12} fontFamily="monospace" fontWeight="bold">
               {tooltip.row.symbol}
+              {tooltip.row.is_fno && <tspan fill="rgb(var(--violet))" fontSize={9}>{' '}F&amp;O</tspan>}
+              {tooltip.row.is_watchlist && <tspan fill="rgb(var(--amber))" fontSize={9}>{' '}WL</tspan>}
+              {tooltip.row.is_new_watchlist && <tspan fill="rgb(var(--accent))" fontSize={9}>{' '}NEW</tspan>}
             </text>
-            {tooltip.row.is_fno && (
-              <text x={ttX + 10 + tooltip.row.symbol.length * 7.5} y={ttY + 20} fill="rgb(var(--violet))" fontSize={9} fontFamily="monospace">
-                {' '}F&amp;O
-              </text>
-            )}
-            {tooltip.row.is_watchlist && (
-              <text x={ttX + 10 + tooltip.row.symbol.length * 7.5 + (tooltip.row.is_fno ? 28 : 0)} y={ttY + 20} fill="rgb(var(--amber))" fontSize={9} fontFamily="monospace">
-                {' '}WL
-              </text>
-            )}
             {/* company */}
             {tooltip.row.company_name && (
               <text x={ttX + 10} y={ttY + 34} fill="rgb(var(--ghost))" fontSize={9} fontFamily="monospace">

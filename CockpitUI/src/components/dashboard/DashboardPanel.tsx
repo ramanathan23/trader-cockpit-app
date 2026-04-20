@@ -349,6 +349,7 @@ function ScoreCard({
             <span className="text-ticker text-fg">{row.symbol}</span>
             {row.is_fno && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
             {row.is_watchlist && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--amber))' }}>WL</span>}
+            {row.is_new_watchlist && <span className="chip h-4 min-h-0 px-1" title="New to watchlist in the last 7 days" style={{ color: 'rgb(var(--accent))' }}>NEW</span>}
             {row.bb_squeeze && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--violet))' }}>SQ{row.squeeze_days}</span>}
             {row.nr7 && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--sky))' }}>NR7</span>}
           </div>
@@ -411,6 +412,7 @@ function ScoreRow({
             <span className="text-ticker text-fg">{row.symbol}</span>
             {row.is_fno && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
             {row.is_watchlist && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--amber))' }}>WL</span>}
+            {row.is_new_watchlist && <span className="chip h-5 min-h-0 px-1.5" title="New to watchlist in the last 7 days" style={{ color: 'rgb(var(--accent))' }}>NEW</span>}
             {row.bb_squeeze && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--violet))' }}>SQ{row.squeeze_days}</span>}
             {row.nr7 && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--sky))' }}>NR7</span>}
           </div>

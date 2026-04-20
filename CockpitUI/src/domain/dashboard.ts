@@ -24,6 +24,7 @@ export interface ScoredSymbol {
   structure_score:  number;
   rank:             number;
   is_watchlist:     boolean;
+  is_new_watchlist: boolean;
   computed_at:      string;
   // From symbol_metrics join
   prev_day_close:   number | null;

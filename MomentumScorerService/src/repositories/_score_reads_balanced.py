@@ -32,7 +32,20 @@ class ScoreReadBalancedMixin:
                     sm.bb_squeeze, sm.squeeze_days, sm.nr7,
                     sm.adx_14, sm.rsi_14, sm.weekly_bias,
                     (mp.predictions->>'comfort_score')::numeric AS comfort_score,
-                    mp.predictions->>'interpretation' AS comfort_interpretation"""
+                    mp.predictions->>'interpretation' AS comfort_interpretation,
+                    CASE
+                        WHEN ds.is_watchlist
+                             AND NOT EXISTS (
+                                SELECT 1
+                                FROM daily_scores prev_ds
+                                WHERE prev_ds.symbol = ds.symbol
+                                  AND prev_ds.is_watchlist = TRUE
+                                  AND prev_ds.score_date >= ds.score_date - 7
+                                  AND prev_ds.score_date < ds.score_date
+                             )
+                        THEN TRUE
+                        ELSE FALSE
+                    END AS is_new_watchlist"""
             base_join = """
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
