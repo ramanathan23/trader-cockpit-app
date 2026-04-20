@@ -30,10 +30,10 @@ def _to_records(symbol: str, df: pd.DataFrame) -> list[tuple]:
         idx = idx.tz_convert("UTC")
     times  = idx.to_pydatetime()
     syms   = [symbol] * len(df)
-    opens  = df["Open"].where(df["Open"].notna()).tolist()
-    highs  = df["High"].where(df["High"].notna()).tolist()
-    lows   = df["Low"].where(df["Low"].notna()).tolist()
-    closes = df["Close"].where(df["Close"].notna()).tolist()
+    opens  = df["Open"].astype(object).where(df["Open"].notna(), None).tolist()
+    highs  = df["High"].astype(object).where(df["High"].notna(), None).tolist()
+    lows   = df["Low"].astype(object).where(df["Low"].notna(), None).tolist()
+    closes = df["Close"].astype(object).where(df["Close"].notna(), None).tolist()
     vols   = df["Volume"].where(df["Volume"].notna(), 0).astype(int).tolist()
     return list(zip(times, syms, opens, highs, lows, closes, vols))
 
@@ -83,7 +83,8 @@ async def bulk_ingest(
                     SELECT {", ".join(_COLUMNS)} FROM _ingest_tmp
                     ON CONFLICT ({conflict_columns}) DO NOTHING
                 """)
-                inserted += parse_pg_command_result(result)            logger.info("[%s] chunk %d/%d done — %d rows inserted so far",
-                        interval, chunk_num, n_chunks, inserted)
+                inserted += parse_pg_command_result(result)
+                logger.info("[%s] chunk %d/%d done - %d rows inserted so far",
+                            interval, chunk_num, n_chunks, inserted)
     logger.debug("[%s] Inserted %d / %d records", interval, inserted, len(all_records))
     return inserted

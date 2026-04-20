@@ -7,19 +7,22 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
     """Read precomputed daily metrics from symbol_metrics table."""
     rows = await pool.fetch("""
         SELECT
-            symbol,
-            week52_high, week52_low,
-            atr_14, adv_20_cr,
-            ema_50, ema_200,
-            week_return_pct, week_gain_pct, week_decline_pct,
-            trading_days,
-            prev_day_high, prev_day_low, prev_day_close,
-            prev_week_high, prev_week_low,
-            prev_month_high, prev_month_low
-        FROM symbol_metrics
+            sm.symbol,
+            COALESCE(s.is_fno, FALSE) AS is_fno,
+            sm.week52_high, sm.week52_low,
+            sm.atr_14, sm.adv_20_cr,
+            sm.ema_50, sm.ema_200,
+            sm.week_return_pct, sm.week_gain_pct, sm.week_decline_pct,
+            sm.trading_days,
+            sm.prev_day_high, sm.prev_day_low, sm.prev_day_close,
+            sm.prev_week_high, sm.prev_week_low,
+            sm.prev_month_high, sm.prev_month_low
+        FROM symbol_metrics sm
+        LEFT JOIN symbols s ON s.symbol = sm.symbol
     """)
     return {
         row["symbol"]: {
+            "is_fno":           bool(row["is_fno"]),
             "week52_high":      round(float(row["week52_high"]), 2)   if row["week52_high"]   else None,
             "week52_low":       round(float(row["week52_low"]),  2)   if row["week52_low"]    else None,
             "atr_14":           round(float(row["atr_14"] or 0), 2),

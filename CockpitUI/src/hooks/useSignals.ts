@@ -45,6 +45,12 @@ export function useSignals() {
   const metricsPendingRef = useRef<Set<string>>(new Set());
   const metricsTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const mergeMetrics = useCallback((data: Record<string, InstrumentMetrics> | null | undefined) => {
+    if (data && Object.keys(data).length > 0) {
+      setMetricsCache(c => ({ ...c, ...data }));
+    }
+  }, []);
+
   const flushMetricsBatch = useCallback(() => {
     const symbols = [...metricsPendingRef.current];
     metricsPendingRef.current.clear();
@@ -57,12 +63,10 @@ export function useSignals() {
     })
       .then(r => r.ok ? r.json() : null)
       .then((data: Record<string, InstrumentMetrics> | null) => {
-        if (data && Object.keys(data).length > 0) {
-          setMetricsCache(c => ({ ...c, ...data }));
-        }
+        mergeMetrics(data);
       })
       .catch(() => {});
-  }, []);
+  }, [mergeMetrics]);
 
   const queueMetrics = useCallback((symbol: string) => {
     if (fetchingRef.current.has(symbol)) return;
@@ -238,6 +242,7 @@ export function useSignals() {
     connState,
     metricsCache,
     marketStatus,
+    mergeMetrics,
     togglePause,
     clearSignals,
   };

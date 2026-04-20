@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { filterSignals, type SignalCategory, type SignalType } from '@/domain/signal';
+import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
@@ -124,7 +125,7 @@ function AppRail({
 export function CockpitApp() {
   const clock = useClock();
   const tokenStatus = useTokenStatus();
-  const { signals, paused, pendingCount, connState, metricsCache, marketStatus, togglePause, clearSignals } = useSignals();
+  const { signals, paused, pendingCount, connState, metricsCache, marketStatus, mergeMetrics, togglePause, clearSignals } = useSignals();
   const { notes, saveNote } = useNotes();
   const history = useHistory();
 
@@ -167,8 +168,11 @@ export function CockpitApp() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbols: syms }),
-    }).catch(() => {});
-  }, [history.signals.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: Record<string, InstrumentMetrics> | null) => mergeMetrics(data))
+      .catch(() => {});
+  }, [history.signals, metricsCache, mergeMetrics]);
 
   const currentSignals = view === 'history' ? history.signals : signals;
 
