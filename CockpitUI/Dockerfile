@@ -9,9 +9,13 @@ COPY . .
 
 ARG LIVE_FEED_URL=http://live-feed:8000
 ARG SCORER_URL=http://momentum-scorer:8000
+ARG DATASYNC_URL=http://data-sync:8000
+ARG MODELING_URL=http://modeling:8000
 ARG NEXT_PUBLIC_LIVE_FEED_URL=http://localhost:8003
 ENV LIVE_FEED_URL=${LIVE_FEED_URL}
 ENV SCORER_URL=${SCORER_URL}
+ENV DATASYNC_URL=${DATASYNC_URL}
+ENV MODELING_URL=${MODELING_URL}
 ENV NEXT_PUBLIC_LIVE_FEED_URL=${NEXT_PUBLIC_LIVE_FEED_URL}
 
 RUN npm run build && mkdir -p /app/public
@@ -23,6 +27,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV LIVE_FEED_URL=http://live-feed:8000
+ENV SCORER_URL=http://momentum-scorer:8000
+ENV DATASYNC_URL=http://data-sync:8000
+ENV MODELING_URL=http://modeling:8000
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static     ./.next/static

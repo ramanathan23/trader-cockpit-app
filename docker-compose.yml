@@ -141,13 +141,27 @@ services:
       args:
         LIVE_FEED_URL: http://live-feed:8000
         SCORER_URL: http://momentum-scorer:8000
+        DATASYNC_URL: http://data-sync:8000
+        MODELING_URL: http://modeling:8000
         NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
+    environment:
+      LIVE_FEED_URL: http://live-feed:8000
+      SCORER_URL: http://momentum-scorer:8000
+      DATASYNC_URL: http://data-sync:8000
+      MODELING_URL: http://modeling:8000
+      NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     container_name: trader_cockpit_ui
     ports:
       - "3000:3000"
     depends_on:
       live-feed:
         condition: service_healthy
+      data-sync:
+        condition: service_started
+      momentum-scorer:
+        condition: service_started
+      modeling:
+        condition: service_started
     networks:
       - trader-bridge
     restart: unless-stopped
