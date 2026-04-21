@@ -11,6 +11,10 @@ const PAD = { top: 32, right: 28, bottom: 52, left: 56 };
 const PW = W - PAD.left - PAD.right;
 const PH = H - PAD.top - PAD.bottom;
 
+// sweet-spot thresholds (total_score ≥ 65, comfort ≥ 65)
+const QUAD_TOTAL = 65;
+const QUAD_COMFORT = 65;
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function toX(totalScore: number) {
   return PAD.left + (totalScore / 100) * PW;
@@ -93,13 +97,13 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
   const axisY = PAD.top + PH / 2;
 
   // tooltip position — keep inside viewBox
-  const ttW = 220;
-  const ttH = 110;
+  const ttW = 230;
+  const ttH = 120;
   const ttX = tooltip
     ? Math.min(tooltip.svgX + 16, W - ttW - 8)
     : 0;
   const ttY = tooltip
-    ? Math.max(tooltip.svgY - ttH / 2, PAD.top)
+    ? Math.min(Math.max(tooltip.svgY - ttH / 2, PAD.top), H - ttH - 4)
     : 0;
 
   return (
@@ -123,7 +127,19 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
           stroke="rgb(var(--border))" strokeWidth={1}
         />
 
-        {/* ── quadrant dividers removed ── */}
+        {/* ── sweet-spot quadrant dividers ── */}
+        <line
+          x1={toX(QUAD_TOTAL)} y1={PAD.top}
+          x2={toX(QUAD_TOTAL)} y2={PAD.top + PH}
+          stroke="rgba(var(--accent-rgb, 45,126,232), 0.18)" strokeWidth={1} strokeDasharray="4 4"
+        />
+        <line
+          x1={PAD.left} y1={toY(QUAD_COMFORT)}
+          x2={PAD.left + PW} y2={toY(QUAD_COMFORT)}
+          stroke="rgba(var(--accent-rgb, 45,126,232), 0.18)" strokeWidth={1} strokeDasharray="4 4"
+        />
+        <text x={toX(QUAD_TOTAL) + 6} y={PAD.top + 14} fill="rgb(var(--accent))" fontSize={9} fontFamily="monospace" opacity={0.5}>Sweet spot →</text>
+        <text x={toX(QUAD_TOTAL) + 6} y={toY(QUAD_COMFORT) - 6} fill="rgb(var(--bull))" fontSize={9} fontFamily="monospace" opacity={0.5}>High comfort</text>
 
         {/* ── axis title ── */}
         <text
@@ -245,35 +261,45 @@ export function ClusterChart({ scores, loading }: ClusterChartProps) {
                 {tooltip.row.company_name.slice(0, 28)}
               </text>
             )}
-            {/* scores */}
+            {/* scores row 1 */}
             <text x={ttX + 10} y={ttY + 54} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-              {'Mom '}
+              {'Total '}
+              <tspan fill="rgb(var(--accent))">{tooltip.row.total_score.toFixed(0)}</tspan>
+              {'  Mom '}
               <tspan fill="rgb(var(--amber))">{tooltip.row.momentum_score.toFixed(0)}</tspan>
-              {'   Comfort '}
+              {'  Rank '}
+              <tspan fill="rgb(var(--fg))">#{tooltip.row.rank}</tspan>
+            </text>
+            {/* scores row 2 */}
+            <text x={ttX + 10} y={ttY + 70} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
+              {'Trend '}
+              <tspan fill="rgb(var(--bull))">{tooltip.row.trend_score?.toFixed(0) ?? '-'}</tspan>
+              {'  Comfort '}
               <tspan fill={comfortColor(tooltip.row.comfort_score)}>
                 {tooltip.row.comfort_score?.toFixed(0) ?? '-'}
               </tspan>
             </text>
-            <text x={ttX + 10} y={ttY + 70} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-              {'Total '}
-              <tspan fill="rgb(var(--accent))">{tooltip.row.total_score.toFixed(0)}</tspan>
-              {'   Rank '}
-              <tspan fill="rgb(var(--fg))">#{tooltip.row.rank}</tspan>
+            {/* RSI + bias */}
+            <text x={ttX + 10} y={ttY + 86} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
+              {'RSI '}
+              <tspan fill="rgb(var(--fg))">{tooltip.row.rsi_14 != null ? tooltip.row.rsi_14.toFixed(0) : '-'}</tspan>
+              {'  ADX '}
+              <tspan fill="rgb(var(--fg))">{tooltip.row.adx_14 != null ? tooltip.row.adx_14.toFixed(0) : '-'}</tspan>
+              {tooltip.row.weekly_bias ? '  Bias ' : ''}
+              {tooltip.row.weekly_bias && (
+                <tspan fill={
+                  tooltip.row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))'
+                    : tooltip.row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))'
+                    : 'rgb(var(--ghost))'
+                }>
+                  {tooltip.row.weekly_bias.slice(0, 4)}
+                </tspan>
+              )}
             </text>
-            {tooltip.row.rsi_14 != null && (
-              <text x={ttX + 10} y={ttY + 86} fill="rgb(var(--ghost))" fontSize={10} fontFamily="monospace">
-                {'RSI '}
-                <tspan fill="rgb(var(--fg))">{tooltip.row.rsi_14.toFixed(0)}</tspan>
-                {tooltip.row.weekly_bias ? '   Bias ' : ''}
-                {tooltip.row.weekly_bias && (
-                  <tspan fill={
-                    tooltip.row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))'
-                      : tooltip.row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))'
-                      : 'rgb(var(--ghost))'
-                  }>
-                    {tooltip.row.weekly_bias.slice(0, 4)}
-                  </tspan>
-                )}
+            {/* comfort interpretation */}
+            {tooltip.row.comfort_interpretation && (
+              <text x={ttX + 10} y={ttY + 102} fill="rgb(var(--ghost))" fontSize={9} fontFamily="monospace" fontStyle="italic">
+                {tooltip.row.comfort_interpretation.slice(0, 30)}
               </text>
             )}
           </g>

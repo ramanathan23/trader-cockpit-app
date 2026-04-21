@@ -65,14 +65,12 @@ export function SymbolModal({ symbol, initialTab = 'chart', onClose }: SymbolMod
 
         {/* ── content ── */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {tab === 'chart' && (
-            <div className="flex-1 overflow-hidden">
-              <DailyChart symbol={symbol} height="100%" />
-            </div>
-          )}
-          {tab === 'oc' && (
+          <div className={`flex-1 overflow-hidden ${tab === 'chart' ? '' : 'hidden'}`}>
+            <DailyChart symbol={symbol} height="100%" />
+          </div>
+          <div className={`flex flex-1 flex-col overflow-hidden ${tab === 'oc' ? '' : 'hidden'}`}>
             <OptionChainPanel symbol={symbol} onClose={onClose} embedded />
-          )}
+          </div>
         </div>
       </div>
     </div>

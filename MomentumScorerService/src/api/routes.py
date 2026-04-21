@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Query
 
 from .deps import ScoreRepoDep, ScoreServiceDep
+from ._config_routes import router as _config_router
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -83,3 +84,6 @@ async def get_run_tight_base_watchlist(
         max_base_range_pct=max_base_range_pct,
         max_retracement_pct=max_retracement_pct,
     )
+
+
+router.include_router(_config_router)

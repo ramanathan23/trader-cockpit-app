@@ -25,6 +25,16 @@ export const LIVE_FEED = {
 export const SCORER = {
   DASHBOARD:     '/scorer/dashboard',
   SCORES_COMPUTE:'/scorer/scores/compute',
+  CONFIG:        '/scorer/config',
+} as const;
+
+// ── Admin config endpoints ────────────────────────────────────────────────────
+
+export const ADMIN_CONFIG = {
+  SCORER:   '/scorer/config',
+  DATASYNC: '/datasync/config',
+  LIVEFEED: '/api/v1/config',
+  MODELING: '/modeling/config',
 } as const;
 
 // ── WebSocket URL helpers ────────────────────────────────────────────────────

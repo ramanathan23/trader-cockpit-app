@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from .config import settings
 from .db.connection import create_pool, run_migrations
 from .api.routes import router
+from shared.config_store import load_overrides, apply_overrides
 from .core.model_registry import ModelRegistry
 from .repositories.prediction_repository import PredictionRepository
 from .services.scoring_service import ScoringService
@@ -27,7 +28,8 @@ async def lifespan(app: FastAPI):
         command_timeout=settings.db_command_timeout,
     )
     await run_migrations(pool, timeout=settings.db_migration_timeout)
-    
+    apply_overrides(settings, await load_overrides(pool, "modeling"))
+
     # Initialize repositories
     prediction_repo = PredictionRepository(pool)
     

@@ -429,10 +429,10 @@ function ScoreRow({
         <td className="text-center font-black" style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}>
           {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '-'}
         </td>
+        <td className="text-right num text-dim">{fmt2(row.prev_day_close)}</td>
         <td className="text-right num" title={row.comfort_interpretation ?? undefined} style={{ color: comfortColor(row.comfort_score) }}>
           {row.comfort_score != null ? row.comfort_score.toFixed(0) : '-'}
         </td>
-        <td className="text-right num text-dim">{fmt2(row.prev_day_close)}</td>
         <td className="text-center">
           <button
             type="button"

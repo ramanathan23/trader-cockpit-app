@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from .config import settings
 from .db.connection import create_pool, run_migrations
 from .api.routes import router
+from shared.config_store import load_overrides, apply_overrides
 from .repositories.price_repository import PriceRepository
 from .repositories.symbol_repository import SymbolRepository
 from .repositories.sync_state_repository import SyncStateRepository
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
         )
         raise
     await run_migrations(pool, timeout=settings.db_migration_timeout)
+    apply_overrides(settings, await load_overrides(pool, "datasync"))
     app.state.pool             = pool
     app.state.price_repo       = PriceRepository(pool)
     app.state.symbol_repo      = SymbolRepository(pool)

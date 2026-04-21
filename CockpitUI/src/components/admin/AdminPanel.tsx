@@ -1,24 +1,332 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { ADMIN_CONFIG } from '@/lib/api-config';
 
-type ActionKey = 'sync-daily' | 'sync-1min' | 'compute-scores';
-type ActionStatus = 'idle' | 'running' | 'ok' | 'error';
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ActionState {
-  status: ActionStatus;
-  message: string | null;
+type StepStatus = 'idle' | 'running' | 'ok' | 'error';
+
+type AdminSection =
+  | 'full-sync'
+  | 'jobs'
+  | 'config-scorer'
+  | 'config-datasync'
+  | 'config-livefeed'
+  | 'config-modeling';
+
+interface NavItem {
+  key: AdminSection;
+  label: string;
+  caption: string;
+  group?: string;
 }
 
-interface Action {
-  key: ActionKey;
+type FieldType = 'int' | 'float' | 'bool' | 'string';
+
+interface FieldDef {
+  key: string;
+  label: string;
+  type: FieldType;
+  group?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+interface ServiceConfigDef {
+  id: string;
+  name: string;
+  endpoint: string;
+  fields: FieldDef[];
+}
+
+// ── Nav definition ────────────────────────────────────────────────────────────
+
+const NAV: NavItem[] = [
+  { key: 'full-sync', label: 'Full Sync',  caption: 'Run full pipeline' },
+  { key: 'jobs',      label: 'Jobs',       caption: 'Trigger tasks' },
+  { key: 'config-scorer',   label: 'Scorer',   caption: 'Scoring params',   group: 'Config' },
+  { key: 'config-datasync', label: 'Data Sync',caption: 'Sync params',      group: 'Config' },
+  { key: 'config-livefeed', label: 'Live Feed', caption: 'Signal thresholds',group: 'Config' },
+  { key: 'config-modeling', label: 'Modeling',  caption: 'Model params',     group: 'Config' },
+];
+
+// ── Pipeline steps ─────────────────────────────────────────────────────────────
+
+const PIPELINE_STEPS = [
+  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run',       method: 'POST' },
+  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min',  method: 'POST' },
+  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute',   method: 'POST' },
+  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute', method: 'POST' },
+  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',          method: 'GET'  },
+] as const;
+
+// ── Service config definitions ────────────────────────────────────────────────
+
+const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
+  'config-scorer': {
+    id: 'scorer',
+    name: 'Momentum Scorer',
+    endpoint: ADMIN_CONFIG.SCORER,
+    fields: [
+      { key: 'score_lookback_bars',   label: 'History bars loaded',        type: 'int',   min: 50,  max: 500 },
+      { key: 'score_min_bars',        label: 'Min bars required',          type: 'int',   min: 10,  max: 100 },
+      { key: 'score_concurrency',     label: 'Parallel scoring workers',   type: 'int',   min: 1,   max: 50 },
+      { key: 'rsi_period',            label: 'RSI period',                 type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
+      { key: 'macd_fast',             label: 'MACD fast EMA',              type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
+      { key: 'macd_slow',             label: 'MACD slow EMA',              type: 'int',   min: 5,   max: 200, group: 'Indicators' },
+      { key: 'macd_signal',           label: 'MACD signal EMA',            type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
+      { key: 'vol_avg_period',        label: 'Volume avg period',          type: 'int',   min: 5,   max: 100, group: 'Indicators' },
+      { key: 'nifty500_benchmark',    label: 'Benchmark symbol',           type: 'string',          group: 'Filters' },
+      { key: 'min_avg_daily_turnover',label: 'Min avg daily turnover (₹)', type: 'float', min: 0,   group: 'Filters' },
+      { key: 'enable_comfort_scoring',label: 'Enable ML comfort scoring',  type: 'bool',            group: 'Filters' },
+    ],
+  },
+  'config-datasync': {
+    id: 'datasync',
+    name: 'Data Sync',
+    endpoint: ADMIN_CONFIG.DATASYNC,
+    fields: [
+      { key: 'sync_batch_size',       label: 'Symbols per batch',          type: 'int',   min: 1,   max: 500,   group: 'Sync' },
+      { key: 'sync_batch_delay_s',    label: 'Batch delay (s)',            type: 'float', min: 0,   max: 30,    group: 'Sync',     step: 0.1 },
+      { key: 'sync_1d_history_days',  label: 'Daily history window (days)',type: 'int',   min: 30,  max: 3650,  group: 'Sync' },
+      { key: 'dhan_1min_rate_per_sec',label: 'Dhan 1-min req/sec',         type: 'int',   min: 1,   max: 20,    group: 'Dhan API' },
+      { key: 'dhan_daily_budget',     label: 'Daily API budget',           type: 'int',   min: 100, max: 50000, group: 'Dhan API' },
+      { key: 'dhan_budget_safety',    label: 'Budget safety buffer',       type: 'int',   min: 0,   max: 1000,  group: 'Dhan API' },
+      { key: 'dhan_master_timeout_s', label: 'Master CSV timeout (s)',     type: 'float', min: 5,   max: 120,   group: 'Dhan API', step: 1 },
+    ],
+  },
+  'config-livefeed': {
+    id: 'livefeed',
+    name: 'Live Feed',
+    endpoint: ADMIN_CONFIG.LIVEFEED,
+    fields: [
+      { key: 'drive_candles',              label: 'Drive candles',              type: 'int',   min: 2,  max: 20,    group: 'Open Drive' },
+      { key: 'drive_min_body_ratio',       label: 'Min body ratio',             type: 'float', min: 0,  max: 1,     group: 'Open Drive', step: 0.05 },
+      { key: 'drive_confirmed_thresh',     label: 'Confirmed threshold',        type: 'float', min: 0,  max: 1,     group: 'Open Drive', step: 0.05 },
+      { key: 'drive_weak_thresh',          label: 'Weak threshold',             type: 'float', min: 0,  max: 1,     group: 'Open Drive', step: 0.05 },
+      { key: 'spike_window',               label: 'Volume lookback window',     type: 'int',   min: 5,  max: 100,   group: 'Spike' },
+      { key: 'spike_vol_ratio',            label: 'Volume multiplier',          type: 'float', min: 1,  max: 20,    group: 'Spike',      step: 0.1 },
+      { key: 'spike_price_pct',            label: 'Min price move %',           type: 'float', min: 0,  max: 10,    group: 'Spike',      step: 0.1 },
+      { key: 'spike_cooldown',             label: 'Candle cooldown',            type: 'int',   min: 1,  max: 50,    group: 'Spike' },
+      { key: 'absorption_cooldown',        label: 'Absorption cooldown',        type: 'int',   min: 1,  max: 50,    group: 'Absorption' },
+      { key: 'absorption_near_pct',        label: 'Near level distance',        type: 'float', min: 0,  max: 0.1,   group: 'Absorption', step: 0.001 },
+      { key: 'exhaustion_downtrend_candles',label: 'Downtrend candles',         type: 'int',   min: 2,  max: 20,    group: 'Exhaustion' },
+      { key: 'exhaustion_vol_ratio_min',   label: 'Climax vol ratio',           type: 'float', min: 1,  max: 30,    group: 'Exhaustion', step: 0.5 },
+      { key: 'exhaustion_lower_lows',      label: 'Lower lows needed',          type: 'int',   min: 1,  max: 10,    group: 'Exhaustion' },
+      { key: 'orb_vol_ratio',              label: 'ORB vol ratio',              type: 'float', min: 1,  max: 10,    group: 'Level Breakouts', step: 0.1 },
+      { key: 'week52_vol_ratio',           label: '52-wk breakout vol ratio',   type: 'float', min: 1,  max: 10,    group: 'Level Breakouts', step: 0.1 },
+      { key: 'camarilla_vol_ratio',        label: 'Camarilla vol ratio',        type: 'float', min: 1,  max: 10,    group: 'Level Breakouts', step: 0.1 },
+      { key: 'vwap_vol_ratio',             label: 'VWAP vol ratio',             type: 'float', min: 1,  max: 10,    group: 'Level Breakouts', step: 0.1 },
+      { key: 'vwap_hysteresis_min',        label: 'VWAP confirm candles',       type: 'int',   min: 1,  max: 20,    group: 'Level Breakouts' },
+      { key: 'range_lookback',             label: 'Range lookback bars',        type: 'int',   min: 2,  max: 30,    group: 'Range' },
+      { key: 'range_vol_ratio',            label: 'Range vol ratio',            type: 'float', min: 1,  max: 10,    group: 'Range',          step: 0.1 },
+      { key: 'range_max_pct',              label: 'Max range width %',          type: 'float', min: 0,  max: 0.1,   group: 'Range',          step: 0.001 },
+      { key: 'min_adv_cr',                 label: 'Min ADV (₹Cr)',              type: 'float', min: 0,  max: 100,   group: 'Noise',          step: 0.5 },
+      { key: 'cluster_max_per_candle',     label: 'Max signals/candle',         type: 'int',   min: 1,  max: 20,    group: 'Noise' },
+      { key: 'confluence_15m_candles',     label: '15m candles',                type: 'int',   min: 1,  max: 20,    group: 'Confluence' },
+      { key: 'confluence_1h_candles',      label: '1h candles',                 type: 'int',   min: 1,  max: 50,    group: 'Confluence' },
+      { key: 'confluence_min_move_pct',    label: 'Min move %',                 type: 'float', min: 0,  max: 5,     group: 'Confluence',     step: 0.01 },
+      { key: 'candle_minutes',             label: 'Candle size (min)',           type: 'int',   min: 1,  max: 60,    group: 'Feed' },
+      { key: 'dhan_ws_batch_size',         label: 'WS subscription batch',      type: 'int',   min: 50, max: 1000,  group: 'Feed' },
+      { key: 'dhan_reconnect_delay_s',     label: 'WS reconnect delay (s)',     type: 'float', min: 1,  max: 60,    group: 'Feed',           step: 0.5 },
+      { key: 'candle_write_batch_size',    label: 'Candle write batch',         type: 'int',   min: 10, max: 1000,  group: 'Feed' },
+      { key: 'candle_write_flush_s',       label: 'Candle flush interval (s)',  type: 'float', min: 1,  max: 30,    group: 'Feed',           step: 0.5 },
+    ],
+  },
+  'config-modeling': {
+    id: 'modeling',
+    name: 'Modeling',
+    endpoint: ADMIN_CONFIG.MODELING,
+    fields: [
+      { key: 'auto_retrain_enabled',                  label: 'Auto-retrain enabled',       type: 'bool' },
+      { key: 'max_model_age_days',                    label: 'Max model age (days)',        type: 'int',   min: 1,   max: 365 },
+      { key: 'training_concurrency',                  label: 'Training concurrency',       type: 'int',   min: 1,   max: 8 },
+      { key: 'score_concurrency',                     label: 'Scoring concurrency',        type: 'int',   min: 1,   max: 100 },
+      { key: 'comfort_scorer_retrain_threshold_rmse', label: 'RMSE retrain threshold',     type: 'float', min: 0,   max: 50,     group: 'Comfort Scorer', step: 0.5 },
+      { key: 'comfort_scorer_shadow_days',            label: 'Shadow transition days',     type: 'int',   min: 1,   max: 30,     group: 'Comfort Scorer' },
+      { key: 'comfort_scorer_min_train_samples',      label: 'Min training samples',       type: 'int',   min: 100, max: 500000, group: 'Comfort Scorer' },
+      { key: 'regime_classifier_cache_ttl',           label: 'Regime cache TTL (s)',       type: 'int',   min: 30,  max: 3600,   group: 'Regime Classifier' },
+      { key: 'pattern_detector_confidence_threshold', label: 'Pattern confidence',         type: 'float', min: 0,   max: 1,      group: 'Pattern Detector', step: 0.05 },
+    ],
+  },
+};
+
+// ── Shared primitives ─────────────────────────────────────────────────────────
+
+function StepDot({ status }: { status: StepStatus }) {
+  const color =
+    status === 'running' ? 'rgb(var(--amber))' :
+    status === 'ok'      ? 'rgb(var(--bull))' :
+    status === 'error'   ? 'rgb(var(--bear))' :
+                           'rgb(var(--border))';
+  return (
+    <span
+      className={`inline-block h-2 w-2 shrink-0 rounded-full ${status === 'running' ? 'animate-blink' : ''}`}
+      style={{ backgroundColor: color }}
+    />
+  );
+}
+
+function SectionHeader({ title, caption }: { title: string; caption: string }) {
+  return (
+    <div className="mb-6">
+      <h2 className="text-[15px] font-black text-fg">{title}</h2>
+      <p className="mt-1 text-[11px] text-ghost">{caption}</p>
+    </div>
+  );
+}
+
+// ── Full Sync pane ────────────────────────────────────────────────────────────
+
+type PipelineState = Record<string, { status: StepStatus; message: string | null }>;
+
+function FullSyncPane() {
+  const [states, setStates] = useState<PipelineState>(() =>
+    Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { status: 'idle', message: null }]))
+  );
+  const running = useRef(false);
+
+  function setStep(key: string, status: StepStatus, message: string | null = null) {
+    setStates(prev => ({ ...prev, [key]: { status, message } }));
+  }
+
+  async function runPipeline() {
+    if (running.current) return;
+    running.current = true;
+
+    // Reset all
+    setStates(Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { status: 'idle', message: null }])));
+
+    // Fire sync-daily, sync-1min, scores, metrics in parallel
+    const directSteps = PIPELINE_STEPS.filter(s => s.key !== 'models');
+    directSteps.forEach(s => setStep(s.key, 'running'));
+
+    const directResults = await Promise.allSettled(
+      directSteps.map(s =>
+        fetch(s.endpoint, { method: s.method })
+          .then(async res => {
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
+            return data?.message ?? data?.status ?? 'started';
+          })
+      )
+    );
+
+    directSteps.forEach((s, i) => {
+      const r = directResults[i];
+      if (r.status === 'fulfilled') setStep(s.key, 'ok', r.value);
+      else setStep(s.key, 'error', r.reason?.message ?? 'failed');
+    });
+
+    // Models step: fetch list then trigger score-all per model
+    setStep('models', 'running');
+    try {
+      const res = await fetch('/modeling/models');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const modelNames: string[] = Array.isArray(data)
+        ? data.map((m: { name?: string } | string) => typeof m === 'string' ? m : m.name ?? '').filter(Boolean)
+        : [];
+
+      if (modelNames.length === 0) {
+        setStep('models', 'ok', 'no models registered');
+      } else {
+        await Promise.allSettled(
+          modelNames.map(name =>
+            fetch(`/modeling/models/${name}/score-all`, { method: 'POST' })
+          )
+        );
+        setStep('models', 'ok', `triggered ${modelNames.length} model(s)`);
+      }
+    } catch (err) {
+      setStep('models', 'error', err instanceof Error ? err.message : 'failed');
+    }
+
+    running.current = false;
+  }
+
+  const anyRunning = Object.values(states).some(s => s.status === 'running');
+  const allDone = Object.values(states).every(s => s.status !== 'idle' && s.status !== 'running');
+  const anyError = Object.values(states).some(s => s.status === 'error');
+
+  return (
+    <div className="max-w-lg">
+      <SectionHeader
+        title="Full Pipeline"
+        caption="Sync daily + 1-min data, compute scores, recompute metrics, run models — all in one shot."
+      />
+
+      {/* Step list */}
+      <div className="mb-6 flex flex-col gap-2">
+        {PIPELINE_STEPS.map(step => {
+          const s = states[step.key];
+          return (
+            <div key={step.key} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <StepDot status={s.status} />
+              <div className="min-w-0 flex-1">
+                <span className="text-[12px] font-black text-fg">{step.label}</span>
+                {s.message && (
+                  <span className="ml-2 text-[10px] text-ghost">{s.message}</span>
+                )}
+              </div>
+              {s.status !== 'idle' && (
+                <span
+                  className="shrink-0 text-[10px] font-black"
+                  style={{
+                    color:
+                      s.status === 'running' ? 'rgb(var(--amber))' :
+                      s.status === 'ok'      ? 'rgb(var(--bull))' :
+                                               'rgb(var(--bear))',
+                  }}
+                >
+                  {s.status === 'running' ? 'running' : s.status === 'ok' ? 'done' : 'error'}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Run button */}
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={runPipeline}
+          disabled={anyRunning}
+          className={`rounded-lg border px-6 py-2.5 text-[13px] font-black transition-colors ${
+            anyRunning
+              ? 'cursor-not-allowed border-border text-ghost'
+              : 'border-accent/50 bg-accent/10 text-accent hover:bg-accent/20'
+          }`}
+        >
+          {anyRunning ? 'Running…' : 'Run Pipeline'}
+        </button>
+        {allDone && (
+          <span
+            className="text-[12px] font-black"
+            style={{ color: anyError ? 'rgb(var(--bear))' : 'rgb(var(--bull))' }}
+          >
+            {anyError ? 'Completed with errors' : 'All steps started'}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Jobs pane ─────────────────────────────────────────────────────────────────
+
+interface JobAction {
+  key: string;
   label: string;
   caption: string;
   endpoint: string;
   method: string;
 }
 
-const ACTIONS: Action[] = [
+const JOB_ACTIONS: JobAction[] = [
   {
     key: 'sync-daily',
     label: 'Sync Daily Data',
@@ -40,72 +348,53 @@ const ACTIONS: Action[] = [
     endpoint: '/scorer/scores/compute',
     method: 'POST',
   },
+  {
+    key: 'recompute-metrics',
+    label: 'Recompute Metrics',
+    caption: 'Recompute symbol_metrics table from price data.',
+    endpoint: '/datasync/metrics/recompute',
+    method: 'POST',
+  },
 ];
 
-function StatusBadge({ status, message }: { status: ActionStatus; message: string | null }) {
-  if (status === 'idle') return null;
-
-  const color =
-    status === 'running' ? 'rgb(var(--amber))' :
-    status === 'ok'      ? 'rgb(var(--bull))' :
-                           'rgb(var(--bear))';
-
-  const label =
-    status === 'running' ? 'Running…' :
-    status === 'ok'      ? 'Started' :
-                           'Failed';
-
-  return (
-    <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-base/60 px-3 py-2">
-      <span
-        className={`mt-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${status === 'running' ? 'animate-blink' : ''}`}
-        style={{ backgroundColor: color }}
-      />
-      <div>
-        <span className="num text-[11px] font-black" style={{ color }}>{label}</span>
-        {message && (
-          <p className="mt-0.5 text-[10px] text-ghost">{message}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ActionCard({ action }: { action: Action }) {
-  const [state, setState] = useState<ActionState>({ status: 'idle', message: null });
+function JobCard({ action }: { action: JobAction }) {
+  const [status, setStatus] = useState<StepStatus>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
 
   async function run() {
-    if (state.status === 'running') return;
-    setState({ status: 'running', message: null });
+    if (status === 'running') return;
+    setStatus('running'); setMsg(null);
     try {
       const res = await fetch(action.endpoint, { method: action.method });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const detail = data?.detail ?? data?.message ?? `HTTP ${res.status}`;
-        setState({ status: 'error', message: String(detail) });
-        return;
-      }
-      const msg = data?.message ?? data?.status ?? 'OK';
-      setState({ status: 'ok', message: String(msg) });
+      if (!res.ok) { setStatus('error'); setMsg(String(data?.detail ?? data?.message ?? `HTTP ${res.status}`)); return; }
+      setStatus('ok'); setMsg(String(data?.message ?? data?.status ?? 'started'));
     } catch (err) {
-      setState({ status: 'error', message: err instanceof Error ? err.message : 'Network error' });
+      setStatus('error'); setMsg(err instanceof Error ? err.message : 'Network error');
     }
   }
 
-  const busy = state.status === 'running';
+  const busy = status === 'running';
+  const statusColor =
+    status === 'running' ? 'rgb(var(--amber))' :
+    status === 'ok'      ? 'rgb(var(--bull))' :
+    status === 'error'   ? 'rgb(var(--bear))' : '';
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+    <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-[13px] font-black text-fg">{action.label}</h3>
           <p className="mt-1 text-[11px] text-ghost leading-relaxed">{action.caption}</p>
+          {status !== 'idle' && msg && (
+            <p className="mt-2 text-[10px]" style={{ color: statusColor }}>{msg}</p>
+          )}
         </div>
         <button
           type="button"
           onClick={run}
           disabled={busy}
-          className={`shrink-0 rounded-lg border px-4 py-2 text-[12px] font-black transition-colors ${
+          className={`shrink-0 rounded-lg border px-4 py-1.5 text-[12px] font-black transition-colors ${
             busy
               ? 'cursor-not-allowed border-border text-ghost'
               : 'border-accent/50 bg-accent/10 text-accent hover:bg-accent/20'
@@ -114,19 +403,19 @@ function ActionCard({ action }: { action: Action }) {
           {busy ? 'Running…' : 'Run'}
         </button>
       </div>
-      <StatusBadge status={state.status} message={state.message} />
     </div>
   );
 }
 
-function TokenUpdateCard() {
+function TokenCard() {
   const [token, setToken] = useState('');
-  const [state, setState] = useState<ActionState>({ status: 'idle', message: null });
+  const [status, setStatus] = useState<StepStatus>('idle');
+  const [msg, setMsg] = useState<string | null>(null);
 
   async function submit() {
     const value = token.trim();
-    if (!value || state.status === 'running') return;
-    setState({ status: 'running', message: null });
+    if (!value || status === 'running') return;
+    setStatus('running'); setMsg(null);
     try {
       const res = await fetch('/api/v1/token', {
         method: 'POST',
@@ -134,33 +423,29 @@ function TokenUpdateCard() {
         body: JSON.stringify({ access_token: value }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const detail = data?.detail ?? data?.message ?? `HTTP ${res.status}`;
-        setState({ status: 'error', message: String(detail) });
-        return;
-      }
-      setToken('');
-      setState({ status: 'ok', message: data?.message ?? 'Token updated' });
+      if (!res.ok) { setStatus('error'); setMsg(String(data?.detail ?? data?.message ?? `HTTP ${res.status}`)); return; }
+      setToken(''); setStatus('ok'); setMsg(data?.message ?? 'Token updated');
     } catch (err) {
-      setState({ status: 'error', message: err instanceof Error ? err.message : 'Network error' });
+      setStatus('error'); setMsg(err instanceof Error ? err.message : 'Network error');
     }
   }
 
-  const busy = state.status === 'running';
+  const busy = status === 'running';
+  const statusColor = status === 'ok' ? 'rgb(var(--bull))' : 'rgb(var(--bear))';
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+    <div className="rounded-xl border border-border bg-card p-4">
       <h3 className="text-[13px] font-black text-fg">Update Dhan Token</h3>
       <p className="mt-1 text-[11px] text-ghost leading-relaxed">
-        Paste a new Dhan access token. LiveFeed WebSocket feeds will reconnect immediately.
+        LiveFeed WebSocket feeds reconnect immediately on update.
       </p>
-      <div className="mt-4 flex gap-3">
+      <div className="mt-3 flex gap-2">
         <input
           type="password"
           value={token}
           onChange={e => setToken(e.target.value)}
           placeholder="Paste access token…"
-          className="field h-9 min-w-0 flex-1 text-[12px]"
+          className="field h-8 min-w-0 flex-1 text-[12px]"
           disabled={busy}
           onKeyDown={e => { if (e.key === 'Enter') submit(); }}
         />
@@ -168,7 +453,7 @@ function TokenUpdateCard() {
           type="button"
           onClick={submit}
           disabled={busy || !token.trim()}
-          className={`shrink-0 rounded-lg border px-4 py-2 text-[12px] font-black transition-colors ${
+          className={`shrink-0 rounded-lg border px-4 py-1.5 text-[12px] font-black transition-colors ${
             busy || !token.trim()
               ? 'cursor-not-allowed border-border text-ghost'
               : 'border-accent/50 bg-accent/10 text-accent hover:bg-accent/20'
@@ -177,29 +462,286 @@ function TokenUpdateCard() {
           {busy ? 'Updating…' : 'Update'}
         </button>
       </div>
-      <StatusBadge status={state.status} message={state.message} />
+      {status !== 'idle' && msg && (
+        <p className="mt-2 text-[10px] font-black" style={{ color: statusColor }}>{msg}</p>
+      )}
     </div>
   );
 }
 
-export function AdminPanel() {
+function JobsPane() {
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="mx-auto max-w-2xl">
-        <div className="mb-6">
-          <h2 className="text-[15px] font-black text-fg">Admin</h2>
-          <p className="mt-1 text-[11px] text-ghost">
-            Trigger background jobs. All tasks run asynchronously — check service logs for progress.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {ACTIONS.map(action => (
-            <ActionCard key={action.key} action={action} />
-          ))}
-          <TokenUpdateCard />
-        </div>
+    <div className="max-w-lg">
+      <SectionHeader title="Jobs" caption="Trigger background tasks. All run async — check service logs for progress." />
+      <div className="flex flex-col gap-3">
+        {JOB_ACTIONS.map(a => <JobCard key={a.key} action={a} />)}
+        <TokenCard />
       </div>
     </div>
+  );
+}
+
+// ── Config pane ───────────────────────────────────────────────────────────────
+
+function ConfigField({
+  def,
+  value,
+  onChange,
+}: {
+  def: FieldDef;
+  value: unknown;
+  onChange: (key: string, val: unknown) => void;
+}) {
+  if (def.type === 'bool') {
+    return (
+      <div className="col-span-2 flex items-center justify-between rounded-lg border border-border bg-base/40 px-3 py-2.5">
+        <span className="text-[11px] text-ghost">{def.label}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!value}
+          onClick={() => onChange(def.key, !value)}
+          className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${value ? 'bg-accent' : 'bg-border'}`}
+        >
+          <span
+            className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-3' : 'translate-x-0.5'}`}
+          />
+        </button>
+      </div>
+    );
+  }
+
+  if (def.type === 'string') {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[10px] text-ghost">{def.label}</span>
+        <input
+          type="text"
+          className="field h-8 w-full text-[12px]"
+          value={String(value ?? '')}
+          onChange={e => onChange(def.key, e.target.value)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] text-ghost">{def.label}</span>
+      <input
+        type="number"
+        className="field h-8 w-full num text-[12px]"
+        value={value as number}
+        min={def.min}
+        max={def.max}
+        step={def.step ?? (def.type === 'int' ? 1 : 0.01)}
+        onChange={e => {
+          const raw = def.type === 'int' ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+          onChange(def.key, isNaN(raw) ? value : raw);
+        }}
+      />
+    </div>
+  );
+}
+
+function ServiceConfigPane({ sectionKey }: { sectionKey: AdminSection }) {
+  const def = SERVICE_CONFIGS[sectionKey];
+  const [loadStatus, setLoadStatus] = useState<StepStatus>('idle');
+  const [saveStatus, setSaveStatus] = useState<StepStatus>('idle');
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [config, setConfig] = useState<Record<string, unknown> | null>(null);
+
+  const load = useCallback(async () => {
+    setLoadStatus('running');
+    try {
+      const res = await fetch(def.endpoint);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setConfig(await res.json());
+      setLoadStatus('ok');
+    } catch {
+      setLoadStatus('error');
+    }
+  }, [def.endpoint]);
+
+  // Auto-load on mount
+  useEffect(() => { load(); }, [load]);
+
+  function handleChange(key: string, val: unknown) {
+    setConfig(prev => prev ? { ...prev, [key]: val } : prev);
+  }
+
+  async function save() {
+    if (!config || saveStatus === 'running') return;
+    setSaveStatus('running'); setSaveMsg(null);
+    try {
+      const res = await fetch(def.endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const detail = data?.detail ?? data?.message ?? `HTTP ${res.status}`;
+        setSaveStatus('error');
+        setSaveMsg(typeof detail === 'object' ? JSON.stringify(detail) : String(detail));
+        return;
+      }
+      setConfig(data);
+      setSaveStatus('ok'); setSaveMsg('Saved and applied');
+    } catch (err) {
+      setSaveStatus('error'); setSaveMsg(err instanceof Error ? err.message : 'Network error');
+    }
+  }
+
+  // Group fields
+  const grouped = def.fields.reduce<Record<string, FieldDef[]>>((acc, f) => {
+    const g = f.group ?? '';
+    (acc[g] ??= []).push(f);
+    return acc;
+  }, {});
+
+  return (
+    <div className="max-w-xl">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-[15px] font-black text-fg">{def.name} Config</h2>
+          <p className="mt-1 text-[11px] text-ghost">{def.fields.length} parameters — persisted to DB, applied immediately</p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          className="rounded-lg border border-border px-3 py-1.5 text-[11px] text-ghost hover:border-accent/40 hover:text-fg transition-colors"
+        >
+          {loadStatus === 'running' ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {loadStatus === 'error' && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-bear/30 bg-bear/5 px-4 py-3">
+          <span className="text-[11px] text-bear">Failed to load config.</span>
+          <button type="button" onClick={load} className="text-[11px] text-accent underline">Retry</button>
+        </div>
+      )}
+
+      {!config && loadStatus !== 'error' && (
+        <p className="text-[11px] text-ghost">Loading…</p>
+      )}
+
+      {config && (
+        <>
+          {Object.entries(grouped).map(([groupName, fields]) => (
+            <div key={groupName} className={groupName ? 'mb-6' : 'mb-6'}>
+              {groupName && (
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-ghost/60">
+                  {groupName}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {fields.map(f => {
+                  const val = config[f.key];
+                  if (val === undefined) return null;
+                  return (
+                    <ConfigField key={f.key} def={f} value={val} onChange={handleChange} />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          <div className="flex items-center gap-4 border-t border-border pt-5">
+            <button
+              type="button"
+              onClick={save}
+              disabled={saveStatus === 'running'}
+              className={`rounded-lg border px-5 py-2 text-[12px] font-black transition-colors ${
+                saveStatus === 'running'
+                  ? 'cursor-not-allowed border-border text-ghost'
+                  : 'border-accent/50 bg-accent/10 text-accent hover:bg-accent/20'
+              }`}
+            >
+              {saveStatus === 'running' ? 'Saving…' : 'Save & Apply'}
+            </button>
+            <button type="button" onClick={load} className="text-[11px] text-ghost underline">
+              Reset
+            </button>
+            {saveStatus !== 'idle' && saveStatus !== 'running' && saveMsg && (
+              <span
+                className="text-[11px] font-black"
+                style={{ color: saveStatus === 'ok' ? 'rgb(var(--bull))' : 'rgb(var(--bear))' }}
+              >
+                {saveMsg}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Root panel ────────────────────────────────────────────────────────────────
+
+export function AdminPanel() {
+  const [section, setSection] = useState<AdminSection>('full-sync');
+
+  const groupedNav = NAV.reduce<{ ungrouped: NavItem[]; grouped: Record<string, NavItem[]> }>(
+    (acc, item) => {
+      if (!item.group) acc.ungrouped.push(item);
+      else (acc.grouped[item.group] ??= []).push(item);
+      return acc;
+    },
+    { ungrouped: [], grouped: {} }
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+
+      {/* Left nav */}
+      <aside className="w-44 shrink-0 border-r border-border bg-panel/60 p-2 overflow-y-auto">
+        <nav className="flex flex-col gap-0.5">
+          {groupedNav.ungrouped.map(item => (
+            <NavButton key={item.key} item={item} active={section === item.key} onClick={() => setSection(item.key)} />
+          ))}
+
+          {Object.entries(groupedNav.grouped).map(([groupName, items]) => (
+            <div key={groupName} className="mt-3">
+              <p className="mb-1 px-2 text-[9px] font-black uppercase tracking-widest text-ghost/50">
+                {groupName}
+              </p>
+              {items.map(item => (
+                <NavButton key={item.key} item={item} active={section === item.key} onClick={() => setSection(item.key)} />
+              ))}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Content pane */}
+      <div className="min-w-0 flex-1 overflow-y-auto p-6">
+        {section === 'full-sync' && <FullSyncPane />}
+        {section === 'jobs'      && <JobsPane />}
+        {(section === 'config-scorer' || section === 'config-datasync' || section === 'config-livefeed' || section === 'config-modeling') && (
+          <ServiceConfigPane key={section} sectionKey={section} />
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+function NavButton({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
+        active
+          ? 'border-accent/40 bg-accent/10 text-fg'
+          : 'border-transparent text-dim hover:border-border hover:bg-lift/60 hover:text-fg'
+      }`}
+    >
+      <span className="block text-[12px] font-black leading-tight">{item.label}</span>
+      <span className="mt-0.5 block text-[10px] text-ghost">{item.caption}</span>
+    </button>
   );
 }
