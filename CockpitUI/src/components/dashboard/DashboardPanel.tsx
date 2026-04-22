@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, Crosshair, LayoutGrid, List, RotateCcw } from 'lucide-react';
+import { BarChart2, ChevronDown, ChevronUp, ChevronsUpDown, Crosshair, LayoutGrid, List, RotateCcw } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDashboard } from '@/hooks/useDashboard';
 import { ClusterChart } from './ClusterChart';
+import { WatchlistSplitView } from './WatchlistSplitView';
 import { SymbolModal } from './SymbolModal';
 import type { SymbolModalTab } from './SymbolModal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
@@ -50,7 +51,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
 export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard(initialData);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
-  const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster'>('table');
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster' | 'charts'>('table');
   const [segment, setSegment] = useState<Segment>('all');
   const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
   const [query, setQuery] = useState('');
@@ -73,7 +74,7 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
   }, [watchlistOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!watchlistOnly && viewMode === 'cluster') setViewMode('table');
+    if (!watchlistOnly && (viewMode === 'cluster' || viewMode === 'charts')) setViewMode('table');
   }, [watchlistOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -177,6 +178,17 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
               {watchlistOnly && (
                 <button
                   type="button"
+                  onClick={() => setViewMode('charts')}
+                  title="Chart view — list + candlestick"
+                  aria-label="Chart view"
+                  className={`seg-btn px-2 ${viewMode === 'charts' ? 'active' : ''}`}
+                >
+                  <BarChart2 size={14} aria-hidden="true" />
+                </button>
+              )}
+              {watchlistOnly && (
+                <button
+                  type="button"
                   onClick={() => setViewMode('cluster')}
                   title="Cluster chart"
                   aria-label="Cluster chart"
@@ -226,7 +238,9 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
         </div>
       </div>
 
-      {viewMode === 'cluster' ? (
+      {viewMode === 'charts' ? (
+        <WatchlistSplitView scores={filtered} loading={loading} />
+      ) : viewMode === 'cluster' ? (
         <ClusterChart scores={filtered} loading={loading} />
       ) : viewMode === 'card' ? (
         <div className="flex-1 overflow-y-auto p-4">
