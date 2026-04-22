@@ -142,13 +142,24 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
             <div className="mt-1 text-[10px] text-ghost">{timeStr(s.timestamp)}</div>
           </div>
 
-          <span
-            className="shrink-0 rounded-md border px-2 py-1 text-signal-badge uppercase"
-            style={{ color, background: `${color}18`, borderColor: `${color}40` }}
-            title={signalDesc(s.signal_type)}
-          >
-            {signalShort(s.signal_type)}
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <span
+              className="rounded-md border px-2 py-1 text-signal-badge uppercase"
+              style={{ color, background: `${color}18`, borderColor: `${color}40` }}
+              title={signalDesc(s.signal_type)}
+            >
+              {signalShort(s.signal_type)}
+            </span>
+            {s.watchlist_conflict && (
+              <span
+                className="rounded border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide"
+                style={{ color: '#e8933a', background: 'rgba(232,147,58,0.12)', borderColor: 'rgba(232,147,58,0.35)' }}
+                title="Signal direction conflicts with watchlist bias"
+              >
+                WL≠
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 flex items-end justify-between gap-4">

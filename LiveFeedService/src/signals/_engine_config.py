@@ -26,6 +26,7 @@ class EngineConfig:
     confluence_15m:               int   = 3
     confluence_1h:                int   = 12
     confluence_min_move_pct:      float = 0.15
+    gap_min_pct:                  float = 1.5
 
 
 def config_from_kwargs(**kwargs) -> EngineConfig:

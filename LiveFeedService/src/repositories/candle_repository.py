@@ -7,7 +7,7 @@ import logging
 import asyncpg
 
 from ..domain.candle import Candle
-from ._candle_reads import list_recent_by_symbol, _EQUITY_TABLE, _FUTURE_TABLE
+from ._candle_reads import list_recent_by_symbol, list_from_1min_aggregated, _EQUITY_TABLE, _FUTURE_TABLE
 from ._candle_writes import bulk_insert
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,14 @@ class CandleRepository:
             self._pool, symbols,
             is_index_future=is_index_future,
             limit_per_symbol=limit_per_symbol,
+        )
+
+    async def list_from_1min_aggregated(
+        self, symbols: list[str], *, candle_min: int = 5, days_back: int = 2,
+    ) -> dict[str, list[Candle]]:
+        """Aggregate price_data_1min → N-min candles for equity warm-start."""
+        return await list_from_1min_aggregated(
+            self._pool, symbols, candle_min=candle_min, days_back=days_back,
         )
 
     async def insert_many(self, candles: list[Candle]) -> int:

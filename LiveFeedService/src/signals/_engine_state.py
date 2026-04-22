@@ -27,4 +27,5 @@ class _SessionState:
     range_signalled_at:   Optional[str]              = None
     cam_h4_signalled:     bool                       = False
     cam_l4_signalled:     bool                       = False
+    gap_signalled:        bool                       = False
     _adv_warned:          bool                       = False

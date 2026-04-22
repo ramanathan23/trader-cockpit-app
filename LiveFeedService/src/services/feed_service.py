@@ -43,6 +43,7 @@ class FeedService(_FeedInitMixin, _FeedStatusMixin, _FeedSignalMixin):
         self._loader          = InstrumentLoader(
             symbol_repo, candle_repo,
             warm_limit=max(settings.spike_window, settings.drive_candles, settings.confluence_1h_candles),
+            candle_min=settings.candle_minutes,
         )
         self._writer = BufferedCandleWriter(
             candle_repo,

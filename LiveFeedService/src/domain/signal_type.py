@@ -24,3 +24,5 @@ class SignalType(str, Enum):
     CAM_H4_BREAKOUT     = "CAM_H4_BREAKOUT"
     CAM_L3_REVERSAL     = "CAM_L3_REVERSAL"
     CAM_L4_BREAKDOWN    = "CAM_L4_BREAKDOWN"
+    GAP_UP              = "GAP_UP"
+    GAP_DOWN            = "GAP_DOWN"

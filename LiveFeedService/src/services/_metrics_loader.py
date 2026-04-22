@@ -4,11 +4,11 @@ import asyncpg
 
 
 async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
-    """Read precomputed daily metrics from symbol_metrics table."""
+    """Read precomputed daily metrics from symbol_metrics + latest watchlist state."""
     rows = await pool.fetch("""
         SELECT
             sm.symbol,
-            COALESCE(s.is_fno, FALSE) AS is_fno,
+            COALESCE(s.is_fno, FALSE)       AS is_fno,
             sm.week52_high, sm.week52_low,
             sm.atr_14, sm.adv_20_cr,
             sm.ema_50, sm.ema_200,
@@ -16,9 +16,16 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             sm.trading_days,
             sm.prev_day_high, sm.prev_day_low, sm.prev_day_close,
             sm.prev_week_high, sm.prev_week_low,
-            sm.prev_month_high, sm.prev_month_low
+            sm.prev_month_high, sm.prev_month_low,
+            sm.weekly_bias,
+            COALESCE(ds.is_watchlist, FALSE) AS is_watchlist
         FROM symbol_metrics sm
         LEFT JOIN symbols s ON s.symbol = sm.symbol
+        LEFT JOIN (
+            SELECT symbol, is_watchlist
+            FROM daily_scores
+            WHERE score_date = (SELECT MAX(score_date) FROM daily_scores)
+        ) ds ON ds.symbol = sm.symbol
     """)
     return {
         row["symbol"]: {
@@ -40,6 +47,8 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             "prev_week_low":    round(float(row["prev_week_low"]), 2)  if row["prev_week_low"]  else None,
             "prev_month_high":  round(float(row["prev_month_high"]),2) if row["prev_month_high"] else None,
             "prev_month_low":   round(float(row["prev_month_low"]), 2) if row["prev_month_low"]  else None,
+            "weekly_bias":      row["weekly_bias"] or "NEUTRAL",
+            "is_watchlist":     bool(row["is_watchlist"]),
         }
         for row in rows
     }

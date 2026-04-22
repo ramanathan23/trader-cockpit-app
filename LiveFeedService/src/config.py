@@ -68,6 +68,9 @@ class Settings(BaseServiceSettings):
     confluence_1h_candles:  int   = Field(default=12)
     confluence_min_move_pct: float = Field(default=0.15)
 
+    # ── Gap detector ──────────────────────────────────────────────────────────────
+    gap_min_pct:            float = Field(default=1.5)
+
     # ── Candle writer ─────────────────────────────────────────────────────────
     candle_write_batch_size: int   = Field(default=100)
     candle_write_flush_s:    float = Field(default=5.0)

@@ -11,10 +11,11 @@ export type SignalType =
   | 'WEEK52_BREAKOUT' | 'WEEK52_BREAKDOWN'
   | 'PDH_BREAKOUT' | 'PDL_BREAKDOWN'
   | 'VWAP_BREAKOUT' | 'VWAP_BREAKDOWN'
-  | 'CAM_H3_REVERSAL' | 'CAM_H4_BREAKOUT' | 'CAM_L3_REVERSAL' | 'CAM_L4_BREAKDOWN';
+  | 'CAM_H3_REVERSAL' | 'CAM_H4_BREAKOUT' | 'CAM_L3_REVERSAL' | 'CAM_L4_BREAKDOWN'
+  | 'GAP_UP' | 'GAP_DOWN';
 
 export type SignalCategory =
-  | 'ALL' | 'DRIVE' | 'SPIKE' | 'ABS' | 'EXHAUST' | 'FADE' | 'BREAK' | 'VWAP' | 'CAM';
+  | 'ALL' | 'DRIVE' | 'SPIKE' | 'ABS' | 'EXHAUST' | 'FADE' | 'BREAK' | 'VWAP' | 'CAM' | 'GAP';
 
 export type Direction = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
@@ -35,6 +36,7 @@ export interface Signal {
   stop?: number;
   target_1?: number;
   trail_stop?: number;
+  watchlist_conflict?: boolean;
   _count: number;
   _dedupKey?: string;
   _fromCatchup?: boolean;
@@ -59,6 +61,7 @@ export const CATEGORY_TYPES: Record<Exclude<SignalCategory, 'ALL'>, SignalType[]
   ],
   VWAP: ['VWAP_BREAKOUT', 'VWAP_BREAKDOWN'],
   CAM: ['CAM_H3_REVERSAL', 'CAM_H4_BREAKOUT', 'CAM_L3_REVERSAL', 'CAM_L4_BREAKDOWN'],
+  GAP: ['GAP_UP', 'GAP_DOWN'],
 };
 
 interface SignalMeta {
@@ -91,6 +94,8 @@ const META: Record<SignalType, SignalMeta> = {
   CAM_H4_BREAKOUT: { color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM H4+', desc: 'Broke above Camarilla H4.' },
   CAM_L3_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM L3', desc: 'Bounced from Camarilla L3.' },
   CAM_L4_BREAKDOWN: { color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM L4-', desc: 'Broke below Camarilla L4.' },
+  GAP_UP:   { color: '#0dbd7d', tint: 'rgba(13,189,125,0.08)', short: 'GAP↑', desc: 'Opened ≥1.5% above previous close.' },
+  GAP_DOWN: { color: '#f23d55', tint: 'rgba(242,61,85,0.08)',  short: 'GAP↓', desc: 'Opened ≥1.5% below previous close.' },
 };
 
 export function signalColor(type: SignalType): string {

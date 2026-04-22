@@ -38,12 +38,23 @@ def near_key_level(
 
 
 def evaluate_spike(
-    symbol: str, candle: Candle, history: list[Candle],
-    bias: IndexBias, phase: SessionPhase,
-    state: _SessionState, config: EngineConfig,
-    session_manager: SessionManager, metrics: dict,
+    symbol:          str,
+    candle:          Candle,
+    history:         list[Candle],  # full history (yesterday + today) — for vol baseline
+    session_history: list[Candle],  # today-only — for exhaustion intraday pattern
+    bias:            IndexBias,
+    phase:           SessionPhase,
+    state:           _SessionState,
+    config:          EngineConfig,
+    session_manager: SessionManager,
+    metrics:         dict,
 ) -> list[Signal]:
     prior        = history[:-1] if history and history[-1].boundary == candle.boundary else history
+    session_prior = (
+        session_history[:-1]
+        if session_history and session_history[-1].boundary == candle.boundary
+        else session_history
+    )
     vol_thresh   = session_manager.spike_vol_threshold(phase)
     price_thresh = session_manager.spike_price_threshold(phase)
     out: list[Signal] = []
@@ -82,8 +93,11 @@ def evaluate_spike(
         if confirmed is not None:
             out.append(signal_factory.make_exhaustion_reversal(symbol, candle, confirmed, phase, bias))
 
+    # session_prior: today-only candles — prevents cross-day lower-low detection;
+    # vol baseline inside detect_candidate uses session_prior[-20:] which is fine
+    # once we have enough today candles, otherwise returns None early
     candidate = exhaustion_reversal.detect_candidate(
-        candle, prior, state.day_open,
+        candle, session_prior, state.day_open,
         downtrend_candles = config.exhaustion_downtrend_candles,
         vol_ratio_min     = config.exhaustion_vol_ratio_min,
         lower_lows_needed = config.exhaustion_lower_lows,

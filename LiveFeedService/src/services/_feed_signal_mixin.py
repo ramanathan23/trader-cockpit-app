@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..domain.candle import Candle
+from ..domain.direction import Direction
 from ..domain.index_bias import IndexBias
 from ..domain.instrument_meta import InstrumentMeta
 from ..signals.engine import SignalEngine
@@ -41,13 +43,27 @@ class _FeedSignalMixin:
         if meta.is_index_future and meta.underlying:
             self._update_index_bias(meta.underlying, candle)
         if not meta.is_index_future:
-            engine = self._get_or_create_engine(meta)
+            engine   = self._get_or_create_engine(meta)
+            metrics  = self._metrics_service.get_daily(meta.symbol) or {}
+            wl_bias  = metrics.get("weekly_bias", "NEUTRAL")
+            on_wl    = metrics.get("is_watchlist", False)
             for signal in engine.on_candle(candle, self._index_bias):
+                conflict = (
+                    on_wl
+                    and signal.direction != Direction.NEUTRAL
+                    and (
+                        (wl_bias == "BULLISH" and signal.direction == Direction.BEARISH)
+                        or (wl_bias == "BEARISH" and signal.direction == Direction.BULLISH)
+                    )
+                )
+                if conflict:
+                    signal = dataclasses.replace(signal, watchlist_conflict=True)
                 self._signals_emitted += 1
                 await self._publisher.publish(signal)
-                logger.info("[SIGNAL] %s %s %s score=%.2f",
+                logger.info("[SIGNAL] %s %s %s score=%.2f%s",
                             signal.symbol, signal.signal_type.value,
-                            signal.direction.value, signal.score)
+                            signal.direction.value, signal.score,
+                            " [WL-CONFLICT]" if conflict else "")
 
     def _update_index_bias(self, underlying: str, candle: Candle) -> None:
         direction = candle.direction
@@ -85,6 +101,7 @@ class _FeedSignalMixin:
                 confluence_15m   = s.confluence_15m_candles,
                 confluence_1h    = s.confluence_1h_candles,
                 confluence_min_move_pct = s.confluence_min_move_pct,
+                gap_min_pct      = s.gap_min_pct,
                 daily_metrics    = metrics,
             )
         return self._engines[meta.symbol]

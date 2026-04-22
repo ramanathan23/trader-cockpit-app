@@ -7,6 +7,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+_IST = ZoneInfo("Asia/Kolkata")
 
 from ..core.candle_builder import CandleBuilder
 from ..core.session_manager import SessionManager
@@ -22,6 +25,7 @@ from ._confluence_filter import apply_confluence
 from ._drive_handler import evaluate_drive, run_trail, _bootstrap_day, _bootstrap_orb
 from ._spike_handler import evaluate_spike
 from ._breakout_handler import evaluate_breakouts
+from .gap_detector import evaluate_gap
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +64,11 @@ class SignalEngine:
         state   = self._state
         history = self._builder.get_history()
         config  = self._config
+        _at     = at if at is not None else datetime.now(tz=_IST)
+        today   = _at.astimezone(_IST).date()
         _bootstrap_day(candle, phase, state, self._builder, self.symbol)
-        _bootstrap_orb(history, state, config.drive_candles, self.symbol)
+        _bootstrap_orb(history, state, config.drive_candles, self.symbol, today)
+        today_history = [c for c in history if c.boundary.astimezone(_IST).date() == today]
         adv = self._metrics.get("adv_20_cr", 0.0)
         skip_non_drive = adv < config.min_adv_cr
         if skip_non_drive and not state._adv_warned:
@@ -69,21 +76,25 @@ class SignalEngine:
                            self.symbol, adv, config.min_adv_cr)
             state._adv_warned = True
         signals: list[Signal] = []
+        # Gap: once per session, exempt from confluence — fires before drive
+        signals.extend(evaluate_gap(self.symbol, candle, phase, state, config, self._metrics))
         if (phase in (SessionPhase.DRIVE_WINDOW, SessionPhase.EXECUTION)
                 and not state.mid_session_start):
+            # Drive uses today-only candles — seeded yesterday candles must not bleed in
             signals.extend(evaluate_drive(
-                self.symbol, candle, history, index_bias, phase, state, config))
+                self.symbol, candle, today_history, index_bias, phase, state, config))
         if state.in_trade and state.trailing_stop is not None:
             signals.extend(run_trail(self.symbol, candle, phase, state))
         if not skip_non_drive:
+            # Full history for vol baseline; today_history for intraday pattern checks
             signals.extend(evaluate_spike(
-                self.symbol, candle, history, index_bias, phase, state, config,
+                self.symbol, candle, history, today_history, index_bias, phase, state, config,
                 self._session, self._metrics))
             signals.extend(evaluate_breakouts(
-                self.symbol, candle, history, index_bias, phase, state, config, self._metrics))
+                self.symbol, candle, history, today_history, index_bias, phase, state, config, self._metrics))
         state.vwap = vwap_detector.update(state.vwap, candle)
         mtf = _mtf.compute(history, config.confluence_15m, config.confluence_1h,
-                           config.confluence_min_move_pct)
+                           config.confluence_min_move_pct, today_date=today)
         return apply_confluence(signals, mtf)
 
     def _apply_confluence(self, signals: list[Signal], mtf) -> list[Signal]:

@@ -16,6 +16,7 @@ from ._factory_exhaustion import make_exhaustion_reversal
 from ._factory_orb_range import make_orb_signal, make_range_signal
 from ._factory_week52_pdh import make_week52_signal, make_pdh_pdl_signal
 from ._factory_vwap_cam import make_vwap_signal, make_camarilla_signal
+from ._factory_gap import make_gap_signal
 
 __all__ = [
     "make_drive_entry", "make_drive_failed", "make_trail_update", "make_exit",
@@ -24,6 +25,7 @@ __all__ = [
     "make_orb_signal", "make_range_signal",
     "make_week52_signal", "make_pdh_pdl_signal",
     "make_vwap_signal", "make_camarilla_signal",
+    "make_gap_signal",
     "composite_score",
 ]
 

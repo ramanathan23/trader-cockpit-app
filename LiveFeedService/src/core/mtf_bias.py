@@ -30,9 +30,14 @@ Exempt signal types (no confluence check):
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
+from typing import Optional
+from zoneinfo import ZoneInfo
 
 from ..domain.candle import Candle
 from ..domain.direction import Direction
+
+_IST = ZoneInfo("Asia/Kolkata")
 
 
 @dataclass(frozen=True)
@@ -45,14 +50,19 @@ def compute(
     history:        list[Candle],
     candles_15m:    int   = 3,
     candles_1h:     int   = 12,
-    min_move_pct:   float = 0.05,   # must move ≥ 0.05% to be directional (not NEUTRAL)
+    min_move_pct:   float = 0.05,
+    today_date:     Optional[date] = None,
 ) -> MTFBias:
     """
     Derive 15-min and 1-hr directional bias from a list of 5-min candles
     (newest last, same as CandleBuilder.get_history() output).
 
+    today_date: when provided, only today's IST candles are used so that
+    seeded prior-session candles don't pollute bias at market open.
     Returns Direction.NEUTRAL when there is not enough history.
     """
+    if today_date is not None:
+        history = [c for c in history if c.boundary.astimezone(_IST).date() == today_date]
     return MTFBias(
         bias_15m = _aggregate_direction(history, candles_15m, min_move_pct),
         bias_1h  = _aggregate_direction(history, candles_1h,  min_move_pct),

@@ -29,12 +29,23 @@ def _vol_ratio(candle: Candle, prior: list[Candle], window: int = 20) -> float:
 
 
 def evaluate_breakouts(
-    symbol: str, candle: Candle, history: list[Candle],
-    bias: IndexBias, phase: SessionPhase,
-    state: _SessionState, config: EngineConfig, metrics: dict,
+    symbol:          str,
+    candle:          Candle,
+    history:         list[Candle],  # full history — for vol baseline
+    session_history: list[Candle],  # today-only — for range consolidation pattern
+    bias:            IndexBias,
+    phase:           SessionPhase,
+    state:           _SessionState,
+    config:          EngineConfig,
+    metrics:         dict,
 ) -> list[Signal]:
     out   = []
     prior = history[:-1] if history and history[-1].boundary == candle.boundary else history
+    session_prior = (
+        session_history[:-1]
+        if session_history and session_history[-1].boundary == candle.boundary
+        else session_history
+    )
     m     = metrics
     vr    = lambda: _vol_ratio(candle, prior)
 
@@ -87,12 +98,13 @@ def evaluate_breakouts(
 
     boundary = candle.boundary
     if state.range_signalled_at != boundary:
-        sig = range_breakout.detect(candle, prior, lookback=config.range_lookback,
+        # session_prior: today-only candles for consolidation — prevents overnight gap firing as range breakout
+        sig = range_breakout.detect(candle, session_prior, lookback=config.range_lookback,
                                     max_range_pct=config.range_max_pct,
                                     min_vol_ratio=config.range_vol_ratio)
         if sig is not None:
             state.range_signalled_at = boundary
-            rect   = prior[-config.range_lookback:] if len(prior) >= config.range_lookback else prior
+            rect   = session_prior[-config.range_lookback:] if len(session_prior) >= config.range_lookback else session_prior
             r_high = max(c.high for c in rect) if rect else candle.high
             r_low  = min(c.low  for c in rect) if rect else candle.low
             out.append(make_range_signal(symbol, candle, sig, r_high, r_low, vr(), phase, bias))

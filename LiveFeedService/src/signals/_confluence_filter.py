@@ -20,6 +20,8 @@ _CONFLUENCE_EXEMPT = frozenset({
     SignalType.CAM_H4_BREAKOUT,
     SignalType.CAM_L3_REVERSAL,
     SignalType.CAM_L4_BREAKDOWN,
+    SignalType.GAP_UP,
+    SignalType.GAP_DOWN,
 })
 
 

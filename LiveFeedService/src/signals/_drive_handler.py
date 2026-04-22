@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from ..core.candle_builder import CandleBuilder
 from ..domain.candle import Candle
@@ -16,6 +18,7 @@ from ._engine_config import EngineConfig
 from ._engine_state import _SessionState
 
 logger = logging.getLogger(__name__)
+_IST = ZoneInfo("Asia/Kolkata")
 
 
 def _bootstrap_day(
@@ -36,12 +39,17 @@ def _bootstrap_day(
 
 def _bootstrap_orb(
     history: list[Candle], state: _SessionState, drive_candles: int, symbol: str,
+    today: date | None = None,
 ) -> None:
-    if len(history) >= drive_candles and state.orb_high is None:
-        first = history[:drive_candles]
+    if state.orb_high is not None:
+        return
+    _today = today or datetime.now(tz=_IST).date()
+    today_candles = [c for c in history if c.boundary.astimezone(_IST).date() == _today]
+    if len(today_candles) >= drive_candles:
+        first = today_candles[:drive_candles]
         state.orb_high = max(c.high for c in first)
         state.orb_low  = min(c.low  for c in first)
-        logger.info("[%s] ORB bootstrapped: high=%.2f low=%.2f (from %d candles)",
+        logger.info("[%s] ORB bootstrapped: high=%.2f low=%.2f (from %d today candles)",
                     symbol, state.orb_high, state.orb_low, len(first))
 
 

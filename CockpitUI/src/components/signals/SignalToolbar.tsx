@@ -15,6 +15,7 @@ const TAB_SIGNAL_TYPE: Record<SignalCategory, SignalType> = {
   BREAK: 'RANGE_BREAKOUT',
   VWAP: 'VWAP_BREAKOUT',
   CAM: 'CAM_H4_BREAKOUT',
+  GAP: 'GAP_UP',
 };
 
 const TABS: { key: SignalCategory; label: string; title: string }[] = [
@@ -27,6 +28,7 @@ const TABS: { key: SignalCategory; label: string; title: string }[] = [
   { key: 'BREAK', label: 'Breakout', title: 'ORB, PDH/PDL, range and 52-week breakouts' },
   { key: 'VWAP', label: 'VWAP', title: 'VWAP reclaim and breakdown signals' },
   { key: 'CAM', label: 'CAM', title: 'Camarilla pivot breakouts and reversals' },
+  { key: 'GAP', label: 'Gap', title: 'Gap-up and gap-down at session open' },
 ];
 
 const SUBTYPES_BY_CATEGORY: Partial<Record<SignalCategory, { type: SignalType; label: string; title: string }[]>> = {
