@@ -59,6 +59,13 @@ class MinuteSyncService:
 
     async def run_sync(self) -> dict:
         """Classify F&O symbols and sync 1-min data from Dhan."""
+        try:
+            return await self._run_sync_inner()
+        except Exception:
+            logger.exception("[1m] run_sync fatal error")
+            raise
+
+    async def _run_sync_inner(self) -> dict:
         await self._refresh_token_from_redis()
         symbols = await self._load_fno_symbols()
         if not symbols:

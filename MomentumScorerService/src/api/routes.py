@@ -1,7 +1,10 @@
+import asyncio
+import json
 import logging
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi.responses import StreamingResponse
 
 from .deps import ScoreRepoDep, ScoreServiceDep
 from ._config_routes import router as _config_router
@@ -19,14 +22,25 @@ async def trigger_compute(
     return {"status": "started", "scorer": "unified"}
 
 
-@router.post("/scores/compute-blocking", summary="Unified daily scoring: blocks until complete (use for pipeline orchestration)")
-async def trigger_compute_blocking(svc: ScoreServiceDep):
-    try:
-        count = await svc.compute_unified()
-        return {"status": "ok", "message": f"Scored {count} symbols"}
-    except Exception as exc:
-        logger.exception("compute_blocking failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+@router.post("/scores/compute-sse", summary="Unified daily scoring: streams SSE progress until complete (use for pipeline UI)")
+async def trigger_compute_sse(svc: ScoreServiceDep):
+    async def generate():
+        yield f"data: {json.dumps({'status': 'running', 'message': 'Scoring started…'})}\n\n"
+        task = asyncio.create_task(svc.compute_unified())
+        elapsed = 0
+        while not task.done():
+            await asyncio.sleep(3)
+            elapsed += 3
+            yield f"data: {json.dumps({'status': 'running', 'message': f'Scoring symbols… {elapsed}s'})}\n\n"
+        try:
+            count = task.result()
+            yield f"data: {json.dumps({'status': 'ok', 'message': f'Scored {count} symbols'})}\n\n"
+        except Exception as exc:
+            logger.exception("compute_sse task failed")
+            yield f"data: {json.dumps({'status': 'error', 'message': str(exc) or type(exc).__name__})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # ── Dashboard endpoints ───────────────────────────────────────────────────────

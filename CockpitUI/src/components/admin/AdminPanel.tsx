@@ -55,11 +55,11 @@ const NAV: NavItem[] = [
 // ── Pipeline steps ─────────────────────────────────────────────────────────────
 
 const PIPELINE_STEPS = [
-  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run-blocking',           method: 'POST' },
-  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min-blocking',      method: 'POST' },
-  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute-blocking',       method: 'POST' },
-  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute-blocking',  method: 'POST' },
-  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',                      method: 'GET'  },
+  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run-sse',           method: 'POST' },
+  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min-sse',      method: 'POST' },
+  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute-sse',  method: 'POST' },
+  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute-sse',       method: 'POST' },
+  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',                  method: 'GET'  },
 ] as const;
 
 // ── Service config definitions ────────────────────────────────────────────────
@@ -188,6 +188,95 @@ function formatElapsed(ms: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+// ── Workflow graph primitives ──────────────────────────────────────────────────
+
+const _C = 'rgb(var(--border))'; // connector color
+const _D = '4 3';                // dash pattern
+
+function WorkflowNode({ label, s, tick, idx }: {
+  label: string;
+  s: PipelineState[string];
+  tick: number;
+  idx: number;
+}) {
+  void tick; // forces re-render for live elapsed
+  const liveMs = s.status === 'running' && s.startedAt ? Date.now() - s.startedAt : null;
+  const ms = liveMs ?? s.elapsedMs;
+  const borderCol =
+    s.status === 'running' ? 'rgb(var(--amber))' :
+    s.status === 'ok'      ? 'rgb(var(--bull))' :
+    s.status === 'error'   ? 'rgb(var(--bear))' :
+                              'rgb(var(--border))';
+  return (
+    <div
+      className="flex w-44 flex-col gap-1.5 rounded-xl border-2 bg-card px-3.5 py-3 transition-colors"
+      style={{ borderColor: borderCol }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border text-[8px] font-black text-ghost">
+          {idx}
+        </span>
+        <StepDot status={s.status} />
+        <span className="min-w-0 flex-1 text-[11px] font-black leading-tight text-fg">{label}</span>
+      </div>
+      {(s.message || ms !== null) && (
+        <div className="flex items-center gap-1 pl-6">
+          {s.message && <span className="min-w-0 flex-1 truncate text-[9px] text-ghost">{s.message}</span>}
+          {ms !== null && <span className="ml-auto shrink-0 text-[9px] text-ghost">{formatElapsed(ms)}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// node w-44 = 176px, gap-8 = 32px → row = 384px, each center at 88 and 296, mid at 192
+function MergeConnector() {
+  return (
+    <svg width="384" height="44" className="block">
+      <path d="M 88 0 C 88 22, 192 22, 192 44"  fill="none" stroke={_C} strokeWidth="1.5" strokeDasharray={_D} />
+      <path d="M 296 0 C 296 22, 192 22, 192 44" fill="none" stroke={_C} strokeWidth="1.5" strokeDasharray={_D} />
+    </svg>
+  );
+}
+
+function VLine() {
+  return (
+    <svg width="2" height="36" className="mx-auto block">
+      <line x1="1" y1="0" x2="1" y2="36" stroke={_C} strokeWidth="1.5" strokeDasharray={_D} />
+    </svg>
+  );
+}
+
+async function readSSE(
+  endpoint: string,
+  method: string,
+  onProgress: (msg: string) => void,
+): Promise<string> {
+  const res = await fetch(endpoint, { method });
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) throw new Error('SSE stream closed without completion event');
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      let evt: { status: string; message?: string };
+      try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+      if (evt.status === 'running' && evt.message) onProgress(evt.message);
+      else if (evt.status === 'ok') return evt.message ?? 'done';
+      else if (evt.status === 'error') throw new Error(evt.message ?? 'failed');
+    }
+  }
+}
+
 function FullSyncPane() {
   const emptyStep = { status: 'idle' as StepStatus, message: null, startedAt: null, elapsedMs: null };
   const [states, setStates] = useState<PipelineState>(() =>
@@ -222,7 +311,7 @@ function FullSyncPane() {
     setTick(0);
     setStates(Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { ...emptyStep }])));
 
-    // sync-daily + sync-1min run in parallel (independent data sources)
+    // sync-daily + sync-1min in parallel (independent data sources)
     const syncDaily = PIPELINE_STEPS.find(s => s.key === 'sync-daily')!;
     const sync1min  = PIPELINE_STEPS.find(s => s.key === 'sync-1min')!;
     const syncStart = Date.now();
@@ -230,16 +319,12 @@ function FullSyncPane() {
     setStep('sync-1min',  'running', null, syncStart);
 
     const [dailyResult, minResult] = await Promise.allSettled([
-      fetch(syncDaily.endpoint, { method: syncDaily.method }).then(async res => {
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
-        return data?.message ?? null;
-      }),
-      fetch(sync1min.endpoint, { method: sync1min.method }).then(async res => {
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
-        return data?.message ?? null;
-      }),
+      readSSE(syncDaily.endpoint, syncDaily.method, msg =>
+        setStep('sync-daily', 'running', msg, syncStart)
+      ),
+      readSSE(sync1min.endpoint, sync1min.method, msg =>
+        setStep('sync-1min', 'running', msg, syncStart)
+      ),
     ]);
 
     const syncElapsed = Date.now() - syncStart;
@@ -258,16 +343,16 @@ function FullSyncPane() {
       return;
     }
 
-    // scores → metrics: sequential, each must complete before next
-    const seqSteps = PIPELINE_STEPS.filter(s => s.key === 'scores' || s.key === 'metrics');
+    // metrics → scores: sequential via SSE
+    const seqSteps = PIPELINE_STEPS.filter(s => s.key === 'metrics' || s.key === 'scores');
     for (const step of seqSteps) {
       const startedAt = Date.now();
       setStep(step.key, 'running', null, startedAt);
       try {
-        const res = await fetch(step.endpoint, { method: step.method });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
-        setStep(step.key, 'ok', data?.message ?? null, startedAt, Date.now() - startedAt);
+        const msg = await readSSE(step.endpoint, step.method, m =>
+          setStep(step.key, 'running', m, startedAt)
+        );
+        setStep(step.key, 'ok', msg, startedAt, Date.now() - startedAt);
       } catch (err) {
         setStep(step.key, 'error', err instanceof Error ? err.message : 'failed', startedAt, Date.now() - startedAt);
         running.current = false;
@@ -281,9 +366,10 @@ function FullSyncPane() {
       const res = await fetch('/modeling/models');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      const modelNames: string[] = Array.isArray(data)
-        ? data.map((m: { name?: string } | string) => typeof m === 'string' ? m : m.name ?? '').filter(Boolean)
-        : [];
+      const list = Array.isArray(data) ? data : (Array.isArray(data?.models) ? data.models : []);
+      const modelNames: string[] = list
+        .map((m: { name?: string } | string) => typeof m === 'string' ? m : m.name ?? '')
+        .filter(Boolean);
 
       if (modelNames.length === 0) {
         setStep('models', 'ok', 'no models registered', modelsStart, Date.now() - modelsStart);
@@ -300,55 +386,26 @@ function FullSyncPane() {
     running.current = false;
   }
 
-  // suppress unused tick warning — it drives re-renders for live elapsed display
   void tick;
 
+  const node = (key: string, idx: number) => (
+    <WorkflowNode
+      label={PIPELINE_STEPS.find(s => s.key === key)!.label}
+      s={states[key]}
+      tick={tick}
+      idx={idx}
+    />
+  );
+
   return (
-    <div className="max-w-lg">
+    <div>
       <SectionHeader
         title="Full Pipeline"
-        caption="Runs each step sequentially. Next step starts only after previous completes."
+        caption="Sync runs in parallel. Scores → metrics → models run sequentially after."
       />
 
-      <div className="mb-6 flex flex-col gap-2">
-        {PIPELINE_STEPS.map((step, idx) => {
-          const s = states[step.key];
-          const liveMs = s.status === 'running' && s.startedAt ? Date.now() - s.startedAt : null;
-          const displayMs = liveMs ?? s.elapsedMs;
-          return (
-            <div key={step.key} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-              <span className="w-4 shrink-0 text-center text-[10px] font-black text-ghost">{idx + 1}</span>
-              <StepDot status={s.status} />
-              <div className="min-w-0 flex-1">
-                <span className="text-[12px] font-black text-fg">{step.label}</span>
-                {s.message && (
-                  <span className="ml-2 text-[10px] text-ghost">{s.message}</span>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {displayMs !== null && (
-                  <span className="text-[10px] text-ghost">{formatElapsed(displayMs)}</span>
-                )}
-                {s.status !== 'idle' && (
-                  <span
-                    className="text-[10px] font-black"
-                    style={{
-                      color:
-                        s.status === 'running' ? 'rgb(var(--amber))' :
-                        s.status === 'ok'      ? 'rgb(var(--bull))' :
-                                                 'rgb(var(--bear))',
-                    }}
-                  >
-                    {s.status === 'running' ? 'running' : s.status === 'ok' ? 'done' : 'error'}
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-4">
+      {/* Run button */}
+      <div className="mb-10 flex items-center gap-4">
         <button
           type="button"
           onClick={runPipeline}
@@ -369,6 +426,34 @@ function FullSyncPane() {
             {anyError ? 'Pipeline failed' : 'Pipeline complete'}
           </span>
         )}
+      </div>
+
+      {/* Workflow graph */}
+      <div className="flex flex-col items-center">
+
+        {/* Parallel row: sync-daily + sync-1min */}
+        <div className="relative flex gap-8">
+          <div className="absolute -top-5 left-0 right-0 flex justify-center">
+            <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[8px] font-black tracking-widest text-ghost">
+              PARALLEL
+            </span>
+          </div>
+          {node('sync-daily', 1)}
+          {node('sync-1min',  2)}
+        </div>
+
+        {/* Merge → metrics */}
+        <MergeConnector />
+        {node('metrics', 3)}
+
+        {/* metrics → scores */}
+        <VLine />
+        {node('scores', 4)}
+
+        {/* scores → models */}
+        <VLine />
+        {node('models', 5)}
+
       </div>
     </div>
   );

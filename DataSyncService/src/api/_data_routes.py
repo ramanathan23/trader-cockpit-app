@@ -1,7 +1,11 @@
 import logging
 from datetime import datetime, time as _time, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+import asyncio
+import json
+
+from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi.responses import StreamingResponse
 
 from .deps import PriceRepoDep, SymbolRepoDep, SyncServiceDep
 
@@ -38,15 +42,27 @@ async def recompute_metrics(background_tasks: BackgroundTasks, svc: SyncServiceD
     return {"status": "started", "message": "Metrics recompute running in background."}
 
 
-@router.post("/metrics/recompute-blocking",
-             summary="Recompute symbol_metrics: blocks until complete (use for pipeline orchestration)")
-async def recompute_metrics_blocking(svc: SyncServiceDep):
-    try:
-        result = await svc.recompute_metrics()
-        return {"status": "ok", "message": f"Metrics recomputed: {result.get('rows_written', '?')} rows"}
-    except Exception as exc:
-        logger.exception("recompute_metrics_blocking failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+@router.post("/metrics/recompute-sse",
+             summary="Recompute symbol_metrics: streams SSE progress until complete (use for pipeline UI)")
+async def recompute_metrics_sse(svc: SyncServiceDep):
+    async def generate():
+        yield f"data: {json.dumps({'status': 'running', 'message': 'Recomputing metrics…'})}\n\n"
+        task = asyncio.create_task(svc.recompute_metrics())
+        elapsed = 0
+        while not task.done():
+            await asyncio.sleep(3)
+            elapsed += 3
+            yield f"data: {json.dumps({'status': 'running', 'message': f'Recomputing… {elapsed}s'})}\n\n"
+        try:
+            result = task.result()
+            rows = result.get("rows_written", "?")
+            yield f"data: {json.dumps({'status': 'ok', 'message': f'Metrics recomputed: {rows} rows'})}\n\n"
+        except Exception as exc:
+            logger.exception("recompute_metrics_sse task failed")
+            yield f"data: {json.dumps({'status': 'error', 'message': str(exc) or type(exc).__name__})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/data-quality/1min", summary="Staleness check on price_data_1min per symbol")

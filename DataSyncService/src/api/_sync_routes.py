@@ -1,11 +1,18 @@
+import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from .deps import SyncStateRepoDep, SyncServiceDep
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data)}\n\n"
 
 
 @router.post("/sync/run",
@@ -18,16 +25,27 @@ async def run_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     }
 
 
-@router.post("/sync/run-blocking",
-             summary="Daily sync: blocks until complete (use for pipeline orchestration)")
-async def run_sync_blocking(svc: SyncServiceDep):
-    try:
-        result = await svc.run_sync()
-        updated = result.get("1d", {}).get("updated", "?")
-        return {"status": "ok", "message": f"Daily sync complete — {updated} symbols updated"}
-    except Exception as exc:
-        logger.exception("run_sync_blocking failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+@router.post("/sync/run-sse",
+             summary="Daily sync: streams SSE progress until complete (use for pipeline UI)")
+async def run_sync_sse(svc: SyncServiceDep):
+    async def generate():
+        yield _sse({"status": "running", "message": "Daily sync started"})
+        task = asyncio.create_task(svc.run_sync())
+        elapsed = 0
+        while not task.done():
+            await asyncio.sleep(3)
+            elapsed += 3
+            yield _sse({"status": "running", "message": f"Syncing daily data… {elapsed}s"})
+        try:
+            result = task.result()
+            updated = result.get("1d", {}).get("updated", "?")
+            yield _sse({"status": "ok", "message": f"Daily sync complete — {updated} symbols updated"})
+        except Exception as exc:
+            logger.exception("run_sync_sse task failed")
+            yield _sse({"status": "error", "message": str(exc) or type(exc).__name__})
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/sync/run-1min",
@@ -40,16 +58,27 @@ async def run_1min_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     }
 
 
-@router.post("/sync/run-1min-blocking",
-             summary="1-min sync: blocks until complete (use for pipeline orchestration)")
-async def run_1min_sync_blocking(svc: SyncServiceDep):
-    try:
-        result = await svc.run_1min_sync()
-        updated = result.get("1m", {}).get("updated", "?")
-        return {"status": "ok", "message": f"1-min sync complete — {updated} symbols updated"}
-    except Exception as exc:
-        logger.exception("run_1min_sync_blocking failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+@router.post("/sync/run-1min-sse",
+             summary="1-min sync: streams SSE progress until complete (use for pipeline UI)")
+async def run_1min_sync_sse(svc: SyncServiceDep):
+    async def generate():
+        yield _sse({"status": "running", "message": "1-min sync started"})
+        task = asyncio.create_task(svc.run_1min_sync())
+        elapsed = 0
+        while not task.done():
+            await asyncio.sleep(3)
+            elapsed += 3
+            yield _sse({"status": "running", "message": f"Fetching 1-min data… {elapsed}s"})
+        try:
+            result = task.result()
+            updated = result.get("1m", {}).get("updated", "?")
+            yield _sse({"status": "ok", "message": f"1-min sync complete — {updated} symbols updated"})
+        except Exception as exc:
+            logger.exception("run_1min_sync_sse task failed")
+            yield _sse({"status": "error", "message": str(exc) or type(exc).__name__})
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/sync/run-all",

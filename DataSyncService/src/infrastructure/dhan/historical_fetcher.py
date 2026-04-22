@@ -141,7 +141,7 @@ class DhanHistoricalFetcher:
                     break
 
                 batch    = tasks[i : i + self._rate]
-                t_start  = asyncio.get_event_loop().time()
+                t_start  = asyncio.get_running_loop().time()
 
                 batch_results = await asyncio.gather(
                     *[
@@ -159,7 +159,7 @@ class DhanHistoricalFetcher:
                     elif not result.empty:
                         results[sym] = result
 
-                elapsed = asyncio.get_event_loop().time() - t_start
+                elapsed = asyncio.get_running_loop().time() - t_start
                 remaining_tasks = len(tasks) - (i + len(batch))
                 if elapsed < 1.0 and remaining_tasks > 0:
                     await asyncio.sleep(1.0 - elapsed)
