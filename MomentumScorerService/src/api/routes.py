@@ -53,7 +53,7 @@ async def get_dashboard(
     offset: int = Query(default=0, ge=0),
     watchlist_only: bool = Query(default=False),
     segment: str | None = Query(default=None, pattern="^(fno|equity)$", description="fno | equity — omit for all"),
-    balanced: bool = Query(default=True, description="Return top N per bucket (bull/bear × fno/equity)"),
+    balanced: bool = Query(default=True, description="Return top N per bucket (Stage2/Stage4 × fno/equity)"),
 ):
     is_fno: bool | None = None
     if segment == "fno":
@@ -86,28 +86,15 @@ async def get_watchlist(
     return {"count": len(symbols), "symbols": symbols}
 
 
-# ── Watchlist patterns ────────────────────────────────────────────────────────
+# ── Stage watchlist ───────────────────────────────────────────────────────────
 
-@router.get("/watchlist/run-tight-base", summary="Watchlist for 4-5 day runs followed by tight consolidation")
-async def get_run_tight_base_watchlist(
+@router.get("/watchlist/stage", summary="Stage 2 (bull) and Stage 4 (bear) watchlist ranked by total score")
+async def get_stage_watchlist(
     svc: ScoreServiceDep,
     side: str = Query(default="both", pattern="^(bull|bear|both)$"),
     limit: int = Query(default=50, ge=1, le=500),
-    run_window: int = Query(default=5, ge=4, le=10),
-    base_window: int = Query(default=3, ge=2, le=5),
-    min_run_move_pct: float = Query(default=8.0, ge=1.0, le=50.0),
-    max_base_range_pct: float = Query(default=3.0, ge=0.5, le=10.0),
-    max_retracement_pct: float = Query(default=0.35, ge=0.05, le=1.0),
 ):
-    return await svc.build_watchlist(
-        side=side,
-        limit=limit,
-        run_window=run_window,
-        base_window=base_window,
-        min_run_move_pct=min_run_move_pct,
-        max_base_range_pct=max_base_range_pct,
-        max_retracement_pct=max_retracement_pct,
-    )
+    return await svc.build_watchlist(stage=side, limit=limit)
 
 
 router.include_router(_config_router)

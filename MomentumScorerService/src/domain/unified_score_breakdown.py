@@ -27,3 +27,4 @@ class UnifiedScoreBreakdown:
     bb_width:      float | None = None
     kc_width:      float | None = None
     rs_vs_nifty:   float | None = None
+    stage:         str = "UNKNOWN"

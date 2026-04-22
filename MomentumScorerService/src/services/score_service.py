@@ -14,6 +14,7 @@ from ..config import settings
 from ..repositories.price_repository import PriceRepository
 from ..repositories.score_repository import ScoreRepository
 from ._score_compute import (
+    _build_stage_watchlist_set,
     _collect_valid_results,
     _gather_scores,
     _partition_by_fno,
@@ -79,15 +80,18 @@ class ScoreService(ScoreWatchlistMixin):
         )
         results = await _gather_scores(price_data, self._semaphore, score_kwargs)
         valid_results = _collect_valid_results(results)
+
+        stage_watchlist_set = _build_stage_watchlist_set(valid_results, _WATCHLIST_SIZE)
         fno_results, equity_results = _partition_by_fno(valid_results, fno_set)
 
         scored = await _persist_ranked_groups(
-            self._pool, self._scores, [fno_results, equity_results], score_date, _WATCHLIST_SIZE,
+            self._pool, self._scores, [fno_results, equity_results],
+            score_date, stage_watchlist_set,
         )
-        fno_wl    = min(_WATCHLIST_SIZE, len(fno_results))
-        equity_wl = min(_WATCHLIST_SIZE, len(equity_results))
+        stage2 = sum(1 for _, b in valid_results if b.stage == "STAGE_2")
+        stage4 = sum(1 for _, b in valid_results if b.stage == "STAGE_4")
         logger.info(
-            "Unified scoring complete: %d/%d scored — FNO watchlist=%d, equity watchlist=%d (total subs=%d)",
-            scored, len(symbols), fno_wl, equity_wl, fno_wl + equity_wl,
+            "Unified scoring complete: %d/%d scored — Stage2=%d Stage4=%d watchlist=%d",
+            scored, len(symbols), stage2, stage4, len(stage_watchlist_set),
         )
         return scored

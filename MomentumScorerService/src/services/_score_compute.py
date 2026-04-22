@@ -9,6 +9,8 @@ from ..signals.unified_scorer import compute_unified_score
 
 logger = logging.getLogger(__name__)
 
+_STAGE_WATCHLIST_STAGES = {"STAGE_2", "STAGE_4"}
+
 
 async def _gather_scores(
     symbols_data: dict,
@@ -51,12 +53,25 @@ def _partition_by_fno(
     return fno, equity
 
 
+def _build_stage_watchlist_set(
+    valid_results: list[tuple],
+    watchlist_size: int,
+) -> set[str]:
+    """Top N symbols from Stage 2 + Stage 4 by total_score."""
+    candidates = sorted(
+        [(sym, b) for sym, b in valid_results if b.stage in _STAGE_WATCHLIST_STAGES],
+        key=lambda x: x[1].total_score,
+        reverse=True,
+    )
+    return {sym for sym, _ in candidates[:watchlist_size]}
+
+
 async def _persist_ranked_groups(
     pool,
     scores_repo,
     groups: list[list],
     today,
-    watchlist_size: int,
+    stage_watchlist_set: set[str],
 ) -> int:
     """Persist all scored symbols in ranked groups; returns count of successful saves."""
     scored = 0
@@ -64,7 +79,7 @@ async def _persist_ranked_groups(
         async with conn.transaction():
             for group in groups:
                 for rank_idx, (symbol, breakdown) in enumerate(group, start=1):
-                    is_watchlist = rank_idx <= watchlist_size
+                    is_watchlist = symbol in stage_watchlist_set
                     try:
                         async with conn.transaction():
                             await scores_repo.upsert_daily_score(

@@ -1,4 +1,4 @@
-"""Watchlist detection and benchmark/liquidity helpers for ScoreService."""
+"""Watchlist building and benchmark/liquidity helpers for ScoreService."""
 
 import logging
 
@@ -6,54 +6,68 @@ import pandas as pd
 
 from ..config import settings
 from ..domain.filters import is_liquid
-from ..signals.watchlist import detect_run_and_tight_base
 
 logger = logging.getLogger(__name__)
 
+_STAGE_LABELS = {
+    "STAGE_2": "bull",
+    "STAGE_4": "bear",
+}
+
 
 class ScoreWatchlistMixin:
-    """Mixin providing watchlist building and data-preparation helpers."""
+    """Mixin providing stage-based watchlist building and data-preparation helpers."""
 
     async def build_watchlist(
         self,
         *,
-        side:                str   = "both",
-        limit:               int   = 50,
-        run_window:          int   = 5,
-        base_window:         int   = 3,
-        min_run_move_pct:    float = 8.0,
-        max_base_range_pct:  float = 3.0,
-        max_retracement_pct: float = 0.35,
+        stage: str = "both",
+        limit: int = 50,
     ) -> list[dict]:
-        symbol_rows = await self._prices.fetch_synced_symbol_details()
-        if not symbol_rows:
-            return []
+        """
+        Return Stage 2 (bull) and/or Stage 4 (bear) stocks from the latest
+        daily_scores, ranked by total_score descending.
 
-        symbols    = [row["symbol"] for row in symbol_rows]
-        price_data = await self._prices.fetch_ohlcv_batch(
-            symbols, "1d",
-            lookback=max(settings.score_lookback_bars, run_window + base_window + 5),
-        )
-        symbol_meta     = {row["symbol"]: row.get("company_name") for row in symbol_rows}
-        requested_sides = [side] if side in {"bull", "bear"} else ["bull", "bear"]
+        stage: "bull" | "bear" | "both"
+        """
+        if stage == "bull":
+            stage_filter = ("STAGE_2",)
+        elif stage == "bear":
+            stage_filter = ("STAGE_4",)
+        else:
+            stage_filter = ("STAGE_2", "STAGE_4")
 
-        candidates: list[dict] = []
-        for symbol, df in price_data.items():
-            if not is_liquid(df, settings.min_avg_daily_turnover):
-                continue
-            for current_side in requested_sides:
-                candidate = detect_run_and_tight_base(
-                    symbol, symbol_meta.get(symbol), df,
-                    side=current_side, run_window=run_window, base_window=base_window,
-                    min_run_move_pct=min_run_move_pct,
-                    max_base_range_pct=max_base_range_pct,
-                    max_retracement_pct=max_retracement_pct,
-                )
-                if candidate is not None:
-                    candidates.append(candidate)
+        placeholders = ", ".join(f"${i + 2}" for i in range(len(stage_filter)))
+        query = f"""
+            SELECT
+                ds.symbol,
+                s.company_name,
+                s.is_fno,
+                ds.score_date,
+                ds.total_score,
+                ds.momentum_score,
+                ds.trend_score,
+                ds.volatility_score,
+                ds.structure_score,
+                ds.rs_vs_nifty,
+                ds.vol_ratio_20,
+                ds.rsi_14,
+                ds.stage,
+                ds.rank
+            FROM daily_scores ds
+            JOIN symbols s ON s.symbol = ds.symbol
+            WHERE ds.score_date = (SELECT MAX(score_date) FROM daily_scores)
+              AND ds.stage IN ({placeholders})
+            ORDER BY ds.total_score DESC
+            LIMIT $1
+        """
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(query, limit, *stage_filter)
 
-        candidates.sort(key=lambda row: (row["pattern_score"], row["run_move_pct"]), reverse=True)
-        return candidates[:limit]
+        return [
+            {**dict(r), "side": _STAGE_LABELS.get(r["stage"], r["stage"])}
+            for r in rows
+        ]
 
     def _extract_benchmark_roc(self, price_data: dict) -> float | None:
         """Pop and evaluate the NIFTY500 benchmark 60-bar ROC. Mutates price_data."""

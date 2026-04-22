@@ -24,13 +24,13 @@ class ScoreWriteMixin:
                 rsi_14, macd_hist, roc_5, roc_20, roc_60, vol_ratio_20,
                 adx_14, plus_di, minus_di, weekly_bias,
                 bb_squeeze, squeeze_days, nr7,
-                atr_ratio, atr_5, bb_width, kc_width, rs_vs_nifty
+                atr_ratio, atr_5, bb_width, kc_width, rs_vs_nifty, stage
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(),
                 $10, $11, $12, $13, $14, $15,
                 $16, $17, $18, $19,
                 $20, $21, $22,
-                $23, $24, $25, $26, $27
+                $23, $24, $25, $26, $27, $28
             )
             ON CONFLICT (symbol, score_date) DO NOTHING
         """, symbol, score_date,
@@ -42,7 +42,7 @@ class ScoreWriteMixin:
             breakdown.adx_14, breakdown.plus_di, breakdown.minus_di, breakdown.weekly_bias,
             breakdown.bb_squeeze, breakdown.squeeze_days, breakdown.nr7,
             breakdown.atr_ratio, breakdown.atr_5, breakdown.bb_width,
-            breakdown.kc_width, breakdown.rs_vs_nifty)
+            breakdown.kc_width, breakdown.rs_vs_nifty, breakdown.stage)
 
     async def update_symbol_metrics_indicators(
         self,
@@ -70,7 +70,8 @@ class ScoreWriteMixin:
                 roc_60        = $16,
                 vol_ratio_20  = $17,
                 rs_vs_nifty   = $18,
-                weekly_bias   = $19
+                weekly_bias   = $19,
+                stage         = $20
             WHERE symbol = $1
         """, symbol,
             breakdown.atr_5, breakdown.adx_14,
@@ -81,4 +82,5 @@ class ScoreWriteMixin:
             breakdown.rsi_14, breakdown.macd_hist,
             breakdown.roc_5, breakdown.roc_20, breakdown.roc_60,
             breakdown.vol_ratio_20,
-            breakdown.rs_vs_nifty, breakdown.weekly_bias)
+            breakdown.rs_vs_nifty, breakdown.weekly_bias,
+            breakdown.stage)

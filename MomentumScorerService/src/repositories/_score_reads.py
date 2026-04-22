@@ -27,7 +27,7 @@ class ScoreReadMixin:
                     ds.symbol, s.company_name, s.is_fno, ds.score_date,
                     ds.total_score, ds.momentum_score, ds.trend_score,
                     ds.volatility_score, ds.structure_score, ds.rank,
-                    ds.is_watchlist, ds.computed_at,
+                    ds.is_watchlist, ds.computed_at, ds.stage,
                     sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     ds.bb_squeeze, ds.squeeze_days, ds.nr7,

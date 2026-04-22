@@ -16,7 +16,7 @@ class ScoreReadBalancedMixin:
     ) -> list[dict]:
         """
         Fetch a balanced dashboard: top N per bucket
-        (bull F&O, bear F&O, bull equity, bear equity), ordered by rank.
+        (Stage2 F&O, Stage4 F&O, Stage2 equity, Stage4 equity), ordered by rank.
         """
         async with self._pool.acquire() as conn:
             date_clause = "ds.score_date = $1" if score_date else "ds.score_date = (SELECT MAX(score_date) FROM daily_scores)"
@@ -26,7 +26,7 @@ class ScoreReadBalancedMixin:
                     ds.symbol, s.company_name, s.is_fno, ds.score_date,
                     ds.total_score, ds.momentum_score, ds.trend_score,
                     ds.volatility_score, ds.structure_score, ds.rank,
-                    ds.is_watchlist, ds.computed_at,
+                    ds.is_watchlist, ds.computed_at, ds.stage,
                     sm.prev_day_close, sm.atr_14, sm.adv_20_cr,
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     sm.bb_squeeze, sm.squeeze_days, sm.nr7,
@@ -56,23 +56,23 @@ class ScoreReadBalancedMixin:
 
             limit_param = "$2" if score_date else "$1"
 
-            def _bucket(fno_clause: str, bias_clause: str) -> str:
+            def _bucket(fno_clause: str, stage_clause: str) -> str:
                 return f"""(
                     SELECT {base_cols}
                     {base_join}
                     WHERE {date_clause}
                     {watchlist_clause}
                     {fno_clause}
-                    {bias_clause}
+                    {stage_clause}
                     ORDER BY ds.rank ASC
                     LIMIT {limit_param}
                 )"""
 
             query = " UNION ALL ".join([
-                _bucket("AND s.is_fno = TRUE",  "AND sm.weekly_bias = 'BULLISH'"),
-                _bucket("AND s.is_fno = TRUE",  "AND sm.weekly_bias = 'BEARISH'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND sm.weekly_bias = 'BULLISH'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND sm.weekly_bias = 'BEARISH'"),
+                _bucket("AND s.is_fno = TRUE",  "AND ds.stage = 'STAGE_2'"),
+                _bucket("AND s.is_fno = TRUE",  "AND ds.stage = 'STAGE_4'"),
+                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND ds.stage = 'STAGE_2'"),
+                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND ds.stage = 'STAGE_4'"),
             ])
             query += " ORDER BY rank ASC"
 

@@ -17,6 +17,7 @@ from ._scorer_momentum import _momentum_score
 from ._scorer_structure import _structure_score
 from ._scorer_trend import _trend_score
 from ._scorer_volatility import _volatility_score
+from ._stage_detector import detect_stage
 
 
 def compute_unified_score(
@@ -58,6 +59,7 @@ def compute_unified_score(
     structure, s_raw = _structure_score(df, close, volume, nifty500_roc_60=nifty500_roc_60)
 
     total = 0.25 * momentum + 0.25 * trend + 0.25 * volatility + 0.25 * structure
+    stage = detect_stage(close)
 
     return UnifiedScoreBreakdown(
         total_score=round(total, 2),
@@ -83,4 +85,5 @@ def compute_unified_score(
         bb_width=v_raw.get("bb_width"),
         kc_width=v_raw.get("kc_width"),
         rs_vs_nifty=s_raw.get("rs_vs_nifty"),
+        stage=stage,
     )

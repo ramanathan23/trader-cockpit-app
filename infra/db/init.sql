@@ -171,7 +171,8 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
     roc_60             NUMERIC(9,4),
     vol_ratio_20       NUMERIC(6,2),
     rs_vs_nifty        NUMERIC(9,4),
-    weekly_bias        VARCHAR(10)  DEFAULT 'NEUTRAL'
+    weekly_bias        VARCHAR(10)  DEFAULT 'NEUTRAL',
+    stage              VARCHAR(10)
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_computed_at
@@ -298,6 +299,7 @@ CREATE TABLE IF NOT EXISTS daily_scores (
     bb_width            NUMERIC(12,6),
     kc_width            NUMERIC(12,6),
     rs_vs_nifty         NUMERIC(8,4),
+    stage               VARCHAR(10),
     CONSTRAINT pk_daily_scores PRIMARY KEY (symbol, score_date)
 );
 
@@ -310,6 +312,10 @@ CREATE INDEX IF NOT EXISTS idx_daily_scores_watchlist
 
 CREATE INDEX IF NOT EXISTS idx_daily_scores_total
     ON daily_scores (score_date DESC, total_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_daily_scores_stage
+    ON daily_scores (score_date DESC, stage)
+    WHERE stage IS NOT NULL;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- LiveFeedService

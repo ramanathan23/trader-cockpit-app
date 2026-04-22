@@ -24,7 +24,7 @@ type SortKey =
   | 'comfort_score';
 
 type Segment = 'all' | 'fno' | 'equity';
-type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
+type StageFilter = 'all' | 'stage2' | 'stage4';
 
 interface DashboardPanelProps {
   active: boolean;
@@ -42,7 +42,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'adx_14', label: 'ADX', title: 'ADX(14)', align: 'right', sortable: true },
   { key: 'rsi_14', label: 'RSI', title: 'RSI(14)', align: 'right', sortable: true },
   { key: 'adv_20_cr', label: 'ADV', title: 'Average daily value', align: 'right', sortable: true },
-  { key: 'weekly', label: 'W', title: 'Weekly bias', align: 'center', sortable: false },
+  { key: 'stage', label: 'Stage', title: 'Weinstein stage', align: 'center', sortable: false },
   { key: 'close', label: 'Close', title: 'Previous close', align: 'right', sortable: false },
   { key: 'comfort_score', label: 'Comfort', title: 'Comfort score (hold ease)', align: 'right', sortable: true },
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
@@ -53,7 +53,7 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster' | 'charts'>('table');
   const [segment, setSegment] = useState<Segment>('all');
-  const [biasFilter, setBiasFilter] = useState<BiasFilter>('all');
+  const [stageFilter, setStageFilter] = useState<StageFilter>('all');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('total_score');
   const [sortAsc, setSortAsc] = useState(false);
@@ -92,9 +92,8 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
     let rows = scores;
     if (segment === 'fno') rows = rows.filter(row => row.is_fno === true);
     if (segment === 'equity') rows = rows.filter(row => row.is_fno !== true);
-    if (biasFilter === 'bull') rows = rows.filter(row => row.weekly_bias === 'BULLISH');
-    if (biasFilter === 'bear') rows = rows.filter(row => row.weekly_bias === 'BEARISH');
-    if (biasFilter === 'neutral') rows = rows.filter(row => row.weekly_bias === 'NEUTRAL' || row.weekly_bias == null);
+    if (stageFilter === 'stage2') rows = rows.filter(row => row.stage === 'STAGE_2');
+    if (stageFilter === 'stage4') rows = rows.filter(row => row.stage === 'STAGE_4');
     if (q) rows = rows.filter(row => row.symbol.includes(q) || row.company_name?.toUpperCase().includes(q));
 
     return [...rows].sort((a, b) => {
@@ -105,7 +104,7 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
       if (bv == null) return -1;
       return sortAsc ? Number(av) - Number(bv) : Number(bv) - Number(av);
     });
-  }, [scores, segment, biasFilter, query, sortKey, sortAsc]);
+  }, [scores, segment, stageFilter, query, sortKey, sortAsc]);
 
   const handleSort = useCallback((key: SortKey) => {
     setSortAsc(prev => sortKey === key ? !prev : key === 'rank');
@@ -127,11 +126,11 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
     const withComfort = filtered.filter(r => r.comfort_score != null);
     const sweetSpot = withComfort.filter(r => r.total_score >= 70 && r.comfort_score! >= 65).length;
     const highComfort = withComfort.filter(r => r.comfort_score! >= 65).length;
-    const bullish = filtered.filter(r => r.weekly_bias === 'BULLISH').length;
+    const stage2 = filtered.filter(r => r.stage === 'STAGE_2').length;
     const avgComfort = withComfort.length > 0
       ? (withComfort.reduce((s, r) => s + r.comfort_score!, 0) / withComfort.length).toFixed(1)
       : '-';
-    return { sweetSpot, highComfort, bullish, avgComfort };
+    return { sweetSpot, highComfort, stage2, avgComfort };
   }, [filtered]);
 
   return (
@@ -167,10 +166,9 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
           </div>
 
           <div className="seg-group">
-            <button type="button" onClick={() => setBiasFilter('all')} className={`seg-btn ${biasFilter === 'all' ? 'active' : ''}`}>Bias</button>
-            <button type="button" onClick={() => setBiasFilter('bull')} className={`seg-btn ${biasFilter === 'bull' ? 'active' : ''}`} style={biasFilter === 'bull' ? { color: 'rgb(var(--bull))' } : undefined}>Bull</button>
-            <button type="button" onClick={() => setBiasFilter('bear')} className={`seg-btn ${biasFilter === 'bear' ? 'active' : ''}`} style={biasFilter === 'bear' ? { color: 'rgb(var(--bear))' } : undefined}>Bear</button>
-            <button type="button" onClick={() => setBiasFilter('neutral')} className={`seg-btn ${biasFilter === 'neutral' ? 'active' : ''}`}>Neut</button>
+            <button type="button" onClick={() => setStageFilter('all')} className={`seg-btn ${stageFilter === 'all' ? 'active' : ''}`}>Stage</button>
+            <button type="button" onClick={() => setStageFilter('stage2')} className={`seg-btn ${stageFilter === 'stage2' ? 'active' : ''}`} style={stageFilter === 'stage2' ? { color: 'rgb(var(--bull))' } : undefined}>S2</button>
+            <button type="button" onClick={() => setStageFilter('stage4')} className={`seg-btn ${stageFilter === 'stage4' ? 'active' : ''}`} style={stageFilter === 'stage4' ? { color: 'rgb(var(--bear))' } : undefined}>S4</button>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -234,7 +232,7 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
           <StatCard label="Sweet spot" title="Total ≥70 and Comfort ≥65" value={derivedStats.sweetSpot} tone="bull" />
           <StatCard label="High comfort" title="Comfort ≥65" value={derivedStats.highComfort} tone="accent" />
           <StatCard label="Avg comfort" title="Mean comfort score" value={derivedStats.avgComfort} />
-          <StatCard label="Bullish" title="Weekly bias bullish" value={derivedStats.bullish} tone="bull" />
+          <StatCard label="Stage 2" title="Uptrend stocks (Stage 2)" value={derivedStats.stage2} tone="bull" />
         </div>
       </div>
 
@@ -399,12 +397,7 @@ function ScoreCard({
             C <span style={{ color: comfortColor(row.comfort_score) }}>{row.comfort_score.toFixed(0)}</span>
           </span>
         )}
-        <span
-          className="num font-black"
-          style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}
-        >
-          {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '-'}
-        </span>
+        <StageBadge stage={row.stage} />
       </div>
 
     </div>
@@ -441,8 +434,8 @@ function ScoreRow({
         <td className="text-right num text-dim">{row.adx_14 != null ? row.adx_14.toFixed(0) : '-'}</td>
         <td className="text-right num font-bold" style={{ color: rsiColor(row.rsi_14) }}>{row.rsi_14 != null ? row.rsi_14.toFixed(0) : '-'}</td>
         <td className="text-right num text-dim">{fmtAdv(row.adv_20_cr)}</td>
-        <td className="text-center font-black" style={{ color: row.weekly_bias === 'BULLISH' ? 'rgb(var(--bull))' : row.weekly_bias === 'BEARISH' ? 'rgb(var(--bear))' : 'rgb(var(--ghost))' }}>
-          {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '-'}
+        <td className="text-center">
+          <StageBadge stage={row.stage} />
         </td>
         <td className="text-right num text-dim">{fmt2(row.prev_day_close)}</td>
         <td className="text-right num" title={row.comfort_interpretation ?? undefined} style={{ color: comfortColor(row.comfort_score) }}>
@@ -478,6 +471,34 @@ function ScoreBar({ value, color, label }: { value: number; color: string; label
         </div>
       </div>
     </div>
+  );
+}
+
+function stageColor(stage: string | null | undefined): string {
+  switch (stage) {
+    case 'STAGE_2': return 'rgb(var(--bull))';
+    case 'STAGE_4': return 'rgb(var(--bear))';
+    case 'STAGE_1': return 'rgb(var(--amber))';
+    case 'STAGE_3': return 'rgb(var(--violet))';
+    default:        return 'rgb(var(--ghost))';
+  }
+}
+
+function stageLabel(stage: string | null | undefined): string {
+  switch (stage) {
+    case 'STAGE_2': return 'S2';
+    case 'STAGE_4': return 'S4';
+    case 'STAGE_1': return 'S1';
+    case 'STAGE_3': return 'S3';
+    default:        return '?';
+  }
+}
+
+function StageBadge({ stage }: { stage: string | null | undefined }) {
+  return (
+    <span className="num font-black" style={{ color: stageColor(stage) }}>
+      {stageLabel(stage)}
+    </span>
   );
 }
 

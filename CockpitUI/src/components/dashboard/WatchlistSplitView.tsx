@@ -4,6 +4,26 @@ import { useEffect, useState } from 'react';
 import type { ScoredSymbol } from '@/domain/dashboard';
 import { DailyChart } from './DailyChart';
 
+function stageColor(stage: string | null | undefined): string {
+  switch (stage) {
+    case 'STAGE_2': return 'rgb(var(--bull))';
+    case 'STAGE_4': return 'rgb(var(--bear))';
+    case 'STAGE_1': return 'rgb(var(--amber))';
+    case 'STAGE_3': return 'rgb(var(--violet))';
+    default:        return 'rgb(var(--ghost))';
+  }
+}
+
+function stageLabel(stage: string | null | undefined): string {
+  switch (stage) {
+    case 'STAGE_2': return 'S2';
+    case 'STAGE_4': return 'S4';
+    case 'STAGE_1': return 'S1';
+    case 'STAGE_3': return 'S3';
+    default:        return '?';
+  }
+}
+
 function comfortColor(v: number | null | undefined): string {
   if (v == null) return 'rgb(var(--ghost))';
   if (v >= 80) return 'rgb(var(--bull))';
@@ -90,16 +110,9 @@ export function WatchlistSplitView({ scores, loading }: WatchlistSplitViewProps)
                   )}
                   <span
                     className="font-black"
-                    style={{
-                      color:
-                        row.weekly_bias === 'BULLISH'
-                          ? 'rgb(var(--bull))'
-                          : row.weekly_bias === 'BEARISH'
-                          ? 'rgb(var(--bear))'
-                          : 'rgb(var(--ghost))',
-                    }}
+                    style={{ color: stageColor(row.stage) }}
                   >
-                    {row.weekly_bias === 'BULLISH' ? 'UP' : row.weekly_bias === 'BEARISH' ? 'DN' : '—'}
+                    {stageLabel(row.stage)}
                   </span>
                 </div>
               </div>

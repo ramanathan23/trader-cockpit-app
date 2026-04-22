@@ -46,7 +46,7 @@ def _structure_score(
     else:
         vol_trend_s = float(np.clip(recent_vol_avg * 40.0, 0.0, 100.0))
 
-    score = 0.40 * prox_s + 0.35 * rs_s + 0.25 * vol_trend_s
+    score = 0.20 * prox_s + 0.50 * rs_s + 0.30 * vol_trend_s
 
     raw = {
         "rs_vs_nifty": rs_val,
