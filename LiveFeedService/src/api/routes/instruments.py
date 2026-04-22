@@ -57,7 +57,7 @@ async def screener(
 async def chart_daily(
     symbol: str,
     request: Request,
-    days: int = Query(default=365, ge=30, le=1825),
+    days: int = Query(default=365, ge=30, le=3650),
 ):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -91,7 +91,7 @@ async def chart_intraday(
     symbol: str,
     request: Request,
     tf: int = Query(default=1, ge=1, le=60, description="Timeframe in minutes"),
-    bars: int = Query(default=390, ge=30, le=3000, description="Number of output bars"),
+    bars: int = Query(default=33750, ge=30, le=40000, description="Number of output bars"),
 ):
     pool = request.app.state.pool
     async with pool.acquire() as conn:
@@ -114,9 +114,6 @@ async def chart_intraday(
                     sum(volume)        AS volume
                 FROM price_data_1min
                 WHERE symbol = $2
-                  AND time >= (
-                      SELECT max(time) FROM price_data_1min WHERE symbol = $2
-                  ) - make_interval(mins => $1 * $3)
                 GROUP BY 1
                 ORDER BY 1 DESC
                 LIMIT $3

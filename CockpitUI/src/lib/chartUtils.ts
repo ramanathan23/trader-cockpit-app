@@ -18,37 +18,46 @@ export interface ProfileRow {
   pct: number;
 }
 
-export interface TPOLevel {
-  price: number;
-  periods: number[];
-}
+// NSE session: 375 min/day × 90 trading days
+const INTRADAY_BARS: Record<string, { tfMins: number; bars: number }> = {
+  '1m':  { tfMins: 1,  bars: 33750 },  // 90d × 375
+  '3m':  { tfMins: 3,  bars: 11250 },  // 90d × 125
+  '5m':  { tfMins: 5,  bars: 6750  },  // 90d × 75
+  '15m': { tfMins: 15, bars: 2250  },  // 90d × 25
+  '1h':  { tfMins: 60, bars: 630   },  // 90d × 7
+};
 
-export const PERIOD_COLORS = [
-  '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71', '#1abc9c',
-  '#3498db', '#9b59b6', '#e91e63', '#00bcd4', '#8bc34a',
-  '#ff5722', '#607d8b', '#795548',
-];
-
-/** Backend query params for each intraday timeframe */
 export function tfToIntradayParams(tf: Timeframe): { tfMins: number; bars: number } {
-  switch (tf) {
-    case '1m':  return { tfMins: 1,  bars: 390 };
-    case '3m':  return { tfMins: 3,  bars: 390 };
-    case '5m':  return { tfMins: 5,  bars: 390 };
-    case '15m': return { tfMins: 15, bars: 390 };
-    case '1h':  return { tfMins: 60, bars: 200 };
-    default:    return { tfMins: 1,  bars: 390 };
-  }
+  return INTRADAY_BARS[tf] ?? { tfMins: 1, bars: 33750 };
 }
+
+const DAILY_TF_DAYS: Record<string, number> = {
+  '1d':  1825,
+  '1w':  1825,
+  '1mo': 1825,
+};
 
 export function buildChartUrl(symbol: string, tf: Timeframe): string {
   const enc = encodeURIComponent(symbol);
   if (DAILY_TFS.includes(tf)) {
-    const days = tf === '1mo' ? 1825 : 730;
-    return `/api/v1/chart/${enc}/daily?days=${days}`;
+    return `/api/v1/chart/${enc}/daily?days=${DAILY_TF_DAYS[tf] ?? 1825}`;
   }
   const { tfMins, bars } = tfToIntradayParams(tf);
   return `/api/v1/chart/${enc}/intraday?tf=${tfMins}&bars=${bars}`;
+}
+
+export function tfEMAPeriods(tf: Timeframe): { fast: number; slow: number; fastLabel: string; slowLabel: string } {
+  switch (tf) {
+    case '1m':
+    case '3m':
+    case '5m':  return { fast: 9,  slow: 21,  fastLabel: 'EMA9',   slowLabel: 'EMA21'  };
+    case '15m':
+    case '1h':  return { fast: 20, slow: 50,  fastLabel: 'EMA20',  slowLabel: 'EMA50'  };
+    case '1d':  return { fast: 50, slow: 200, fastLabel: 'EMA50',  slowLabel: 'EMA200' };
+    case '1w':  return { fast: 9,  slow: 21,  fastLabel: 'EMA9',   slowLabel: 'EMA21'  };
+    case '1mo': return { fast: 6,  slow: 12,  fastLabel: 'EMA6',   slowLabel: 'EMA12'  };
+    default:    return { fast: 50, slow: 200, fastLabel: 'EMA50',  slowLabel: 'EMA200' };
+  }
 }
 
 export function fmtBarTime(time: string | number, isIntraday: boolean): string {
@@ -102,7 +111,7 @@ export function resampleWeekly(bars: ChartBar[]): ChartBar[] {
       time: key,
       open: g[0].open,
       high: Math.max(...g.map(b => b.high)),
-      low: Math.min(...g.map(b => b.low)),
+      low:  Math.min(...g.map(b => b.low)),
       close: g[g.length - 1].close,
       volume: g.reduce((s, b) => s + b.volume, 0),
     }));
@@ -122,7 +131,7 @@ export function resampleMonthly(bars: ChartBar[]): ChartBar[] {
       time: key + '-01',
       open: g[0].open,
       high: Math.max(...g.map(b => b.high)),
-      low: Math.min(...g.map(b => b.low)),
+      low:  Math.min(...g.map(b => b.low)),
       close: g[g.length - 1].close,
       volume: g.reduce((s, b) => s + b.volume, 0),
     }));
@@ -147,33 +156,4 @@ export function buildVolumeProfile(bars: ChartBar[], buckets = 30): ProfileRow[]
     vol,
     pct: maxVol > 0 ? vol / maxVol : 0,
   }));
-}
-
-export function autoTickSize(price: number): number {
-  if (price >= 5000) return 5;
-  if (price >= 2000) return 2;
-  if (price >= 1000) return 1;
-  if (price >= 200)  return 0.5;
-  return 0.25;
-}
-
-export function buildTPO(bars: ChartBar[], tickSize: number, periodMins = 30): TPOLevel[] {
-  if (bars.length === 0 || typeof bars[0].time !== 'number') return [];
-  const sessionStart = bars[0].time as number;
-  const levelMap = new Map<number, Set<number>>();
-  for (const bar of bars) {
-    const periodIdx = Math.floor(((bar.time as number) - sessionStart) / (periodMins * 60));
-    const loTick = Math.floor(bar.low  / tickSize);
-    const hiTick = Math.ceil(bar.high / tickSize);
-    for (let tick = loTick; tick <= hiTick; tick++) {
-      if (!levelMap.has(tick)) levelMap.set(tick, new Set());
-      levelMap.get(tick)!.add(periodIdx);
-    }
-  }
-  return [...levelMap.entries()]
-    .map(([tick, ps]) => ({
-      price: tick * tickSize,
-      periods: [...ps].sort((a, b) => a - b),
-    }))
-    .sort((a, b) => b.price - a.price);
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { DailyChart } from './DailyChart';
 import { OptionChainPanel } from './OptionChainPanel';
 
@@ -13,12 +13,9 @@ interface SymbolModalProps {
   onClose: () => void;
 }
 
-/**
- * Unified symbol detail modal — Chart and Option Chain tabs.
- * 80 % viewport, closes only via X button.
- */
 export function SymbolModal({ symbol, initialTab = 'chart', onClose }: SymbolModalProps) {
-  const [tab, setTab] = useState<SymbolModalTab>(initialTab);
+  const [tab,      setTab]      = useState<SymbolModalTab>(initialTab);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div
@@ -27,8 +24,8 @@ export function SymbolModal({ symbol, initialTab = 'chart', onClose }: SymbolMod
       tabIndex={-1}
     >
       <div
-        className="surface-card flex flex-col overflow-hidden"
-        style={{ width: '80vw', height: '80vh' }}
+        className="surface-card flex flex-col overflow-hidden transition-all duration-200"
+        style={expanded ? { width: '100vw', height: '100vh' } : { width: '80vw', height: '80vh' }}
         onClick={event => event.stopPropagation()}
       >
         {/* ── header ── */}
@@ -52,15 +49,26 @@ export function SymbolModal({ symbol, initialTab = 'chart', onClose }: SymbolMod
               </button>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="icon-btn h-8 w-8"
-            title="Close"
-            aria-label="Close"
-          >
-            <X size={15} aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setExpanded(e => !e)}
+              className="icon-btn h-8 w-8"
+              title={expanded ? 'Restore size' : 'Expand to full screen'}
+              aria-label={expanded ? 'Restore' : 'Expand'}
+            >
+              {expanded ? <Minimize2 size={14} aria-hidden="true" /> : <Maximize2 size={14} aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="icon-btn h-8 w-8"
+              title="Close"
+              aria-label="Close"
+            >
+              <X size={15} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         {/* ── content ── */}
