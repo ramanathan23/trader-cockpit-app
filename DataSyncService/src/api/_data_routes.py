@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, time as _time, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from .deps import PriceRepoDep, SymbolRepoDep, SyncServiceDep
 
@@ -36,6 +36,17 @@ async def get_daily_prices(
 async def recompute_metrics(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     background_tasks.add_task(svc.recompute_metrics)
     return {"status": "started", "message": "Metrics recompute running in background."}
+
+
+@router.post("/metrics/recompute-blocking",
+             summary="Recompute symbol_metrics: blocks until complete (use for pipeline orchestration)")
+async def recompute_metrics_blocking(svc: SyncServiceDep):
+    try:
+        result = await svc.recompute_metrics()
+        return {"status": "ok", "message": f"Metrics recomputed: {result.get('rows_written', '?')} rows"}
+    except Exception as exc:
+        logger.exception("recompute_metrics_blocking failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/data-quality/1min", summary="Staleness check on price_data_1min per symbol")

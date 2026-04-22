@@ -18,6 +18,18 @@ async def run_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     }
 
 
+@router.post("/sync/run-blocking",
+             summary="Daily sync: blocks until complete (use for pipeline orchestration)")
+async def run_sync_blocking(svc: SyncServiceDep):
+    try:
+        result = await svc.run_sync()
+        updated = result.get("1d", {}).get("updated", "?")
+        return {"status": "ok", "message": f"Daily sync complete — {updated} symbols updated"}
+    except Exception as exc:
+        logger.exception("run_sync_blocking failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/sync/run-1min",
              summary="1-min sync: fetch Dhan 1-min OHLCV for all F&O stocks (background)")
 async def run_1min_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
@@ -26,6 +38,18 @@ async def run_1min_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
         "status": "started",
         "message": "1-min F&O sync running in background. Monitor at GET /api/v1/sync/status",
     }
+
+
+@router.post("/sync/run-1min-blocking",
+             summary="1-min sync: blocks until complete (use for pipeline orchestration)")
+async def run_1min_sync_blocking(svc: SyncServiceDep):
+    try:
+        result = await svc.run_1min_sync()
+        updated = result.get("1m", {}).get("updated", "?")
+        return {"status": "ok", "message": f"1-min sync complete — {updated} symbols updated"}
+    except Exception as exc:
+        logger.exception("run_1min_sync_blocking failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/sync/run-all",

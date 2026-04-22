@@ -165,52 +165,6 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_computed_at
     ON symbol_metrics (computed_at DESC);
 
--- ── Continuous aggregates ─────────────────────────────────────────────────────
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_weekly
-WITH (timescaledb.continuous) AS
-SELECT
-    time_bucket('1 week', time) AS bucket,
-    symbol,
-    FIRST(open, time)           AS open,
-    MAX(high)                   AS high,
-    MIN(low)                    AS low,
-    LAST(close, time)           AS close,
-    SUM(volume)                 AS volume
-FROM price_data_daily
-GROUP BY bucket, symbol
-WITH NO DATA;
-
-SELECT add_continuous_aggregate_policy(
-    'price_daily_weekly',
-    start_offset      => INTERVAL '1 month',
-    end_offset        => INTERVAL '1 day',
-    schedule_interval => INTERVAL '1 day',
-    if_not_exists     => TRUE
-);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS price_daily_monthly
-WITH (timescaledb.continuous) AS
-SELECT
-    time_bucket('1 month', time) AS bucket,
-    symbol,
-    FIRST(open, time)            AS open,
-    MAX(high)                    AS high,
-    MIN(low)                     AS low,
-    LAST(close, time)            AS close,
-    SUM(volume)                  AS volume
-FROM price_data_daily
-GROUP BY bucket, symbol
-WITH NO DATA;
-
-SELECT add_continuous_aggregate_policy(
-    'price_daily_monthly',
-    start_offset      => INTERVAL '3 months',
-    end_offset        => INTERVAL '1 day',
-    schedule_interval => INTERVAL '1 day',
-    if_not_exists     => TRUE
-);
-
 -- ── price_data_1min ───────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS price_data_1min (

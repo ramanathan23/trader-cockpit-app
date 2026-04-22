@@ -78,9 +78,7 @@ class SyncService:
         daily_snapshots = await self._state.get_snapshots(all_symbols, "1d")
         daily_ts_map    = {s.symbol: s.last_data_ts for s in daily_snapshots}
         logger.info("run_sync: sync state loaded — starting sync")
-        return {"1d": await run_daily_sync(
-            self._fetcher, self._metrics, all_symbols, daily_ts_map
-        )}
+        return {"1d": await run_daily_sync(self._fetcher, all_symbols, daily_ts_map)}
 
     async def recompute_metrics(self) -> dict:
         """Recompute symbol_metrics table from price_data_daily."""
@@ -100,7 +98,7 @@ class SyncService:
         daily_ts_map    = {s.symbol: s.last_data_ts for s in daily_snapshots}
         logger.info("run_full_sync: launching daily + 1min in parallel")
         daily_result, minute_result = await asyncio.gather(
-            run_daily_sync(self._fetcher, self._metrics, all_symbols, daily_ts_map),
+            run_daily_sync(self._fetcher, all_symbols, daily_ts_map),
             self._minute.run_sync(),
         )
         return {"1d": daily_result, "1m": minute_result}

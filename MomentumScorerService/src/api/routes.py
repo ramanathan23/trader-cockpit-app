@@ -1,7 +1,7 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from .deps import ScoreRepoDep, ScoreServiceDep
 from ._config_routes import router as _config_router
@@ -17,6 +17,16 @@ async def trigger_compute(
 ):
     background_tasks.add_task(svc.compute_unified)
     return {"status": "started", "scorer": "unified"}
+
+
+@router.post("/scores/compute-blocking", summary="Unified daily scoring: blocks until complete (use for pipeline orchestration)")
+async def trigger_compute_blocking(svc: ScoreServiceDep):
+    try:
+        count = await svc.compute_unified()
+        return {"status": "ok", "message": f"Scored {count} symbols"}
+    except Exception as exc:
+        logger.exception("compute_blocking failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ── Dashboard endpoints ───────────────────────────────────────────────────────

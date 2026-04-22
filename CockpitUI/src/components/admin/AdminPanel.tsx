@@ -55,11 +55,11 @@ const NAV: NavItem[] = [
 // ── Pipeline steps ─────────────────────────────────────────────────────────────
 
 const PIPELINE_STEPS = [
-  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run',       method: 'POST' },
-  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min',  method: 'POST' },
-  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute',   method: 'POST' },
-  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute', method: 'POST' },
-  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',          method: 'GET'  },
+  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run-blocking',           method: 'POST' },
+  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min-blocking',      method: 'POST' },
+  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute-blocking',       method: 'POST' },
+  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute-blocking',  method: 'POST' },
+  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',                      method: 'GET'  },
 ] as const;
 
 // ── Service config definitions ────────────────────────────────────────────────
@@ -180,48 +180,103 @@ function SectionHeader({ title, caption }: { title: string; caption: string }) {
 
 // ── Full Sync pane ────────────────────────────────────────────────────────────
 
-type PipelineState = Record<string, { status: StepStatus; message: string | null }>;
+type PipelineState = Record<string, { status: StepStatus; message: string | null; startedAt: number | null; elapsedMs: number | null }>;
+
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
 
 function FullSyncPane() {
+  const emptyStep = { status: 'idle' as StepStatus, message: null, startedAt: null, elapsedMs: null };
   const [states, setStates] = useState<PipelineState>(() =>
-    Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { status: 'idle', message: null }]))
+    Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { ...emptyStep }]))
   );
+  const [tick, setTick] = useState(0);
   const running = useRef(false);
 
-  function setStep(key: string, status: StepStatus, message: string | null = null) {
-    setStates(prev => ({ ...prev, [key]: { status, message } }));
+  const anyRunning = Object.values(states).some(s => s.status === 'running');
+  const allDone = Object.values(states).every(s => s.status !== 'idle' && s.status !== 'running');
+  const anyError = Object.values(states).some(s => s.status === 'error');
+
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [anyRunning]);
+
+  function setStep(
+    key: string,
+    status: StepStatus,
+    message: string | null = null,
+    startedAt: number | null = null,
+    elapsedMs: number | null = null,
+  ) {
+    setStates(prev => ({ ...prev, [key]: { status, message, startedAt, elapsedMs } }));
   }
 
   async function runPipeline() {
     if (running.current) return;
     running.current = true;
+    setTick(0);
+    setStates(Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { ...emptyStep }])));
 
-    // Reset all
-    setStates(Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { status: 'idle', message: null }])));
+    // sync-daily + sync-1min run in parallel (independent data sources)
+    const syncDaily = PIPELINE_STEPS.find(s => s.key === 'sync-daily')!;
+    const sync1min  = PIPELINE_STEPS.find(s => s.key === 'sync-1min')!;
+    const syncStart = Date.now();
+    setStep('sync-daily', 'running', null, syncStart);
+    setStep('sync-1min',  'running', null, syncStart);
 
-    // Fire sync-daily, sync-1min, scores, metrics in parallel
-    const directSteps = PIPELINE_STEPS.filter(s => s.key !== 'models');
-    directSteps.forEach(s => setStep(s.key, 'running'));
+    const [dailyResult, minResult] = await Promise.allSettled([
+      fetch(syncDaily.endpoint, { method: syncDaily.method }).then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
+        return data?.message ?? null;
+      }),
+      fetch(sync1min.endpoint, { method: sync1min.method }).then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
+        return data?.message ?? null;
+      }),
+    ]);
 
-    const directResults = await Promise.allSettled(
-      directSteps.map(s =>
-        fetch(s.endpoint, { method: s.method })
-          .then(async res => {
-            const data = await res.json().catch(() => null);
-            if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
-            return data?.message ?? data?.status ?? 'started';
-          })
-      )
-    );
+    const syncElapsed = Date.now() - syncStart;
+    if (dailyResult.status === 'fulfilled') {
+      setStep('sync-daily', 'ok', dailyResult.value, syncStart, syncElapsed);
+    } else {
+      setStep('sync-daily', 'error', dailyResult.reason?.message ?? 'failed', syncStart, syncElapsed);
+    }
+    if (minResult.status === 'fulfilled') {
+      setStep('sync-1min', 'ok', minResult.value, syncStart, syncElapsed);
+    } else {
+      setStep('sync-1min', 'error', minResult.reason?.message ?? 'failed', syncStart, syncElapsed);
+    }
+    if (dailyResult.status === 'rejected' || minResult.status === 'rejected') {
+      running.current = false;
+      return;
+    }
 
-    directSteps.forEach((s, i) => {
-      const r = directResults[i];
-      if (r.status === 'fulfilled') setStep(s.key, 'ok', r.value);
-      else setStep(s.key, 'error', r.reason?.message ?? 'failed');
-    });
+    // scores → metrics: sequential, each must complete before next
+    const seqSteps = PIPELINE_STEPS.filter(s => s.key === 'scores' || s.key === 'metrics');
+    for (const step of seqSteps) {
+      const startedAt = Date.now();
+      setStep(step.key, 'running', null, startedAt);
+      try {
+        const res = await fetch(step.endpoint, { method: step.method });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
+        setStep(step.key, 'ok', data?.message ?? null, startedAt, Date.now() - startedAt);
+      } catch (err) {
+        setStep(step.key, 'error', err instanceof Error ? err.message : 'failed', startedAt, Date.now() - startedAt);
+        running.current = false;
+        return;
+      }
+    }
 
-    // Models step: fetch list then trigger score-all per model
-    setStep('models', 'running');
+    const modelsStart = Date.now();
+    setStep('models', 'running', null, modelsStart);
     try {
       const res = await fetch('/modeling/models');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -231,39 +286,38 @@ function FullSyncPane() {
         : [];
 
       if (modelNames.length === 0) {
-        setStep('models', 'ok', 'no models registered');
+        setStep('models', 'ok', 'no models registered', modelsStart, Date.now() - modelsStart);
       } else {
         await Promise.allSettled(
-          modelNames.map(name =>
-            fetch(`/modeling/models/${name}/score-all`, { method: 'POST' })
-          )
+          modelNames.map(name => fetch(`/modeling/models/${name}/score-all`, { method: 'POST' }))
         );
-        setStep('models', 'ok', `triggered ${modelNames.length} model(s)`);
+        setStep('models', 'ok', `${modelNames.length} model(s) scored`, modelsStart, Date.now() - modelsStart);
       }
     } catch (err) {
-      setStep('models', 'error', err instanceof Error ? err.message : 'failed');
+      setStep('models', 'error', err instanceof Error ? err.message : 'failed', modelsStart, Date.now() - modelsStart);
     }
 
     running.current = false;
   }
 
-  const anyRunning = Object.values(states).some(s => s.status === 'running');
-  const allDone = Object.values(states).every(s => s.status !== 'idle' && s.status !== 'running');
-  const anyError = Object.values(states).some(s => s.status === 'error');
+  // suppress unused tick warning — it drives re-renders for live elapsed display
+  void tick;
 
   return (
     <div className="max-w-lg">
       <SectionHeader
         title="Full Pipeline"
-        caption="Sync daily + 1-min data, compute scores, recompute metrics, run models — all in one shot."
+        caption="Runs each step sequentially. Next step starts only after previous completes."
       />
 
-      {/* Step list */}
       <div className="mb-6 flex flex-col gap-2">
-        {PIPELINE_STEPS.map(step => {
+        {PIPELINE_STEPS.map((step, idx) => {
           const s = states[step.key];
+          const liveMs = s.status === 'running' && s.startedAt ? Date.now() - s.startedAt : null;
+          const displayMs = liveMs ?? s.elapsedMs;
           return (
             <div key={step.key} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+              <span className="w-4 shrink-0 text-center text-[10px] font-black text-ghost">{idx + 1}</span>
               <StepDot status={s.status} />
               <div className="min-w-0 flex-1">
                 <span className="text-[12px] font-black text-fg">{step.label}</span>
@@ -271,25 +325,29 @@ function FullSyncPane() {
                   <span className="ml-2 text-[10px] text-ghost">{s.message}</span>
                 )}
               </div>
-              {s.status !== 'idle' && (
-                <span
-                  className="shrink-0 text-[10px] font-black"
-                  style={{
-                    color:
-                      s.status === 'running' ? 'rgb(var(--amber))' :
-                      s.status === 'ok'      ? 'rgb(var(--bull))' :
-                                               'rgb(var(--bear))',
-                  }}
-                >
-                  {s.status === 'running' ? 'running' : s.status === 'ok' ? 'done' : 'error'}
-                </span>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {displayMs !== null && (
+                  <span className="text-[10px] text-ghost">{formatElapsed(displayMs)}</span>
+                )}
+                {s.status !== 'idle' && (
+                  <span
+                    className="text-[10px] font-black"
+                    style={{
+                      color:
+                        s.status === 'running' ? 'rgb(var(--amber))' :
+                        s.status === 'ok'      ? 'rgb(var(--bull))' :
+                                                 'rgb(var(--bear))',
+                    }}
+                  >
+                    {s.status === 'running' ? 'running' : s.status === 'ok' ? 'done' : 'error'}
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Run button */}
       <div className="flex items-center gap-4">
         <button
           type="button"
@@ -308,7 +366,7 @@ function FullSyncPane() {
             className="text-[12px] font-black"
             style={{ color: anyError ? 'rgb(var(--bear))' : 'rgb(var(--bull))' }}
           >
-            {anyError ? 'Completed with errors' : 'All steps started'}
+            {anyError ? 'Pipeline failed' : 'Pipeline complete'}
           </span>
         )}
       </div>

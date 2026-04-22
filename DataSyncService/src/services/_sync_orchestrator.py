@@ -9,7 +9,7 @@ from ..domain.daily_action import classify_daily
 logger = logging.getLogger(__name__)
 
 
-async def run_daily_sync(fetcher, metrics, all_symbols: list[str], last_ts_map: dict) -> dict:
+async def run_daily_sync(fetcher, all_symbols: list[str], last_ts_map: dict) -> dict:
     now_ist      = datetime.now(tz=IST)
     initial:     list[str] = []
     fetch_today: list[str] = []
@@ -41,15 +41,12 @@ async def run_daily_sync(fetcher, metrics, all_symbols: list[str], last_ts_map: 
     if fetch_gap:
         updated += await fetcher.fetch_gap(fetch_gap, last_ts_map)
 
-    metrics_rows = await metrics.recompute()
-
     return {
-        "initial":      len(initial),
-        "fetch_today":  len(fetch_today),
-        "fetch_gap":    len(fetch_gap),
-        "skip":         skip_count,
-        "updated":      updated,
-        "metrics_rows": metrics_rows,
+        "initial":     len(initial),
+        "fetch_today": len(fetch_today),
+        "fetch_gap":   len(fetch_gap),
+        "skip":        skip_count,
+        "updated":     updated,
     }
 
 
