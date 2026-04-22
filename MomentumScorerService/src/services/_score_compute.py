@@ -53,17 +53,9 @@ def _partition_by_fno(
     return fno, equity
 
 
-def _build_stage_watchlist_set(
-    valid_results: list[tuple],
-    watchlist_size: int,
-) -> set[str]:
-    """Top N symbols from Stage 2 + Stage 4 by total_score."""
-    candidates = sorted(
-        [(sym, b) for sym, b in valid_results if b.stage in _STAGE_WATCHLIST_STAGES],
-        key=lambda x: x[1].total_score,
-        reverse=True,
-    )
-    return {sym for sym, _ in candidates[:watchlist_size]}
+def _build_stage_watchlist_set(valid_results: list[tuple]) -> set[str]:
+    """All Stage 2 + Stage 4 symbols — no cap."""
+    return {sym for sym, b in valid_results if b.stage in _STAGE_WATCHLIST_STAGES}
 
 
 async def _persist_ranked_groups(

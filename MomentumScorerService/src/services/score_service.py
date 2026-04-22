@@ -25,7 +25,6 @@ from ._score_watchlist import ScoreWatchlistMixin
 logger = logging.getLogger(__name__)
 
 _IST = ZoneInfo("Asia/Kolkata")
-_WATCHLIST_SIZE = 50
 
 
 def _last_trading_date(price_data: dict[str, pd.DataFrame]) -> date:
@@ -81,7 +80,7 @@ class ScoreService(ScoreWatchlistMixin):
         results = await _gather_scores(price_data, self._semaphore, score_kwargs)
         valid_results = _collect_valid_results(results)
 
-        stage_watchlist_set = _build_stage_watchlist_set(valid_results, _WATCHLIST_SIZE)
+        stage_watchlist_set = _build_stage_watchlist_set(valid_results)
         fno_results, equity_results = _partition_by_fno(valid_results, fno_set)
 
         scored = await _persist_ranked_groups(

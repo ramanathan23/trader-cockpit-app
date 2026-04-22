@@ -24,7 +24,7 @@ type SortKey =
   | 'comfort_score';
 
 type Segment = 'all' | 'fno' | 'equity';
-type StageFilter = 'all' | 'stage2' | 'stage4';
+type StageFilter = 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4';
 
 interface DashboardPanelProps {
   active: boolean;
@@ -92,7 +92,9 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
     let rows = scores;
     if (segment === 'fno') rows = rows.filter(row => row.is_fno === true);
     if (segment === 'equity') rows = rows.filter(row => row.is_fno !== true);
+    if (stageFilter === 'stage1') rows = rows.filter(row => row.stage === 'STAGE_1');
     if (stageFilter === 'stage2') rows = rows.filter(row => row.stage === 'STAGE_2');
+    if (stageFilter === 'stage3') rows = rows.filter(row => row.stage === 'STAGE_3');
     if (stageFilter === 'stage4') rows = rows.filter(row => row.stage === 'STAGE_4');
     if (q) rows = rows.filter(row => row.symbol.includes(q) || row.company_name?.toUpperCase().includes(q));
 
@@ -166,9 +168,11 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
           </div>
 
           <div className="seg-group">
-            <button type="button" onClick={() => setStageFilter('all')} className={`seg-btn ${stageFilter === 'all' ? 'active' : ''}`}>Stage</button>
-            <button type="button" onClick={() => setStageFilter('stage2')} className={`seg-btn ${stageFilter === 'stage2' ? 'active' : ''}`} style={stageFilter === 'stage2' ? { color: 'rgb(var(--bull))' } : undefined}>S2</button>
-            <button type="button" onClick={() => setStageFilter('stage4')} className={`seg-btn ${stageFilter === 'stage4' ? 'active' : ''}`} style={stageFilter === 'stage4' ? { color: 'rgb(var(--bear))' } : undefined}>S4</button>
+            <button type="button" onClick={() => setStageFilter('all')}    className={`seg-btn ${stageFilter === 'all'    ? 'active' : ''}`}>Stage</button>
+            <button type="button" onClick={() => setStageFilter('stage1')} className={`seg-btn ${stageFilter === 'stage1' ? 'active' : ''}`} style={stageFilter === 'stage1' ? { color: 'rgb(var(--amber))'  } : undefined}>S1</button>
+            <button type="button" onClick={() => setStageFilter('stage2')} className={`seg-btn ${stageFilter === 'stage2' ? 'active' : ''}`} style={stageFilter === 'stage2' ? { color: 'rgb(var(--bull))'   } : undefined}>S2</button>
+            <button type="button" onClick={() => setStageFilter('stage3')} className={`seg-btn ${stageFilter === 'stage3' ? 'active' : ''}`} style={stageFilter === 'stage3' ? { color: 'rgb(var(--violet))' } : undefined}>S3</button>
+            <button type="button" onClick={() => setStageFilter('stage4')} className={`seg-btn ${stageFilter === 'stage4' ? 'active' : ''}`} style={stageFilter === 'stage4' ? { color: 'rgb(var(--bear))'   } : undefined}>S4</button>
           </div>
 
           <div className="ml-auto flex items-center gap-2">

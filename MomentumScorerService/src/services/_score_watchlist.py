@@ -22,7 +22,7 @@ class ScoreWatchlistMixin:
         self,
         *,
         stage: str = "both",
-        limit: int = 50,
+        limit: int = 100,
     ) -> list[dict]:
         """
         Return Stage 2 (bull) and/or Stage 4 (bear) stocks from the latest

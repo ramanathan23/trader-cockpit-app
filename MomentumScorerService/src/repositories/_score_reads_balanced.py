@@ -15,8 +15,7 @@ class ScoreReadBalancedMixin:
         watchlist_only: bool = False,
     ) -> list[dict]:
         """
-        Fetch a balanced dashboard: top N per bucket
-        (Stage2 F&O, Stage4 F&O, Stage2 equity, Stage4 equity), ordered by rank.
+        Fetch a balanced dashboard: top N per bucket (FNO, equity), all stages.
         """
         async with self._pool.acquire() as conn:
             date_clause = "ds.score_date = $1" if score_date else "ds.score_date = (SELECT MAX(score_date) FROM daily_scores)"
@@ -56,23 +55,20 @@ class ScoreReadBalancedMixin:
 
             limit_param = "$2" if score_date else "$1"
 
-            def _bucket(fno_clause: str, stage_clause: str) -> str:
+            def _bucket(fno_clause: str) -> str:
                 return f"""(
                     SELECT {base_cols}
                     {base_join}
                     WHERE {date_clause}
                     {watchlist_clause}
                     {fno_clause}
-                    {stage_clause}
                     ORDER BY ds.rank ASC
                     LIMIT {limit_param}
                 )"""
 
             query = " UNION ALL ".join([
-                _bucket("AND s.is_fno = TRUE",  "AND ds.stage = 'STAGE_2'"),
-                _bucket("AND s.is_fno = TRUE",  "AND ds.stage = 'STAGE_4'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND ds.stage = 'STAGE_2'"),
-                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)", "AND ds.stage = 'STAGE_4'"),
+                _bucket("AND s.is_fno = TRUE"),
+                _bucket("AND (s.is_fno = FALSE OR s.is_fno IS NULL)"),
             ])
             query += " ORDER BY rank ASC"
 

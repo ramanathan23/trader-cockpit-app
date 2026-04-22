@@ -92,7 +92,7 @@ async def get_watchlist(
 async def get_stage_watchlist(
     svc: ScoreServiceDep,
     side: str = Query(default="both", pattern="^(bull|bear|both)$"),
-    limit: int = Query(default=50, ge=1, le=500),
+    limit: int = Query(default=100, ge=1, le=500),
 ):
     return await svc.build_watchlist(stage=side, limit=limit)
 
