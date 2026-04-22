@@ -80,7 +80,7 @@ class ScoreService(ScoreWatchlistMixin):
         results = await _gather_scores(price_data, self._semaphore, score_kwargs)
         valid_results = _collect_valid_results(results)
 
-        stage_watchlist_set = _build_stage_watchlist_set(valid_results)
+        stage_watchlist_set = _build_stage_watchlist_set(valid_results, fno_set)
         fno_results, equity_results = _partition_by_fno(valid_results, fno_set)
 
         scored = await _persist_ranked_groups(

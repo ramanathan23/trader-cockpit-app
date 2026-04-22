@@ -53,9 +53,31 @@ def _partition_by_fno(
     return fno, equity
 
 
-def _build_stage_watchlist_set(valid_results: list[tuple]) -> set[str]:
-    """All Stage 2 + Stage 4 symbols — no cap."""
-    return {sym for sym, b in valid_results if b.stage in _STAGE_WATCHLIST_STAGES}
+def _build_stage_watchlist_set(
+    valid_results: list[tuple],
+    fno_set: set[str],
+    *,
+    per_segment: int = 50,
+    per_stage: int = 25,
+) -> set[str]:
+    """
+    Top per_stage S2 + per_stage S4 within each segment (FNO / equity).
+    Total = 2 segments × 2 stages × per_stage = per_segment × 2.
+    """
+    watchlist: set[str] = set()
+    for is_fno in (True, False):
+        seg = [
+            (sym, b) for sym, b in valid_results
+            if (sym in fno_set) == is_fno and b.stage in _STAGE_WATCHLIST_STAGES
+        ]
+        for stage in _STAGE_WATCHLIST_STAGES:
+            top = sorted(
+                [(sym, b) for sym, b in seg if b.stage == stage],
+                key=lambda x: x[1].total_score,
+                reverse=True,
+            )[:per_stage]
+            watchlist.update(sym for sym, _ in top)
+    return watchlist
 
 
 async def _persist_ranked_groups(
