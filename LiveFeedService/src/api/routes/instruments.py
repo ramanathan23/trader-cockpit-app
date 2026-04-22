@@ -86,6 +86,59 @@ async def chart_daily(
     return {"symbol": symbol.upper(), "count": len(candles), "candles": candles}
 
 
+@router.get("/chart/{symbol}/intraday", summary="Intraday OHLCV with optional server-side resampling")
+async def chart_intraday(
+    symbol: str,
+    request: Request,
+    tf: int = Query(default=1, ge=1, le=60, description="Timeframe in minutes"),
+    bars: int = Query(default=390, ge=30, le=3000, description="Number of output bars"),
+):
+    pool = request.app.state.pool
+    async with pool.acquire() as conn:
+        if tf == 1:
+            rows = await conn.fetch("""
+                SELECT time, open, high, low, close, volume
+                FROM price_data_1min
+                WHERE symbol = $1
+                ORDER BY time DESC
+                LIMIT $2
+            """, symbol.upper(), bars)
+        else:
+            rows = await conn.fetch("""
+                SELECT
+                    time_bucket(make_interval(mins => $1), time) AS time,
+                    first(open, time)  AS open,
+                    max(high)          AS high,
+                    min(low)           AS low,
+                    last(close, time)  AS close,
+                    sum(volume)        AS volume
+                FROM price_data_1min
+                WHERE symbol = $2
+                  AND time >= (
+                      SELECT max(time) FROM price_data_1min WHERE symbol = $2
+                  ) - make_interval(mins => $1 * $3)
+                GROUP BY 1
+                ORDER BY 1 DESC
+                LIMIT $3
+            """, tf, symbol.upper(), bars)
+
+    if not rows:
+        raise HTTPException(404, f"No intraday data for {symbol}")
+
+    candles = [
+        {
+            "time":   int(r["time"].timestamp()),
+            "open":   float(r["open"]),
+            "high":   float(r["high"]),
+            "low":    float(r["low"]),
+            "close":  float(r["close"]),
+            "volume": int(r["volume"]) if r["volume"] else 0,
+        }
+        for r in reversed(rows)
+    ]
+    return {"symbol": symbol.upper(), "tf": tf, "count": len(candles), "candles": candles}
+
+
 @router.get("/ui", response_class=HTMLResponse, include_in_schema=False)
 async def serve_ui():
     return HTMLResponse(_UI_FILE.read_text(encoding="utf-8"))

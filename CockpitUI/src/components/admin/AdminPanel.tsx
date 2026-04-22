@@ -9,7 +9,7 @@ type StepStatus = 'idle' | 'running' | 'ok' | 'error';
 
 type AdminSection =
   | 'full-sync'
-  | 'jobs'
+  | 'token'
   | 'config-scorer'
   | 'config-datasync'
   | 'config-livefeed'
@@ -44,8 +44,8 @@ interface ServiceConfigDef {
 // ── Nav definition ────────────────────────────────────────────────────────────
 
 const NAV: NavItem[] = [
-  { key: 'full-sync', label: 'Full Sync',  caption: 'Run full pipeline' },
-  { key: 'jobs',      label: 'Jobs',       caption: 'Trigger tasks' },
+  { key: 'full-sync', label: 'Full Sync', caption: 'Run full pipeline' },
+  { key: 'token',     label: 'Token',     caption: 'Update Dhan token' },
   { key: 'config-scorer',   label: 'Scorer',   caption: 'Scoring params',   group: 'Config' },
   { key: 'config-datasync', label: 'Data Sync',caption: 'Sync params',      group: 'Config' },
   { key: 'config-livefeed', label: 'Live Feed', caption: 'Signal thresholds',group: 'Config' },
@@ -459,97 +459,6 @@ function FullSyncPane() {
   );
 }
 
-// ── Jobs pane ─────────────────────────────────────────────────────────────────
-
-interface JobAction {
-  key: string;
-  label: string;
-  caption: string;
-  endpoint: string;
-  method: string;
-}
-
-const JOB_ACTIONS: JobAction[] = [
-  {
-    key: 'sync-daily',
-    label: 'Sync Daily Data',
-    caption: 'Fetch OHLCV from yfinance for all symbols. Auto-classifies and fills gaps.',
-    endpoint: '/datasync/sync/run',
-    method: 'POST',
-  },
-  {
-    key: 'sync-1min',
-    label: 'Sync 1-Min Data',
-    caption: 'Fetch 1-min OHLCV from Dhan for all F&O stocks (last 90 days).',
-    endpoint: '/datasync/sync/run-1min',
-    method: 'POST',
-  },
-  {
-    key: 'compute-scores',
-    label: 'Compute Momentum Scores',
-    caption: 'Run unified daily momentum scoring for all symbols.',
-    endpoint: '/scorer/scores/compute',
-    method: 'POST',
-  },
-  {
-    key: 'recompute-metrics',
-    label: 'Recompute Metrics',
-    caption: 'Recompute symbol_metrics table from price data.',
-    endpoint: '/datasync/metrics/recompute',
-    method: 'POST',
-  },
-];
-
-function JobCard({ action }: { action: JobAction }) {
-  const [status, setStatus] = useState<StepStatus>('idle');
-  const [msg, setMsg] = useState<string | null>(null);
-
-  async function run() {
-    if (status === 'running') return;
-    setStatus('running'); setMsg(null);
-    try {
-      const res = await fetch(action.endpoint, { method: action.method });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) { setStatus('error'); setMsg(String(data?.detail ?? data?.message ?? `HTTP ${res.status}`)); return; }
-      setStatus('ok'); setMsg(String(data?.message ?? data?.status ?? 'started'));
-    } catch (err) {
-      setStatus('error'); setMsg(err instanceof Error ? err.message : 'Network error');
-    }
-  }
-
-  const busy = status === 'running';
-  const statusColor =
-    status === 'running' ? 'rgb(var(--amber))' :
-    status === 'ok'      ? 'rgb(var(--bull))' :
-    status === 'error'   ? 'rgb(var(--bear))' : '';
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-black text-fg">{action.label}</h3>
-          <p className="mt-1 text-[11px] text-ghost leading-relaxed">{action.caption}</p>
-          {status !== 'idle' && msg && (
-            <p className="mt-2 text-[10px]" style={{ color: statusColor }}>{msg}</p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={run}
-          disabled={busy}
-          className={`shrink-0 rounded-lg border px-4 py-1.5 text-[12px] font-black transition-colors ${
-            busy
-              ? 'cursor-not-allowed border-border text-ghost'
-              : 'border-accent/50 bg-accent/10 text-accent hover:bg-accent/20'
-          }`}
-        >
-          {busy ? 'Running…' : 'Run'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function TokenCard() {
   const [token, setToken] = useState('');
   const [status, setStatus] = useState<StepStatus>('idle');
@@ -612,14 +521,11 @@ function TokenCard() {
   );
 }
 
-function JobsPane() {
+function TokenPane() {
   return (
     <div className="max-w-lg">
-      <SectionHeader title="Jobs" caption="Trigger background tasks. All run async — check service logs for progress." />
-      <div className="flex flex-col gap-3">
-        {JOB_ACTIONS.map(a => <JobCard key={a.key} action={a} />)}
-        <TokenCard />
-      </div>
+      <SectionHeader title="Token" caption="Update Dhan access token — LiveFeed WS reconnects immediately." />
+      <TokenCard />
     </div>
   );
 }
@@ -647,7 +553,7 @@ function ConfigField({
           className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${value ? 'bg-accent' : 'bg-border'}`}
         >
           <span
-            className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-3' : 'translate-x-0.5'}`}
+            className={`absolute left-0 top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-3.5' : 'translate-x-0.5'}`}
           />
         </button>
       </div>
@@ -687,12 +593,12 @@ function ConfigField({
   );
 }
 
-function ServiceConfigPane({ sectionKey }: { sectionKey: AdminSection }) {
+function ServiceConfigPane({ sectionKey, initialConfig }: { sectionKey: AdminSection; initialConfig?: Record<string, unknown> | null }) {
   const def = SERVICE_CONFIGS[sectionKey];
-  const [loadStatus, setLoadStatus] = useState<StepStatus>('idle');
+  const [loadStatus, setLoadStatus] = useState<StepStatus>(initialConfig ? 'ok' : 'idle');
   const [saveStatus, setSaveStatus] = useState<StepStatus>('idle');
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [config, setConfig] = useState<Record<string, unknown> | null>(null);
+  const [config, setConfig] = useState<Record<string, unknown> | null>(initialConfig ?? null);
 
   const load = useCallback(async () => {
     setLoadStatus('running');
@@ -706,8 +612,8 @@ function ServiceConfigPane({ sectionKey }: { sectionKey: AdminSection }) {
     }
   }, [def.endpoint]);
 
-  // Auto-load on mount
-  useEffect(() => { load(); }, [load]);
+  // Skip auto-load when server already provided data
+  useEffect(() => { if (!initialConfig) load(); }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleChange(key: string, val: unknown) {
     setConfig(prev => prev ? { ...prev, [key]: val } : prev);
@@ -824,7 +730,14 @@ function ServiceConfigPane({ sectionKey }: { sectionKey: AdminSection }) {
 
 // ── Root panel ────────────────────────────────────────────────────────────────
 
-export function AdminPanel() {
+type InitialConfigs = {
+  scorer:   Record<string, unknown> | null;
+  datasync: Record<string, unknown> | null;
+  livefeed: Record<string, unknown> | null;
+  modeling: Record<string, unknown> | null;
+};
+
+export function AdminPanel({ initialConfigs }: { initialConfigs?: InitialConfigs | null }) {
   const [section, setSection] = useState<AdminSection>('full-sync');
 
   const groupedNav = NAV.reduce<{ ungrouped: NavItem[]; grouped: Record<string, NavItem[]> }>(
@@ -861,10 +774,20 @@ export function AdminPanel() {
 
       {/* Content pane */}
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
-        {section === 'full-sync' && <FullSyncPane />}
-        {section === 'jobs'      && <JobsPane />}
+        {/* Always mounted — preserves pipeline state + live SSE reads across nav */}
+        <div className={section !== 'full-sync' ? 'hidden' : ''}><FullSyncPane /></div>
+        <div className={section !== 'token'     ? 'hidden' : ''}><TokenPane /></div>
         {(section === 'config-scorer' || section === 'config-datasync' || section === 'config-livefeed' || section === 'config-modeling') && (
-          <ServiceConfigPane key={section} sectionKey={section} />
+          <ServiceConfigPane
+            key={section}
+            sectionKey={section}
+            initialConfig={
+              section === 'config-scorer'   ? initialConfigs?.scorer   :
+              section === 'config-datasync' ? initialConfigs?.datasync :
+              section === 'config-livefeed' ? initialConfigs?.livefeed :
+              section === 'config-modeling' ? initialConfigs?.modeling : null
+            }
+          />
         )}
       </div>
 

@@ -8,7 +8,7 @@ import { ClusterChart } from './ClusterChart';
 import { SymbolModal } from './SymbolModal';
 import type { SymbolModalTab } from './SymbolModal';
 import { fmt2, fmtAdv } from '@/lib/fmt';
-import type { ScoredSymbol } from '@/domain/dashboard';
+import type { DashboardResponse, ScoredSymbol } from '@/domain/dashboard';
 
 type SortKey =
   | 'rank'
@@ -27,6 +27,7 @@ type BiasFilter = 'all' | 'bull' | 'bear' | 'neutral';
 
 interface DashboardPanelProps {
   active: boolean;
+  initialData?: DashboardResponse | null;
 }
 
 const HEADERS: { key: string; label: string; title: string; align: 'left' | 'right' | 'center'; sortable: boolean }[] = [
@@ -46,8 +47,8 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
 ];
 
-export function DashboardPanel({ active }: DashboardPanelProps) {
-  const { stats, scores, loading, fetched, loadDashboard } = useDashboard();
+export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
+  const { stats, scores, loading, fetched, loadDashboard } = useDashboard(initialData);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster'>('table');
   const [segment, setSegment] = useState<Segment>('all');

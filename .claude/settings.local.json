@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python -c ' *)",
-      "Bash(python -m py_compile src/services/_feed_signal_mixin.py src/signals/engine.py src/signals/gap_detector.py src/signals/_factory_gap.py src/signals/_engine_state.py src/signals/_engine_config.py src/config.py)"
+      "Bash(python -m py_compile src/services/_feed_signal_mixin.py src/signals/engine.py src/signals/gap_detector.py src/signals/_factory_gap.py src/signals/_engine_state.py src/signals/_engine_config.py src/config.py)",
+      "Bash(xargs grep *)"
     ]
   }
 }

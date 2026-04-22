@@ -14,7 +14,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Reads localStorage before React hydrates — prevents theme flash */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('trader-cockpit-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';}catch(e){}` }} />
+      </head>
       <body>{children}</body>
     </html>
   );

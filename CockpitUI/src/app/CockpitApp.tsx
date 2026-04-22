@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { filterSignals, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
+import type { DashboardResponse } from '@/domain/dashboard';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
@@ -122,7 +123,20 @@ function AppRail({
   );
 }
 
-export function CockpitApp() {
+type InitialConfigs = {
+  scorer:   Record<string, unknown> | null;
+  datasync: Record<string, unknown> | null;
+  livefeed: Record<string, unknown> | null;
+  modeling: Record<string, unknown> | null;
+};
+
+export function CockpitApp({
+  initialDashboard,
+  initialConfigs,
+}: {
+  initialDashboard?: DashboardResponse | null;
+  initialConfigs?: InitialConfigs | null;
+}) {
   const clock = useClock();
   const tokenStatus = useTokenStatus();
   const { signals, paused, pendingCount, connState, metricsCache, marketStatus, mergeMetrics, togglePause, clearSignals } = useSignals();
@@ -139,12 +153,9 @@ export function CockpitApp() {
   const [fnoOnly, setFnoOnly] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    // Sync React state with the theme already applied by the layout inline script
     const stored = window.localStorage.getItem('trader-cockpit-theme');
-    if (stored === 'dark' || stored === 'light') {
-      setTheme(stored);
-      return;
-    }
+    if (stored === 'dark' || stored === 'light') { setTheme(stored); return; }
     setTheme(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
   }, []);
 
@@ -239,13 +250,18 @@ export function CockpitApp() {
               />
             )}
 
-            {view === 'admin' ? (
-              <AdminPanel />
-            ) : view === 'dashboard' ? (
-              <DashboardPanel active={view === 'dashboard'} />
-            ) : view === 'screener' ? (
+            {/* Always mounted — no remount on tab switch, state preserved */}
+            <div className={view !== 'dashboard' ? 'hidden' : 'contents'}>
+              <DashboardPanel active={view === 'dashboard'} initialData={initialDashboard} />
+            </div>
+            <div className={view !== 'screener' ? 'hidden' : 'contents'}>
               <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} />
-            ) : (
+            </div>
+            <div className={view !== 'admin' ? 'hidden' : 'contents'}>
+              <AdminPanel initialConfigs={initialConfigs} />
+            </div>
+
+            {(view === 'live' || view === 'history') && (
               <SignalFeed
                 signals={currentSignals}
                 metricsCache={metricsCache}

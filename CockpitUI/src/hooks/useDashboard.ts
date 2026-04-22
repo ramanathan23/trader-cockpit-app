@@ -8,12 +8,12 @@ const EMPTY_STATS: DashboardStats = {
   min_score: 0, high_conviction: 0, above_average: 0, score_date: '', computed_at: '',
 };
 
-export function useDashboard() {
-  const [stats,   setStats]   = useState<DashboardStats>(EMPTY_STATS);
-  const [scores,  setScores]  = useState<ScoredSymbol[]>([]);
+export function useDashboard(initialData?: DashboardResponse | null) {
+  const [stats,   setStats]   = useState<DashboardStats>(initialData?.stats  ?? EMPTY_STATS);
+  const [scores,  setScores]  = useState<ScoredSymbol[]>(initialData?.scores ?? []);
   const [loading, setLoading] = useState(false);
   const [computing, setComputing] = useState(false);
-  const fetched = useRef(false);
+  const fetched = useRef(!!initialData);
 
   const loadDashboard = useCallback(async (opts?: { watchlistOnly?: boolean; date?: string }) => {
     setLoading(true);
