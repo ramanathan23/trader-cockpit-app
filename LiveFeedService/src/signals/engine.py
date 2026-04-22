@@ -23,7 +23,6 @@ from ._engine_config import EngineConfig
 from ._engine_state import _SessionState
 from ._confluence_filter import apply_confluence
 from ._drive_handler import evaluate_drive, run_trail, _bootstrap_day, _bootstrap_orb
-from ._spike_handler import evaluate_spike
 from ._breakout_handler import evaluate_breakouts
 from .gap_detector import evaluate_gap
 
@@ -76,8 +75,8 @@ class SignalEngine:
                            self.symbol, adv, config.min_adv_cr)
             state._adv_warned = True
         signals: list[Signal] = []
-        # Gap: once per session, exempt from confluence — fires before drive
-        signals.extend(evaluate_gap(self.symbol, candle, phase, state, config, self._metrics))
+        # Intraday gap: candle.open vs prev session candle.close — exempt from confluence
+        signals.extend(evaluate_gap(self.symbol, candle, phase, state, config, today_history))
         if (phase in (SessionPhase.DRIVE_WINDOW, SessionPhase.EXECUTION)
                 and not state.mid_session_start):
             # Drive uses today-only candles — seeded yesterday candles must not bleed in
@@ -87,9 +86,6 @@ class SignalEngine:
             signals.extend(run_trail(self.symbol, candle, phase, state))
         if not skip_non_drive:
             # Full history for vol baseline; today_history for intraday pattern checks
-            signals.extend(evaluate_spike(
-                self.symbol, candle, history, today_history, index_bias, phase, state, config,
-                self._session, self._metrics))
             signals.extend(evaluate_breakouts(
                 self.symbol, candle, history, today_history, index_bias, phase, state, config, self._metrics))
         state.vwap = vwap_detector.update(state.vwap, candle)

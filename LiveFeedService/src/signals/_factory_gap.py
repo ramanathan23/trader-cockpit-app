@@ -9,13 +9,13 @@ from ..domain.strength import Strength
 
 
 def make_gap_signal(
-    symbol:         str,
-    candle:         Candle,
-    signal_type:    SignalType,
-    direction:      Direction,
-    gap_pct:        float,
-    phase:          SessionPhase,
-    prev_day_close: float,
+    symbol:     str,
+    candle:     Candle,
+    signal_type: SignalType,
+    direction:  Direction,
+    gap_pct:    float,
+    phase:      SessionPhase,
+    ref_close:  float,
 ) -> Signal:
     is_up    = signal_type == SignalType.GAP_UP
     strength = Strength.HIGH if abs(gap_pct) >= 3.0 else Strength.MEDIUM
@@ -29,7 +29,7 @@ def make_gap_signal(
         index_bias    = Direction.NEUTRAL,
         price         = candle.open,
         message       = (
-            f"{'Gap Up ↑' if is_up else 'Gap Down ↓'} | "
-            f"{'+' if gap_pct > 0 else ''}{gap_pct:.2f}% from prev close {prev_day_close:.2f}"
+            f"{'Intraday Gap Up ↑' if is_up else 'Intraday Gap Down ↓'} | "
+            f"{'+' if gap_pct > 0 else ''}{gap_pct:.2f}% from {ref_close:.2f}"
         ),
     )

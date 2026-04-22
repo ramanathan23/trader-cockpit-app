@@ -37,18 +37,6 @@ class Settings(BaseServiceSettings):
     drive_confirmed_thresh: float = Field(default=0.70)
     drive_weak_thresh:      float = Field(default=0.50)
 
-    spike_window:           int   = Field(default=20)
-    spike_vol_ratio:        float = Field(default=3.0)
-    spike_price_pct:        float = Field(default=1.5)
-    spike_cooldown:         int   = Field(default=5)
-    absorption_cooldown:    int   = Field(default=10)
-    absorption_near_pct:    float = Field(default=0.008)
-
-    # ── Exhaustion reversal ───────────────────────────────────────────────────
-    exhaustion_downtrend_candles: int   = Field(default=4)
-    exhaustion_vol_ratio_min:    float = Field(default=6.0)
-    exhaustion_lower_lows:       int   = Field(default=3)
-
     # ── Level breakout vol ratios ─────────────────────────────────────────────
     orb_vol_ratio:          float = Field(default=1.3)
     week52_vol_ratio:       float = Field(default=2.0)
