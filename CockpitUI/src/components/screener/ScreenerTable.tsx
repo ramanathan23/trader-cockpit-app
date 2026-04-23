@@ -21,18 +21,34 @@ interface ScreenerTableProps {
 
 const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right' }[] = [
   { key: 'symbol', label: 'Symbol', align: 'left' },
+  { key: 'stage', label: 'Stage', title: 'Weinstein stage' },
   { key: 'adv_20_cr', label: 'ADV' },
   { key: 'atr_14', label: 'ATR' },
   { key: 'display_price', label: 'Price', title: 'Live price when available, otherwise previous close' },
   { key: 'dvwap_delta_pct', label: 'DVWAP%', title: 'Percent above or below session VWAP' },
   { key: 'ema50_delta_pct', label: '50E%', title: 'Percent above or below 50-day EMA' },
   { key: 'ema200_delta_pct', label: '200E%', title: 'Percent above or below 200-day EMA' },
+  { key: 'rs_vs_nifty', label: 'RS', title: 'Relative strength vs Nifty 500' },
   { key: 'f52h', label: '52H%', title: 'Distance from 52-week high' },
   { key: 'f52l', label: '52L%', title: 'Distance from 52-week low' },
   { key: 'week_return_pct', label: 'WK%', title: 'Five-session return' },
   { key: 'week_gain_pct', label: 'W+%', title: 'Percent above rolling five-session low' },
   { key: 'week_decline_pct', label: 'W-%', title: 'Percent below rolling five-session high' },
 ];
+
+function stageColor(stage?: string): string {
+  switch (stage) {
+    case 'STAGE_2': return 'rgb(var(--bull))';
+    case 'STAGE_4': return 'rgb(var(--bear))';
+    case 'STAGE_1': return 'rgb(var(--amber))';
+    default:        return 'rgb(var(--ghost))';
+  }
+}
+
+function stageLabel(stage?: string): string {
+  if (!stage) return '-';
+  return stage.replace('STAGE_', 'S');
+}
 
 function pctColor(value?: number | null, invert = false): string {
   if (value == null) return 'rgb(var(--ghost))';
@@ -80,8 +96,8 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
       <table className="data-table">
         <thead>
           <tr>
-            <th colSpan={4} className="border-r border-border/50 text-left">Price data</th>
-            <th colSpan={3} className="border-r border-border/50 text-left">Indicators</th>
+            <th colSpan={5} className="border-r border-border/50 text-left">Price data</th>
+            <th colSpan={4} className="border-r border-border/50 text-left">Indicators</th>
             <th colSpan={5} className="text-left">52-week and momentum</th>
           </tr>
           <tr>
@@ -143,13 +159,23 @@ const ScreenerTableRow = memo(({ row: r, onChart }: {
 
   return (
     <tr className="cursor-pointer" onClick={() => onChart?.(r.symbol)}>
-      <td className="text-left text-ticker text-fg">{r.symbol}</td>
+      <td className="text-left">
+        <span className="inline-flex items-center gap-1">
+          <span className="text-ticker text-fg">{r.symbol}</span>
+          {r.is_fno && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--violet))', borderColor: 'rgb(var(--violet) / 0.35)' }}>F&O</span>}
+          {r.is_watchlist && <span className="text-[10px]" style={{ color: 'rgb(var(--amber))' }} title="Watchlist">★</span>}
+          {r.vcp_detected && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--bull))', borderColor: 'rgb(var(--bull) / 0.35)' }}>VCP</span>}
+          {r.rect_breakout && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent) / 0.35)' }}>RECT</span>}
+        </span>
+      </td>
+      <td className="text-right"><span className="num text-[11px] font-black" style={{ color: stageColor(r.stage) }}>{stageLabel(r.stage)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : 'rgb(var(--ghost))' }}>{fmtAdv(r.adv_20_cr)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: 'rgb(var(--amber))' }}>{r.atr_14 != null ? r.atr_14.toFixed(2) : '-'}</span></td>
       <td className="text-right"><span className="num text-[13px] font-black text-fg">{fmt2(r.display_price)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>{pctText(r.dvwap_delta_pct, true)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>{pctText(r.ema50_delta_pct, true)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>{pctText(r.ema200_delta_pct, true)}</span></td>
+      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.rs_vs_nifty) }}>{r.rs_vs_nifty != null ? `${r.rs_vs_nifty > 0 ? '+' : ''}${r.rs_vs_nifty.toFixed(1)}` : '-'}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: f52hColor }}>{pctText(r.f52h)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: f52lColor }}>{r.f52l != null ? `+${r.f52l.toFixed(1)}%` : '-'}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_return_pct) }}>{pctText(r.week_return_pct, true)}</span></td>

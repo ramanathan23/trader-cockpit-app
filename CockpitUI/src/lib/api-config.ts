@@ -3,29 +3,39 @@
  *
  * All service paths are relative — Next.js rewrites (next.config.ts) proxy
  * them to the correct backend service:
- *   /api/*     → LiveFeedService
- *   /scorer/*  → MomentumScorerService
+ *   /api/*          → LiveFeedService
+ *   /scorer/*       → RankingService
+ *   /indicators/*   → IndicatorsService
+ *   /datasync/*     → DataSyncService
+ *   /modeling/*     → ModelingService
  */
 
 // ── LiveFeedService endpoints ────────────────────────────────────────────────
 
 export const LIVE_FEED = {
-  SIGNALS_WS:         '/api/v1/signals/ws',
-  TOKEN_STATUS:       '/api/v1/token/status',
-  INSTRUMENTS_METRICS:'/api/v1/instruments/metrics',
-  SCREENER:           '/api/v1/screener',
-  SIGNAL_HISTORY:     '/api/v1/signals/history',
-  SIGNAL_HISTORY_DATES:'/api/v1/signals/history/dates',
+  SIGNALS_WS:           '/api/v1/signals/ws',
+  TOKEN_STATUS:         '/api/v1/token/status',
+  INSTRUMENTS_METRICS:  '/api/v1/instruments/metrics',
+  SCREENER:             '/api/v1/screener',
+  SIGNAL_HISTORY:       '/api/v1/signals/history',
+  SIGNAL_HISTORY_DATES: '/api/v1/signals/history/dates',
   OPTION_CHAIN_EXPIRIES:'/api/v1/optionchain/expiries',
-  OPTION_CHAIN:       '/api/v1/optionchain',
+  OPTION_CHAIN:         '/api/v1/optionchain',
 } as const;
 
-// ── MomentumScorerService endpoints ──────────────────────────────────────────
+// ── RankingService endpoints ──────────────────────────────────────────────────
 
 export const SCORER = {
-  DASHBOARD:     '/scorer/dashboard',
-  SCORES_COMPUTE:'/scorer/scores/compute',
-  CONFIG:        '/scorer/config',
+  DASHBOARD:      '/scorer/dashboard',
+  SCORES_COMPUTE: '/scorer/scores/compute',
+  CONFIG:         '/scorer/config',
+} as const;
+
+// ── IndicatorsService endpoints ───────────────────────────────────────────────
+
+export const INDICATORS = {
+  COMPUTE:     '/indicators/compute',
+  COMPUTE_SSE: '/indicators/compute-sse',
 } as const;
 
 // ── Admin config endpoints ────────────────────────────────────────────────────

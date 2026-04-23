@@ -23,7 +23,6 @@ from ..repositories.symbol_repository import SymbolRepository, load_from_csv
 from ..repositories.sync_state_repository import SyncStateRepository
 from .daily_fetcher import DailyFetcher
 from .sync_state_writer import SyncStateWriter
-from .metrics_compute_service import MetricsComputeService
 from .minute_sync_service import MinuteSyncService
 from ._sync_orchestrator import run_daily_sync, build_gap_report
 
@@ -43,10 +42,6 @@ class SyncService:
         self._state   = SyncStateRepository(pool)
         writer        = SyncStateWriter(pool, self._prices, self._state)
         self._fetcher = DailyFetcher(YFinanceFetcher(), writer)
-        self._metrics = MetricsComputeService(
-            pool,
-            timeout_s=settings.db_metrics_recompute_timeout,
-        )
         self._minute  = MinuteSyncService(pool)
 
     async def bootstrap_symbols(self) -> int:
@@ -79,11 +74,6 @@ class SyncService:
         daily_ts_map    = {s.symbol: s.last_data_ts for s in daily_snapshots}
         logger.info("run_sync: sync state loaded — starting sync")
         return {"1d": await run_daily_sync(self._fetcher, all_symbols, daily_ts_map)}
-
-    async def recompute_metrics(self) -> dict:
-        """Recompute symbol_metrics table from price_data_daily."""
-        count = await self._metrics.recompute()
-        return {"rows_written": count}
 
     async def run_1min_sync(self) -> dict:
         """Sync 1-minute OHLCV for all F&O stocks from Dhan historical API."""

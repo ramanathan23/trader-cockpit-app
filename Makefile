@@ -3,7 +3,7 @@ PYTHON ?= python
 .PHONY: up down build logs shell-db \
         sync sync-1min reset-1min sync-all sync-gaps sync-status \
         symbols-load dhan-map dhan-status \
-        metrics-recompute \
+        indicators-compute indicators-compute-sse \
         scores-compute scores-top scores-dashboard \
         comfort-score comfort-score-date \
         models-list \
@@ -65,13 +65,19 @@ dhan-map:
 dhan-status:
 	curl -s http://localhost:8001/api/v1/symbols/dhan-status | python -m json.tool
 
-# Recompute symbol_metrics from price_data_daily
-metrics-recompute:
-	curl -s -X POST http://localhost:8001/api/v1/metrics/recompute | python -m json.tool
+# ── IndicatorsService (8005) ──────────────────────────────────────────────────
 
-# ── MomentumScorerService (8002) ──────────────────────────────────────────────
+# Compute all indicators + patterns for all symbols (background)
+indicators-compute:
+	curl -s -X POST http://localhost:8005/api/v1/compute | python -m json.tool
 
-# Trigger momentum score computation
+# Compute indicators + patterns: SSE stream (for UI pipeline)
+indicators-compute-sse:
+	curl -s -X POST http://localhost:8005/api/v1/compute-sse
+
+# ── RankingService (8002) ─────────────────────────────────────────────────────
+
+# Trigger ranking score computation
 scores-compute:
 	curl -s -X POST http://localhost:8002/api/v1/scores/compute | python -m json.tool
 

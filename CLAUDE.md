@@ -12,9 +12,10 @@
 |---|---|---|---|
 | CockpitUI | 3000 | Next.js 15, React 19, TS, Tailwind | Dashboard UI |
 | DataSyncService | 8001 | Python 3.12, FastAPI, yfinance, dhanhq | OHLCV fetch + persist |
-| MomentumScorerService | 8002 | Python 3.12, FastAPI, ta, pandas | Composite scores (0-100) |
-| LiveFeedService | 8003 | Python 3.12, FastAPI, dhanhq WS | Real-time tick feed + SSE |
+| RankingService | 8002 | Python 3.12, FastAPI, pandas | Rankings, scoring, watchlist, dashboard |
+| LiveFeedService | 8003 | Python 3.12, FastAPI, dhanhq WS | Real-time tick feed + SSE + intraday signals |
 | ModelingService | 8004 | Python 3.12, FastAPI, sklearn | ML model registry |
+| IndicatorsService | 8005 | Python 3.12, FastAPI, pandas-ta | All metrics, indicators, pattern detection |
 | notebooks | 8888 | Jupyter + Python 3.12 | Research/backtesting |
 
 ### Shared Infra
@@ -30,32 +31,35 @@
 ```
 yfinance / Dhan API
       ↓
-DataSyncService (8001) → TimescaleDB
+DataSyncService (8001) → TimescaleDB (price_data_daily, price_data_1min)
       ↓
-MomentumScorerService (8002) — reads price_data_1m/daily → writes momentum_scores
-LiveFeedService (8003) — WS ticks → SSE to UI
+IndicatorsService (8005) — reads OHLCV → writes symbol_metrics, symbol_indicators, symbol_patterns
+      ↓
+RankingService (8002) — reads symbol_indicators → writes daily_scores
+LiveFeedService (8003) — WS ticks → SSE to UI + intraday pattern detection
 ModelingService (8004) — reads DB → ComfortScorer predictions
       ↓
-CockpitUI (3000) — polls 8001-8004 APIs
+CockpitUI (3000) — polls 8001-8005 APIs (chained via SSE pipeline)
 ```
 
 ---
 
 ## DB SCHEMA (key tables)
 - `symbols` — NSE registry
-- `price_data_1m` — Hypertable, 1-min OHLCV
+- `price_data_1min` — Hypertable, 1-min OHLCV
 - `price_data_daily` — Hypertable, daily OHLCV
-- `momentum_scores` — RSI(30%) + MACD(30%) + ROC(25%) + VolRatio(15%)
-- `sync_state` — per-symbol last sync + status
-- `price_1m_hourly` — continuous aggregate view
+- `symbol_metrics` — structural metrics: week52, ATR, ADV, EMAs, OHLC periods (owned by IndicatorsService)
+- `symbol_indicators` — technical indicators: RSI, MACD, ADX, stage, BB, ATR ratio, RS vs Nifty (owned by IndicatorsService)
+- `symbol_patterns` — VCP + rectangle breakout detection (owned by IndicatorsService)
+- `daily_scores` — composite scores + rank + watchlist flag (owned by RankingService)
+- `sync_state` — per-symbol last sync + status (owned by DataSyncService)
 
 ---
 
 ## SCORING LOGIC
-- Min 30 bars required per symbol
-- Timeframes: `1d`, `1m`
-- Weights: RSI 0.30, MACD 0.30, ROC 0.25, VolumeRatio 0.15
-- `is_new_watchlist` flag affects dashboard ranking
+- RankingService reads pre-computed symbol_indicators (no raw OHLCV)
+- Component weights (equal 25%): Momentum, Trend, Volatility, Structure
+- Watchlist: top 25 per segment (FNO/equity) per stage (STAGE_2/STAGE_4)
 
 ---
 

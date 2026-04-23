@@ -1,13 +1,9 @@
 import logging
 from datetime import datetime, time as _time, timedelta, timezone
 
-import asyncio
-import json
+from fastapi import APIRouter, Query
 
-from fastapi import APIRouter, BackgroundTasks, Query
-from fastapi.responses import StreamingResponse
-
-from .deps import PriceRepoDep, SymbolRepoDep, SyncServiceDep
+from .deps import PriceRepoDep, SymbolRepoDep
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -33,36 +29,6 @@ async def get_daily_prices(
     return await repo.get_ohlcv(
         symbol.upper(), "1d", limit=limit, from_ts=from_ts, to_ts=to_ts
     )
-
-
-@router.post("/metrics/recompute",
-             summary="Recompute symbol_metrics from price_data_daily")
-async def recompute_metrics(background_tasks: BackgroundTasks, svc: SyncServiceDep):
-    background_tasks.add_task(svc.recompute_metrics)
-    return {"status": "started", "message": "Metrics recompute running in background."}
-
-
-@router.post("/metrics/recompute-sse",
-             summary="Recompute symbol_metrics: streams SSE progress until complete (use for pipeline UI)")
-async def recompute_metrics_sse(svc: SyncServiceDep):
-    async def generate():
-        yield f"data: {json.dumps({'status': 'running', 'message': 'Recomputing metrics…'})}\n\n"
-        task = asyncio.create_task(svc.recompute_metrics())
-        elapsed = 0
-        while not task.done():
-            await asyncio.sleep(3)
-            elapsed += 3
-            yield f"data: {json.dumps({'status': 'running', 'message': f'Recomputing… {elapsed}s'})}\n\n"
-        try:
-            result = task.result()
-            rows = result.get("rows_written", "?")
-            yield f"data: {json.dumps({'status': 'ok', 'message': f'Metrics recomputed: {rows} rows'})}\n\n"
-        except Exception as exc:
-            logger.exception("recompute_metrics_sse task failed")
-            yield f"data: {json.dumps({'status': 'error', 'message': str(exc) or type(exc).__name__})}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/data-quality/1min", summary="Staleness check on price_data_1min per symbol")

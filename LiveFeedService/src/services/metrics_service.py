@@ -32,7 +32,19 @@ class MetricsService:
             )
             return len(self._daily)
         logger.info("MetricsService: loading precomputed daily metrics from symbol_metrics…")
-        self._daily = await load_daily_metrics(self._pool)
+        for attempt in range(1, 4):
+            try:
+                self._daily = await load_daily_metrics(self._pool)
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    raise
+                wait = attempt * 5
+                logger.warning(
+                    "MetricsService: load attempt %d/3 failed (%s) — retrying in %ds",
+                    attempt, exc, wait,
+                )
+                await asyncio.sleep(wait)
         self._daily_date = today_ist
         logger.info(
             "MetricsService: loaded daily metrics for %d symbols (date=%s)",

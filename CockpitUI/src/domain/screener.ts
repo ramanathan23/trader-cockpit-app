@@ -22,6 +22,15 @@ export interface ScreenerRow {
   prev_week_low?: number;
   prev_month_high?: number;
   prev_month_low?: number;
+  stage?: string;
+  rs_vs_nifty?: number;
+  weekly_bias?: string;
+  is_watchlist?: boolean;
+  vcp_detected?: boolean;
+  vcp_contractions?: number;
+  rect_breakout?: boolean;
+  rect_range_pct?: number;
+  consolidation_days?: number;
   // Derived fields added client-side
   display_price?: number;
   f52h?: number;  // % below 52-week high  (negative = below, 0 = at high)
@@ -61,17 +70,23 @@ export const DEFAULT_RANGE: ScreenerRangeFilter = {
 };
 
 export type ScreenerPreset = 'near52h' | 'near52l' | 'nearpdh' | 'nearpdl'
-  | 'camH4x' | 'camS4x' | 'camH3rej' | 'camS3rej';
+  | 'camH4x' | 'camS4x' | 'camH3rej' | 'camS3rej'
+  | 'vcp' | 'rectBreakout' | 'stage2' | 'stage4' | 'watchlist';
 
 export const SCREENER_PRESETS: { key: ScreenerPreset; label: string; group?: string }[] = [
   { key: 'near52h', label: 'NEAR 52H' },
   { key: 'near52l', label: 'NEAR 52L' },
   { key: 'nearpdh', label: 'NEAR PDH' },
   { key: 'nearpdl', label: 'NEAR PDL' },
-  { key: 'camH4x',   label: 'CAM H4+', group: 'cam' },
-  { key: 'camS4x',   label: 'CAM S4-', group: 'cam' },
-  { key: 'camH3rej', label: 'CAM H3 REJ', group: 'cam' },
-  { key: 'camS3rej', label: 'CAM S3 REJ', group: 'cam' },
+  { key: 'camH4x',      label: 'CAM H4+',   group: 'cam' },
+  { key: 'camS4x',      label: 'CAM S4-',   group: 'cam' },
+  { key: 'camH3rej',    label: 'CAM H3 REJ', group: 'cam' },
+  { key: 'camS3rej',    label: 'CAM S3 REJ', group: 'cam' },
+  { key: 'stage2',      label: 'STAGE 2',   group: 'stage' },
+  { key: 'stage4',      label: 'STAGE 4',   group: 'stage' },
+  { key: 'vcp',         label: 'VCP',       group: 'pattern' },
+  { key: 'rectBreakout', label: 'RECT BRK', group: 'pattern' },
+  { key: 'watchlist',   label: 'WATCHLIST', group: 'watchlist' },
 ];
 
 /** Compute Camarilla pivot levels from previous-day OHLC. */
@@ -213,6 +228,12 @@ export function applyFilters(
     } else if (hasCamPreset) {
       return false; // no prev-day data → exclude
     }
+
+    if (presets.has('stage2')      && r.stage !== 'STAGE_2')  return false;
+    if (presets.has('stage4')      && r.stage !== 'STAGE_4')  return false;
+    if (presets.has('vcp')         && !r.vcp_detected)         return false;
+    if (presets.has('rectBreakout') && !r.rect_breakout)       return false;
+    if (presets.has('watchlist')   && !r.is_watchlist)         return false;
 
     return true;
   });

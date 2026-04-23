@@ -157,6 +157,46 @@ export const ScreenerFilters = memo(({
           ))}
         </div>
 
+        <div className="seg-group">
+          {SCREENER_PRESETS.filter(preset => preset.group === 'stage').map(preset => (
+            <button
+              key={preset.key}
+              type="button"
+              onClick={() => onPreset(preset.key)}
+              className={`seg-btn ${presets.has(preset.key) ? 'active' : ''}`}
+              style={presets.has(preset.key) ? { color: 'rgb(var(--bull))' } : undefined}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="seg-group">
+          {SCREENER_PRESETS.filter(preset => preset.group === 'pattern').map(preset => (
+            <button
+              key={preset.key}
+              type="button"
+              onClick={() => onPreset(preset.key)}
+              className={`seg-btn ${presets.has(preset.key) ? 'active' : ''}`}
+              style={presets.has(preset.key) ? { color: 'rgb(var(--accent))' } : undefined}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {SCREENER_PRESETS.filter(preset => preset.group === 'watchlist').map(preset => (
+          <button
+            key={preset.key}
+            type="button"
+            onClick={() => onPreset(preset.key)}
+            className={`seg-btn border border-border ${presets.has(preset.key) ? 'active' : ''}`}
+            style={presets.has(preset.key) ? { color: 'rgb(var(--amber))' } : undefined}
+          >
+            ★ {preset.label}
+          </button>
+        ))}
+
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"

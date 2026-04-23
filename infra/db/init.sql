@@ -3,11 +3,11 @@
 -- Each service also runs its own consolidated migration file on startup (idempotent).
 --
 -- Tables (by service):
---   DataSyncService  : symbols, price_data_daily, sync_state, index_futures,
---                      symbol_metrics, price_data_1min
---   MomentumScorer   : daily_scores
---   LiveFeedService  : candles_5min, index_future_candles_5min
---   ModelingService  : model_predictions
+--   DataSyncService    : symbols, price_data_daily, price_data_1min, sync_state, index_futures
+--   IndicatorsService  : symbol_metrics, symbol_indicators, symbol_patterns
+--   RankingService     : daily_scores
+--   LiveFeedService    : candles_5min, index_future_candles_5min
+--   ModelingService    : model_predictions
 
 -- ── Extensions ────────────────────────────────────────────────────────────────
 
@@ -127,52 +127,30 @@ CREATE INDEX IF NOT EXISTS idx_index_futures_active
     WHERE is_active = TRUE;
 
 -- ── symbol_metrics ────────────────────────────────────────────────────────────
+-- Structural price metrics: rolling windows, moving averages, prior-period OHLC.
+-- Owned by IndicatorsService.
 
 CREATE TABLE IF NOT EXISTS symbol_metrics (
-    symbol             VARCHAR(30) PRIMARY KEY,
-    computed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    -- 52-week range + core metrics
-    week52_high        NUMERIC(14,4),
-    week52_low         NUMERIC(14,4),
-    atr_14             NUMERIC(14,4),
-    adv_20_cr          NUMERIC(10,2),
-    trading_days       INTEGER,
-    -- prior period OHLC
-    prev_day_high      NUMERIC(14,4),
-    prev_day_low       NUMERIC(14,4),
-    prev_day_close     NUMERIC(14,4),
-    prev_week_high     NUMERIC(14,4),
-    prev_week_low      NUMERIC(14,4),
-    prev_month_high    NUMERIC(14,4),
-    prev_month_low     NUMERIC(14,4),
-    -- trend
-    ema_50             NUMERIC(14,4),
-    ema_200            NUMERIC(14,4),
-    -- weekly performance
-    week_return_pct    NUMERIC(9,4),
-    week_gain_pct      NUMERIC(9,4),
-    week_decline_pct   NUMERIC(9,4),
-    -- volatility compression (extended)
-    atr_5              NUMERIC(14,4),
-    adx_14             NUMERIC(6,2),
-    plus_di            NUMERIC(6,2),
-    minus_di           NUMERIC(6,2),
-    bb_width           NUMERIC(10,6),
-    kc_width           NUMERIC(10,6),
-    bb_squeeze         BOOLEAN      DEFAULT FALSE,
-    squeeze_days       INTEGER      DEFAULT 0,
-    nr7                BOOLEAN      DEFAULT FALSE,
-    atr_ratio          NUMERIC(6,4),
-    -- momentum indicators
-    rsi_14             NUMERIC(6,2),
-    macd_hist          NUMERIC(12,4),
-    roc_5              NUMERIC(9,4),
-    roc_20             NUMERIC(9,4),
-    roc_60             NUMERIC(9,4),
-    vol_ratio_20       NUMERIC(6,2),
-    rs_vs_nifty        NUMERIC(9,4),
-    weekly_bias        VARCHAR(10)  DEFAULT 'NEUTRAL',
-    stage              VARCHAR(10)
+    symbol           VARCHAR(30) PRIMARY KEY,
+    computed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    week52_high      NUMERIC(14,4),
+    week52_low       NUMERIC(14,4),
+    atr_14           NUMERIC(14,4),
+    adv_20_cr        NUMERIC(10,2),
+    trading_days     INTEGER,
+    prev_day_high    NUMERIC(14,4),
+    prev_day_low     NUMERIC(14,4),
+    prev_day_close   NUMERIC(14,4),
+    prev_week_high   NUMERIC(14,4),
+    prev_week_low    NUMERIC(14,4),
+    prev_month_high  NUMERIC(14,4),
+    prev_month_low   NUMERIC(14,4),
+    ema_20           NUMERIC(14,4),
+    ema_50           NUMERIC(14,4),
+    ema_200          NUMERIC(14,4),
+    week_return_pct  NUMERIC(9,4),
+    week_gain_pct    NUMERIC(9,4),
+    week_decline_pct NUMERIC(9,4)
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_computed_at
@@ -262,7 +240,61 @@ WHERE  symbol IN (
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- MomentumScorerService
+-- IndicatorsService
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ── symbol_indicators ─────────────────────────────────────────────────────────
+-- Per-symbol technical indicator values computed from daily OHLCV.
+-- Owned and written exclusively by IndicatorsService.
+
+CREATE TABLE IF NOT EXISTS symbol_indicators (
+    symbol          VARCHAR(30) PRIMARY KEY REFERENCES symbols(symbol),
+    computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    rsi_14          NUMERIC(6,2),
+    macd_hist       NUMERIC(12,6),
+    macd_hist_std   NUMERIC(12,6),
+    roc_5           NUMERIC(9,4),
+    roc_20          NUMERIC(9,4),
+    roc_60          NUMERIC(9,4),
+    vol_ratio_20    NUMERIC(8,4),
+    adx_14          NUMERIC(6,2),
+    plus_di         NUMERIC(6,2),
+    minus_di        NUMERIC(6,2),
+    weekly_bias     VARCHAR(10)  NOT NULL DEFAULT 'NEUTRAL',
+    bb_squeeze      BOOLEAN      NOT NULL DEFAULT FALSE,
+    squeeze_days    SMALLINT     NOT NULL DEFAULT 0,
+    nr7             BOOLEAN      NOT NULL DEFAULT FALSE,
+    atr_ratio       NUMERIC(8,4),
+    atr_5           NUMERIC(14,4),
+    bb_width        NUMERIC(10,6),
+    kc_width        NUMERIC(10,6),
+    rs_vs_nifty     NUMERIC(9,4),
+    stage           VARCHAR(20)  NOT NULL DEFAULT 'UNKNOWN'
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol_indicators_stage
+    ON symbol_indicators (stage)
+    WHERE stage IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_symbol_indicators_computed_at
+    ON symbol_indicators (computed_at DESC);
+
+-- ── symbol_patterns ───────────────────────────────────────────────────────────
+-- Daily pattern detection results per symbol.
+-- Owned and written exclusively by IndicatorsService.
+
+CREATE TABLE IF NOT EXISTS symbol_patterns (
+    symbol             VARCHAR(30) PRIMARY KEY REFERENCES symbols(symbol),
+    computed_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    vcp_detected       BOOLEAN     NOT NULL DEFAULT FALSE,
+    vcp_contractions   SMALLINT    NOT NULL DEFAULT 0,
+    rect_breakout      BOOLEAN     NOT NULL DEFAULT FALSE,
+    rect_range_pct     NUMERIC(6,2),
+    consolidation_days SMALLINT    NOT NULL DEFAULT 0
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- RankingService
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 -- ── daily_scores ──────────────────────────────────────────────────────────────

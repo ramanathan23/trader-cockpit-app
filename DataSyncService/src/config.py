@@ -5,8 +5,6 @@ from shared.base_config import BaseServiceSettings
 
 class Settings(BaseServiceSettings):
 
-    db_metrics_recompute_timeout: int = Field(default=0)
-
     # ── Sync tuning ───────────────────────────────────────────────────────────
     sync_batch_size: int = Field(default=50)
     sync_batch_delay_s: float = Field(default=1.5)

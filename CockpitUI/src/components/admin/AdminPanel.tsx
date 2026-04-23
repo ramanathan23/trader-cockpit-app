@@ -46,7 +46,7 @@ interface ServiceConfigDef {
 const NAV: NavItem[] = [
   { key: 'full-sync', label: 'Full Sync', caption: 'Run full pipeline' },
   { key: 'token',     label: 'Token',     caption: 'Update Dhan token' },
-  { key: 'config-scorer',   label: 'Scorer',   caption: 'Scoring params',   group: 'Config' },
+  { key: 'config-scorer',   label: 'Ranking',  caption: 'Scoring params',   group: 'Config' },
   { key: 'config-datasync', label: 'Data Sync',caption: 'Sync params',      group: 'Config' },
   { key: 'config-livefeed', label: 'Live Feed', caption: 'Signal thresholds',group: 'Config' },
   { key: 'config-modeling', label: 'Modeling',  caption: 'Model params',     group: 'Config' },
@@ -55,11 +55,11 @@ const NAV: NavItem[] = [
 // ── Pipeline steps ─────────────────────────────────────────────────────────────
 
 const PIPELINE_STEPS = [
-  { key: 'sync-daily',  label: 'Sync Daily Data',         endpoint: '/datasync/sync/run-sse',           method: 'POST' },
-  { key: 'sync-1min',   label: 'Sync 1-Min Data',          endpoint: '/datasync/sync/run-1min-sse',      method: 'POST' },
-  { key: 'metrics',     label: 'Recompute Metrics',        endpoint: '/datasync/metrics/recompute-sse',  method: 'POST' },
-  { key: 'scores',      label: 'Compute Momentum Scores',  endpoint: '/scorer/scores/compute-sse',       method: 'POST' },
-  { key: 'models',      label: 'Run Models',               endpoint: '/modeling/models',                  method: 'GET'  },
+  { key: 'sync-daily',  label: 'Sync Daily Data',      endpoint: '/datasync/sync/run-sse',       method: 'POST' },
+  { key: 'sync-1min',   label: 'Sync 1-Min Data',       endpoint: '/datasync/sync/run-1min-sse', method: 'POST' },
+  { key: 'indicators',  label: 'Compute Indicators',    endpoint: '/indicators/compute-sse',      method: 'POST' },
+  { key: 'scores',      label: 'Compute Rankings',      endpoint: '/scorer/scores/compute-sse',   method: 'POST' },
+  { key: 'models',      label: 'Run Models',            endpoint: '/modeling/models',              method: 'GET'  },
 ] as const;
 
 // ── Service config definitions ────────────────────────────────────────────────
@@ -67,20 +67,12 @@ const PIPELINE_STEPS = [
 const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
   'config-scorer': {
     id: 'scorer',
-    name: 'Momentum Scorer',
+    name: 'Ranking',
     endpoint: ADMIN_CONFIG.SCORER,
     fields: [
-      { key: 'score_lookback_bars',   label: 'History bars loaded',        type: 'int',   min: 50,  max: 500 },
-      { key: 'score_min_bars',        label: 'Min bars required',          type: 'int',   min: 10,  max: 100 },
       { key: 'score_concurrency',     label: 'Parallel scoring workers',   type: 'int',   min: 1,   max: 50 },
-      { key: 'rsi_period',            label: 'RSI period',                 type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
-      { key: 'macd_fast',             label: 'MACD fast EMA',              type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
-      { key: 'macd_slow',             label: 'MACD slow EMA',              type: 'int',   min: 5,   max: 200, group: 'Indicators' },
-      { key: 'macd_signal',           label: 'MACD signal EMA',            type: 'int',   min: 2,   max: 50,  group: 'Indicators' },
-      { key: 'vol_avg_period',        label: 'Volume avg period',          type: 'int',   min: 5,   max: 100, group: 'Indicators' },
-      { key: 'nifty500_benchmark',    label: 'Benchmark symbol',           type: 'string',          group: 'Filters' },
-      { key: 'min_avg_daily_turnover',label: 'Min avg daily turnover (₹)', type: 'float', min: 0,   group: 'Filters' },
-      { key: 'enable_comfort_scoring',label: 'Enable ML comfort scoring',  type: 'bool',            group: 'Filters' },
+      { key: 'min_adv_crores',        label: 'Min ADV (₹Cr)',              type: 'float', min: 0,   max: 100, step: 0.5 },
+      { key: 'enable_comfort_scoring',label: 'Enable ML comfort scoring',  type: 'bool' },
     ],
   },
   'config-datasync': {
@@ -343,8 +335,8 @@ function FullSyncPane() {
       return;
     }
 
-    // metrics → scores: sequential via SSE
-    const seqSteps = PIPELINE_STEPS.filter(s => s.key === 'metrics' || s.key === 'scores');
+    // indicators → scores: sequential via SSE
+    const seqSteps = PIPELINE_STEPS.filter(s => s.key === 'indicators' || s.key === 'scores');
     for (const step of seqSteps) {
       const startedAt = Date.now();
       setStep(step.key, 'running', null, startedAt);
@@ -401,7 +393,7 @@ function FullSyncPane() {
     <div>
       <SectionHeader
         title="Full Pipeline"
-        caption="Sync runs in parallel. Scores → metrics → models run sequentially after."
+        caption="Sync runs in parallel. Indicators → rankings → models run sequentially after."
       />
 
       {/* Run button */}
@@ -442,11 +434,11 @@ function FullSyncPane() {
           {node('sync-1min',  2)}
         </div>
 
-        {/* Merge → metrics */}
+        {/* Merge → indicators */}
         <MergeConnector />
-        {node('metrics', 3)}
+        {node('indicators', 3)}
 
-        {/* metrics → scores */}
+        {/* indicators → scores */}
         <VLine />
         {node('scores', 4)}
 
