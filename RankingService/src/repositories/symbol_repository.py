@@ -2,7 +2,14 @@
 Reads pre-computed indicator + structural data for all ranked symbols.
 RankingService never accesses raw OHLCV — indicators come from IndicatorsService.
 """
+from decimal import Decimal
+
 import asyncpg
+
+
+def _coerce(v):
+    """asyncpg returns Decimal for NUMERIC columns; scorers need float."""
+    return float(v) if isinstance(v, Decimal) else v
 
 
 class SymbolRepository:
@@ -28,7 +35,7 @@ class SymbolRepository:
                 JOIN symbols s ON s.symbol = si.symbol
                 WHERE COALESCE(sm.adv_20_cr, 0) >= $1
             """, min_adv_crores)
-        return [dict(r) for r in rows]
+        return [{k: _coerce(v) for k, v in dict(r).items()} for r in rows]
 
     async def fetch_candidate_counts(self, *, min_adv_crores: float = 1.0) -> dict:
         async with self._pool.acquire() as conn:
