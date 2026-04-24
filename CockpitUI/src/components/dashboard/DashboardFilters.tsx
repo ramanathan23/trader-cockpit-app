@@ -4,13 +4,16 @@ import { BarChart2, Crosshair, LayoutGrid, List, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/cn';
 import type { Segment, StageFilter } from './dashboardTypes';
 
-const STAGE_COLOR: Record<string, string> = { stage1: 'text-amber', stage2: 'text-bull', stage3: 'text-violet', stage4: 'text-bear' };
+const STAGE_COLOR: Record<StageFilter, string> = { all: '', stage2: 'text-bull', stage4: 'text-bear' };
+const STAGE_LABEL: Record<StageFilter, string> = { all: 'Stage', stage2: 'S2', stage4: 'S4' };
 
 interface DashboardFiltersProps {
   query: string;
   onQuery: (q: string) => void;
   watchlistOnly: boolean;
   onWatchlistOnly: (v: boolean) => void;
+  newOnly: boolean;
+  onNewOnly: (v: boolean) => void;
   segment: Segment;
   onSegment: (s: Segment) => void;
   stageFilter: StageFilter;
@@ -23,7 +26,7 @@ interface DashboardFiltersProps {
 
 /** Filter toolbar for the Dashboard panel — search, watchlist, segment, stage, view mode. */
 export function DashboardFilters({
-  query, onQuery, watchlistOnly, onWatchlistOnly,
+  query, onQuery, watchlistOnly, onWatchlistOnly, newOnly, onNewOnly,
   segment, onSegment, stageFilter, onStageFilter,
   viewMode, onViewMode, loading, onRefresh,
 }: DashboardFiltersProps) {
@@ -38,6 +41,13 @@ export function DashboardFilters({
           className={cn('seg-btn', watchlistOnly && 'active text-amber')}>Watchlist</button>
       </div>
 
+      {watchlistOnly && (
+        <div className="seg-group">
+          <button type="button" onClick={() => onNewOnly(!newOnly)}
+            className={cn('seg-btn', newOnly && 'active text-accent')}>NEW</button>
+        </div>
+      )}
+
       <div className="seg-group">
         {(['all', 'fno', 'equity'] as Segment[]).map(s => (
           <button key={s} type="button" onClick={() => onSegment(s)}
@@ -48,10 +58,10 @@ export function DashboardFilters({
       </div>
 
       <div className="seg-group">
-        {(['all','stage1','stage2','stage3','stage4'] as StageFilter[]).map((sf, i) => (
+        {(['all','stage2','stage4'] as StageFilter[]).map(sf => (
           <button key={sf} type="button" onClick={() => onStageFilter(sf)}
             className={cn('seg-btn', stageFilter === sf && 'active', stageFilter === sf && STAGE_COLOR[sf])}>
-            {sf === 'all' ? 'Stage' : `S${i}`}
+            {STAGE_LABEL[sf]}
           </button>
         ))}
       </div>

@@ -6,7 +6,7 @@ export type SortKey =
   | 'adv_20_cr' | 'comfort_score';
 
 export type Segment    = 'all' | 'fno' | 'equity';
-export type StageFilter = 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4';
+export type StageFilter = 'all' | 'stage2' | 'stage4';
 
 export const DASHBOARD_HEADERS: {
   key: string; label: string; title: string;

@@ -15,6 +15,7 @@ interface UseDashboardStateProps {
 /** Manages all filter, sort, and detail-modal state for the Dashboard panel. */
 export function useDashboardState({ scores, fetched, loading, loadDashboard }: UseDashboardStateProps) {
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [newOnly,       setNewOnly]       = useState(false);
   const [viewMode,      setViewMode]      = useState<'card' | 'table' | 'cluster' | 'charts'>('table');
   const [segment,       setSegment]       = useState<Segment>('all');
   const [stageFilter,   setStageFilter]   = useState<StageFilter>('all');
@@ -40,10 +41,9 @@ export function useDashboardState({ scores, fetched, loading, loadDashboard }: U
     let rows = scores;
     if (segment === 'fno')    rows = rows.filter(r => r.is_fno === true);
     if (segment === 'equity') rows = rows.filter(r => r.is_fno !== true);
-    if (stageFilter === 'stage1') rows = rows.filter(r => r.stage === 'STAGE_1');
     if (stageFilter === 'stage2') rows = rows.filter(r => r.stage === 'STAGE_2');
-    if (stageFilter === 'stage3') rows = rows.filter(r => r.stage === 'STAGE_3');
     if (stageFilter === 'stage4') rows = rows.filter(r => r.stage === 'STAGE_4');
+    if (newOnly) rows = rows.filter(r => r.is_new_watchlist);
     if (q) rows = rows.filter(r => r.symbol.includes(q) || r.company_name?.toUpperCase().includes(q));
     return [...rows].sort((a, b) => {
       const av = a[sortKey]; const bv = b[sortKey];
@@ -52,7 +52,7 @@ export function useDashboardState({ scores, fetched, loading, loadDashboard }: U
       if (bv == null) return -1;
       return sortAsc ? Number(av) - Number(bv) : Number(bv) - Number(av);
     });
-  }, [scores, segment, stageFilter, query, sortKey, sortAsc]);
+  }, [scores, segment, stageFilter, newOnly, query, sortKey, sortAsc]);
 
   const handleSort = useCallback((key: SortKey) => {
     setSortAsc(prev => sortKey === key ? !prev : key === 'rank');
@@ -61,6 +61,7 @@ export function useDashboardState({ scores, fetched, loading, loadDashboard }: U
 
   return {
     watchlistOnly, setWatchlistOnly,
+    newOnly, setNewOnly,
     viewMode, setViewMode,
     segment, setSegment,
     stageFilter, setStageFilter,

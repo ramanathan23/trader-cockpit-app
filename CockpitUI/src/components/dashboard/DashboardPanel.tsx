@@ -24,9 +24,10 @@ interface DashboardPanelProps {
 export function DashboardPanel({ active, initialData, marketOpen }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard(initialData);
   const state = useDashboardState({ scores, fetched, loading, loadDashboard });
-  const { watchlistOnly, setWatchlistOnly, viewMode, setViewMode, segment, setSegment,
-          stageFilter, setStageFilter, query, setQuery, sortKey, sortAsc, handleSort,
-          detailSymbol, setDetailSymbol, detailTab, openDetail, filtered } = state;
+  const { watchlistOnly, setWatchlistOnly, newOnly, setNewOnly, viewMode, setViewMode,
+          segment, setSegment, stageFilter, setStageFilter, query, setQuery,
+          sortKey, sortAsc, handleSort, detailSymbol, setDetailSymbol, detailTab, openDetail,
+          filtered } = state;
 
   useEffect(() => {
     if (active && !fetched && !loading) loadDashboard({ watchlistOnly });
@@ -57,6 +58,7 @@ export function DashboardPanel({ active, initialData, marketOpen }: DashboardPan
         <DashboardFilters
           query={query} onQuery={setQuery}
           watchlistOnly={watchlistOnly} onWatchlistOnly={setWatchlistOnly}
+          newOnly={newOnly} onNewOnly={setNewOnly}
           segment={segment} onSegment={setSegment}
           stageFilter={stageFilter} onStageFilter={setStageFilter}
           viewMode={viewMode} onViewMode={setViewMode}
