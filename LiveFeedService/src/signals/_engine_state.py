@@ -1,27 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
-
-from ..domain.drive_state import DriveState
-from ._vwap_state import VwapState
 
 
 @dataclass
 class _SessionState:
     """Mutable session-scoped state per symbol — reset at day start."""
-    day_open:          Optional[float]  = None
-    orb_high:          Optional[float]  = None
-    orb_low:           Optional[float]  = None
-    drive:             Optional[DriveState] = None
-    drive_signalled:   bool             = False
-    trailing_stop:     Optional[float]  = None
-    in_trade:          bool             = False
-    mid_session_start: bool             = False
-    vwap:              VwapState        = field(default_factory=VwapState)
-    orb_signalled:     bool             = False
-    week52_signalled:  bool             = False
-    range_signalled_at: Optional[str]  = None
-    cam_h4_signalled:  bool             = False
-    cam_l4_signalled:  bool             = False
-    _adv_warned:       bool             = False
+    range_signalled_at:  Optional[str] = None
+    cam_h4_signalled:    bool          = False
+    cam_l4_signalled:    bool          = False
+    cam_h4r_signalled:   bool          = False   # H4 reversal (wide range)
+    cam_l4r_signalled:   bool          = False   # L4 reversal (wide range)
+    _adv_warned:         bool          = False

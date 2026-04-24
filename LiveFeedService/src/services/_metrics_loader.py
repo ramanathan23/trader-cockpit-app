@@ -19,6 +19,7 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             sm.prev_day_high, sm.prev_day_low, sm.prev_day_close,
             sm.prev_week_high, sm.prev_week_low,
             sm.prev_month_high, sm.prev_month_low,
+            sm.cam_median_range_pct,
             COALESCE(si.weekly_bias, 'NEUTRAL') AS weekly_bias,
             si.stage,
             si.rs_vs_nifty,
@@ -66,7 +67,8 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             "rect_breakout":     bool(row["rect_breakout"])              if row["rect_breakout"] is not None else False,
             "rect_range_pct":    round(float(row["rect_range_pct"]), 4)  if row["rect_range_pct"] is not None else None,
             "consolidation_days": int(row["consolidation_days"])         if row["consolidation_days"] is not None else 0,
-            "is_watchlist":      bool(row["is_watchlist"]),
+            "is_watchlist":           bool(row["is_watchlist"]),
+            "cam_median_range_pct":   round(float(row["cam_median_range_pct"]), 6) if row["cam_median_range_pct"] else None,
         }
         for row in rows
     }

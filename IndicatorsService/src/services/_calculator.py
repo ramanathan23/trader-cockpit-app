@@ -77,6 +77,12 @@ def compute_metrics(symbol: str, df: pd.DataFrame) -> MetricsSnapshot | None:
         if week_high_5 > 0:
             week_decline_pct = round((week_high_5 - prev_day_close) / week_high_5 * 100, 4)
 
+    # Per-stock camarilla range baseline: median of (H-L)*1.1/close over last 60 days.
+    # LiveFeedService uses this as the narrow-vs-wide pivot threshold for each symbol.
+    lookback_60 = df.iloc[-60:] if n >= 60 else df
+    _cam_ranges = (lookback_60["high"].astype(float) - lookback_60["low"].astype(float)) * 1.1 / lookback_60["close"].astype(float).replace(0, float("nan"))
+    cam_median_range_pct = round(float(_cam_ranges.median()), 6) if not _cam_ranges.empty else None
+
     return MetricsSnapshot(
         symbol=symbol,
         week52_high=round(week52_high, 4),
@@ -97,6 +103,7 @@ def compute_metrics(symbol: str, df: pd.DataFrame) -> MetricsSnapshot | None:
         week_return_pct=week_return_pct,
         week_gain_pct=week_gain_pct,
         week_decline_pct=week_decline_pct,
+        cam_median_range_pct=cam_median_range_pct,
     )
 
 

@@ -53,16 +53,22 @@ def make_camarilla_signal(
     phase:       SessionPhase,
     bias:        IndexBias,
 ) -> Signal:
-    _REVERSAL   = {SignalType.CAM_H3_REVERSAL, SignalType.CAM_L3_REVERSAL}
-    is_long     = signal_type in {SignalType.CAM_H4_BREAKOUT, SignalType.CAM_L3_REVERSAL}
+    _REVERSAL = {
+        SignalType.CAM_H3_REVERSAL, SignalType.CAM_H4_REVERSAL,
+        SignalType.CAM_L3_REVERSAL, SignalType.CAM_L4_REVERSAL,
+    }
+    is_long     = signal_type in {SignalType.CAM_H4_BREAKOUT, SignalType.CAM_L3_REVERSAL,
+                                   SignalType.CAM_L4_REVERSAL}
     direction   = Direction.BULLISH if is_long else Direction.BEARISH
     is_reversal = signal_type in _REVERSAL
     margin      = candle.close * 0.005
     label_map   = {
-        SignalType.CAM_H3_REVERSAL:  "⚡ Cam H3 Reversal ↓",
-        SignalType.CAM_H4_BREAKOUT:  "⚡ Cam H4 Breakout ↑",
-        SignalType.CAM_L3_REVERSAL:  "⚡ Cam L3 Reversal ↑",
-        SignalType.CAM_L4_BREAKDOWN: "⚡ Cam L4 Breakdown ↓",
+        SignalType.CAM_H3_REVERSAL:  "Cam H3 Reversal ↓",
+        SignalType.CAM_H4_BREAKOUT:  "Cam H4 Breakout ↑",
+        SignalType.CAM_H4_REVERSAL:  "Cam H4 Reversal ↓",
+        SignalType.CAM_L3_REVERSAL:  "Cam L3 Reversal ↑",
+        SignalType.CAM_L4_BREAKDOWN: "Cam L4 Breakdown ↓",
+        SignalType.CAM_L4_REVERSAL:  "Cam L4 Reversal ↑",
     }
     base_score    = 1.5 if not is_reversal else 1.0
     index_aligned = bias.majority() in (direction, Direction.NEUTRAL)

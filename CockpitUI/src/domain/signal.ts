@@ -1,21 +1,11 @@
 import type { InstrumentMetrics } from './instrument_metrics';
 
 export type SignalType =
-  | 'OPEN_DRIVE_ENTRY' | 'DRIVE_FAILED' | 'EXIT' | 'TRAIL_UPDATE'
-  | 'SPIKE_BREAKOUT'
-  | 'ABSORPTION'
-  | 'EXHAUSTION_REVERSAL'
-  | 'FADE_ALERT'
-  | 'ORB_BREAKOUT' | 'ORB_BREAKDOWN'
   | 'RANGE_BREAKOUT' | 'RANGE_BREAKDOWN'
-  | 'WEEK52_BREAKOUT' | 'WEEK52_BREAKDOWN'
-  | 'PDH_BREAKOUT' | 'PDL_BREAKDOWN'
-  | 'VWAP_BREAKOUT' | 'VWAP_BREAKDOWN'
-  | 'CAM_H3_REVERSAL' | 'CAM_H4_BREAKOUT' | 'CAM_L3_REVERSAL' | 'CAM_L4_BREAKDOWN'
-  | 'GAP_UP' | 'GAP_DOWN';
+  | 'CAM_H3_REVERSAL' | 'CAM_H4_BREAKOUT' | 'CAM_H4_REVERSAL'
+  | 'CAM_L3_REVERSAL' | 'CAM_L4_BREAKDOWN' | 'CAM_L4_REVERSAL';
 
-export type SignalCategory =
-  | 'ALL' | 'DRIVE' | 'SPIKE' | 'ABS' | 'EXHAUST' | 'FADE' | 'BREAK' | 'VWAP' | 'CAM' | 'GAP';
+export type SignalCategory = 'ALL' | 'BREAK' | 'CAM';
 
 export type Direction = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
 
@@ -44,24 +34,12 @@ export interface Signal {
 }
 
 export const CATEGORY_TYPES: Record<Exclude<SignalCategory, 'ALL'>, SignalType[]> = {
-  DRIVE: ['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT', 'TRAIL_UPDATE'],
-  SPIKE: ['SPIKE_BREAKOUT'],
-  ABS: ['ABSORPTION'],
-  EXHAUST: ['EXHAUSTION_REVERSAL'],
-  FADE: ['FADE_ALERT'],
-  BREAK: [
-    'ORB_BREAKOUT',
-    'ORB_BREAKDOWN',
-    'RANGE_BREAKOUT',
-    'RANGE_BREAKDOWN',
-    'WEEK52_BREAKOUT',
-    'WEEK52_BREAKDOWN',
-    'PDH_BREAKOUT',
-    'PDL_BREAKDOWN',
+  BREAK: ['RANGE_BREAKOUT', 'RANGE_BREAKDOWN'],
+  CAM: [
+    'CAM_H4_BREAKOUT', 'CAM_L4_BREAKDOWN',
+    'CAM_H4_REVERSAL', 'CAM_H3_REVERSAL',
+    'CAM_L4_REVERSAL', 'CAM_L3_REVERSAL',
   ],
-  VWAP: ['VWAP_BREAKOUT', 'VWAP_BREAKDOWN'],
-  CAM: ['CAM_H3_REVERSAL', 'CAM_H4_BREAKOUT', 'CAM_L3_REVERSAL', 'CAM_L4_BREAKDOWN'],
-  GAP: ['GAP_UP', 'GAP_DOWN'],
 };
 
 interface SignalMeta {
@@ -72,30 +50,14 @@ interface SignalMeta {
 }
 
 const META: Record<SignalType, SignalMeta> = {
-  OPEN_DRIVE_ENTRY: { color: '#0dbd7d', tint: 'rgba(13,189,125,0.06)', short: 'DRIVE', desc: 'Strong open drive; ride the momentum.' },
-  SPIKE_BREAKOUT: { color: '#e8933a', tint: 'rgba(232,147,58,0.06)', short: 'SPIKE', desc: 'Volume shock breakout; watch follow-through.' },
-  ABSORPTION: { color: '#38b6ff', tint: 'rgba(56,182,255,0.06)', short: 'ABS', desc: 'Large flow absorbed near a level.' },
-  EXHAUSTION_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.06)', short: 'EXHAUST', desc: 'Climactic move that may reverse.' },
-  TRAIL_UPDATE: { color: '#5a7796', tint: 'transparent', short: 'TRAIL', desc: 'Trailing stop moved.' },
-  DRIVE_FAILED: { color: '#f23d55', tint: 'rgba(242,61,85,0.06)', short: 'FAILED', desc: 'Drive failed; price returned through the open.' },
-  EXIT: { color: '#f23d55', tint: 'rgba(242,61,85,0.06)', short: 'EXIT', desc: 'Position exit.' },
-  FADE_ALERT: { color: '#d4a63a', tint: 'rgba(212,166,58,0.06)', short: 'FADE', desc: 'Extended move with fading participation.' },
-  ORB_BREAKOUT: { color: '#0dbd7d', tint: 'rgba(13,189,125,0.05)', short: 'ORB+', desc: 'Closed above opening range high on volume.' },
-  ORB_BREAKDOWN: { color: '#f23d55', tint: 'rgba(242,61,85,0.05)', short: 'ORB-', desc: 'Closed below opening range low on volume.' },
-  RANGE_BREAKOUT: { color: '#1ad48d', tint: 'rgba(26,212,141,0.05)', short: 'RNG+', desc: 'Consolidation broke upward on volume.' },
-  RANGE_BREAKDOWN: { color: '#f75068', tint: 'rgba(247,80,104,0.05)', short: 'RNG-', desc: 'Consolidation broke downward on volume.' },
-  WEEK52_BREAKOUT: { color: '#0dbd7d', tint: 'rgba(13,189,125,0.08)', short: '52W+', desc: '52-week high breakout on volume.' },
-  WEEK52_BREAKDOWN: { color: '#f23d55', tint: 'rgba(242,61,85,0.08)', short: '52W-', desc: '52-week low breakdown on volume.' },
-  PDH_BREAKOUT: { color: '#25d692', tint: 'rgba(37,214,146,0.05)', short: 'PDH+', desc: 'Closed above previous day high on volume.' },
-  PDL_BREAKDOWN: { color: '#f23d55', tint: 'rgba(242,61,85,0.05)', short: 'PDL-', desc: 'Closed below previous day low on volume.' },
-  VWAP_BREAKOUT: { color: '#38b6ff', tint: 'rgba(56,182,255,0.05)', short: 'VWAP+', desc: 'Price crossed above VWAP on volume.' },
-  VWAP_BREAKDOWN: { color: '#e06cff', tint: 'rgba(224,108,255,0.05)', short: 'VWAP-', desc: 'Price crossed below VWAP on volume.' },
-  CAM_H3_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM H3', desc: 'Rejected at Camarilla H3.' },
-  CAM_H4_BREAKOUT: { color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM H4+', desc: 'Broke above Camarilla H4.' },
-  CAM_L3_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM L3', desc: 'Bounced from Camarilla L3.' },
-  CAM_L4_BREAKDOWN: { color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM L4-', desc: 'Broke below Camarilla L4.' },
-  GAP_UP:   { color: '#0dbd7d', tint: 'rgba(13,189,125,0.08)', short: 'GAP↑', desc: 'Opened ≥1.5% above previous close.' },
-  GAP_DOWN: { color: '#f23d55', tint: 'rgba(242,61,85,0.08)',  short: 'GAP↓', desc: 'Opened ≥1.5% below previous close.' },
+  RANGE_BREAKOUT:  { color: '#1ad48d', tint: 'rgba(26,212,141,0.05)',  short: 'RNG+',   desc: 'Rectangle consolidation broke upward on volume.' },
+  RANGE_BREAKDOWN: { color: '#f75068', tint: 'rgba(247,80,104,0.05)',  short: 'RNG-',   desc: 'Rectangle consolidation broke downward on volume.' },
+  CAM_H4_BREAKOUT: { color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM H4+', desc: 'Closed above Camarilla H4 on volume (narrow pivot range).' },
+  CAM_L4_BREAKDOWN:{ color: '#b490ff', tint: 'rgba(180,144,255,0.05)', short: 'CAM L4-', desc: 'Closed below Camarilla L4 on volume (narrow pivot range).' },
+  CAM_H4_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM H4↓', desc: 'Bearish pin bar rejection at Camarilla H4 (wide pivot range).' },
+  CAM_H3_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM H3↓', desc: 'Bearish pin bar rejection at Camarilla H3 (wide pivot range).' },
+  CAM_L4_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM L4↑', desc: 'Bullish pin bar bounce from Camarilla L4 (wide pivot range).' },
+  CAM_L3_REVERSAL: { color: '#9b72f7', tint: 'rgba(155,114,247,0.05)', short: 'CAM L3↑', desc: 'Bullish pin bar bounce from Camarilla L3 (wide pivot range).' },
 };
 
 export function signalColor(type: SignalType): string {

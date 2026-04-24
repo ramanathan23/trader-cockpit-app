@@ -148,9 +148,10 @@ CREATE TABLE IF NOT EXISTS symbol_metrics (
     ema_20           NUMERIC(14,4),
     ema_50           NUMERIC(14,4),
     ema_200          NUMERIC(14,4),
-    week_return_pct  NUMERIC(9,4),
-    week_gain_pct    NUMERIC(9,4),
-    week_decline_pct NUMERIC(9,4)
+    week_return_pct      NUMERIC(9,4),
+    week_gain_pct        NUMERIC(9,4),
+    week_decline_pct     NUMERIC(9,4),
+    cam_median_range_pct NUMERIC(10,6)
 );
 
 CREATE INDEX IF NOT EXISTS idx_symbol_metrics_computed_at

@@ -12,16 +12,12 @@ from ..domain.strength import Strength
 logger = logging.getLogger(__name__)
 
 _CONFLUENCE_EXEMPT = frozenset({
-    SignalType.TRAIL_UPDATE,
-    SignalType.EXIT,
-    SignalType.DRIVE_FAILED,
-    SignalType.FADE_ALERT,
     SignalType.CAM_H3_REVERSAL,
     SignalType.CAM_H4_BREAKOUT,
+    SignalType.CAM_H4_REVERSAL,
     SignalType.CAM_L3_REVERSAL,
     SignalType.CAM_L4_BREAKDOWN,
-    SignalType.GAP_UP,
-    SignalType.GAP_DOWN,
+    SignalType.CAM_L4_REVERSAL,
 })
 
 

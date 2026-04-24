@@ -65,15 +65,15 @@ class ScoreService(ScoreWatchlistMixin):
             return 0, msg
 
         stage_watchlist = self._build_watchlist_set(valid)
-        fno = [(s, b) for s, b, fno in valid if fno]
-        equity = [(s, b) for s, b, fno in valid if not fno]
+        fno = [(s, b) for s, b, fno, _ in valid if fno]
+        equity = [(s, b) for s, b, fno, _ in valid if not fno]
         fno.sort(key=lambda x: x[1].total_score, reverse=True)
         equity.sort(key=lambda x: x[1].total_score, reverse=True)
 
         scored = await self._persist_ranked([fno, equity], score_date, stage_watchlist)
 
-        s2 = sum(1 for _, b, _ in valid if b.stage == "STAGE_2")
-        s4 = sum(1 for _, b, _ in valid if b.stage == "STAGE_4")
+        s2 = sum(1 for _, b, _fno, _row in valid if b.stage == "STAGE_2")
+        s4 = sum(1 for _, b, _fno, _row in valid if b.stage == "STAGE_4")
         logger.info(
             "Scoring complete: %d/%d scored — Stage2=%d Stage4=%d watchlist=%d",
             scored, len(candidates), s2, s4, len(stage_watchlist),
@@ -86,14 +86,28 @@ class ScoreService(ScoreWatchlistMixin):
             breakdown = await asyncio.to_thread(compute_score_from_indicators, row)
         if breakdown is None:
             return None
-        return row["symbol"], breakdown, bool(row.get("is_fno", False))
+        return row["symbol"], breakdown, bool(row.get("is_fno", False)), row
+
+    @staticmethod
+    def _is_consolidating(row: dict) -> bool:
+        """BB squeeze OR NR7 OR active squeeze streak OR ATR contracting vs baseline."""
+        atr_ratio = row.get("atr_ratio")
+        return (
+            bool(row.get("bb_squeeze"))
+            or bool(row.get("nr7"))
+            or int(row.get("squeeze_days") or 0) >= 2
+            or (atr_ratio is not None and float(atr_ratio) < 0.8)
+        )
 
     def _build_watchlist_set(self, valid: list, per_segment: int = 25) -> set[str]:
         trimmed: set[str] = set()
         for is_fno in (True, False):
             for stage in _STAGE_WATCHLIST_STAGES:
                 top = sorted(
-                    [(s, b) for s, b, fno in valid if fno == is_fno and b.stage == stage],
+                    [
+                        (s, b) for s, b, fno, row in valid
+                        if fno == is_fno and b.stage == stage and self._is_consolidating(row)
+                    ],
                     key=lambda x: x[1].total_score,
                     reverse=True,
                 )[:per_segment]

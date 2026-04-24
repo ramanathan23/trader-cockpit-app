@@ -17,6 +17,7 @@ class IndicatorRepository:
                 s.prev_week_high, s.prev_week_low, s.prev_month_high, s.prev_month_low,
                 s.ema_20, s.ema_50, s.ema_200,
                 s.week_return_pct, s.week_gain_pct, s.week_decline_pct,
+                s.cam_median_range_pct,
             )
             for s in snapshots
         ]
@@ -28,35 +29,38 @@ class IndicatorRepository:
                     prev_day_high, prev_day_low, prev_day_close,
                     prev_week_high, prev_week_low, prev_month_high, prev_month_low,
                     ema_20, ema_50, ema_200,
-                    week_return_pct, week_gain_pct, week_decline_pct
+                    week_return_pct, week_gain_pct, week_decline_pct,
+                    cam_median_range_pct
                 ) VALUES (
                     $1, NOW(),
                     $2, $3, $4, $5, $6,
                     $7, $8, $9,
                     $10, $11, $12, $13,
                     $14, $15, $16,
-                    $17, $18, $19
+                    $17, $18, $19,
+                    $20
                 )
                 ON CONFLICT (symbol) DO UPDATE SET
-                    computed_at      = NOW(),
-                    week52_high      = EXCLUDED.week52_high,
-                    week52_low       = EXCLUDED.week52_low,
-                    atr_14           = EXCLUDED.atr_14,
-                    adv_20_cr        = EXCLUDED.adv_20_cr,
-                    trading_days     = EXCLUDED.trading_days,
-                    prev_day_high    = EXCLUDED.prev_day_high,
-                    prev_day_low     = EXCLUDED.prev_day_low,
-                    prev_day_close   = EXCLUDED.prev_day_close,
-                    prev_week_high   = EXCLUDED.prev_week_high,
-                    prev_week_low    = EXCLUDED.prev_week_low,
-                    prev_month_high  = EXCLUDED.prev_month_high,
-                    prev_month_low   = EXCLUDED.prev_month_low,
-                    ema_20           = EXCLUDED.ema_20,
-                    ema_50           = EXCLUDED.ema_50,
-                    ema_200          = EXCLUDED.ema_200,
-                    week_return_pct  = EXCLUDED.week_return_pct,
-                    week_gain_pct    = EXCLUDED.week_gain_pct,
-                    week_decline_pct = EXCLUDED.week_decline_pct
+                    computed_at          = NOW(),
+                    week52_high          = EXCLUDED.week52_high,
+                    week52_low           = EXCLUDED.week52_low,
+                    atr_14               = EXCLUDED.atr_14,
+                    adv_20_cr            = EXCLUDED.adv_20_cr,
+                    trading_days         = EXCLUDED.trading_days,
+                    prev_day_high        = EXCLUDED.prev_day_high,
+                    prev_day_low         = EXCLUDED.prev_day_low,
+                    prev_day_close       = EXCLUDED.prev_day_close,
+                    prev_week_high       = EXCLUDED.prev_week_high,
+                    prev_week_low        = EXCLUDED.prev_week_low,
+                    prev_month_high      = EXCLUDED.prev_month_high,
+                    prev_month_low       = EXCLUDED.prev_month_low,
+                    ema_20               = EXCLUDED.ema_20,
+                    ema_50               = EXCLUDED.ema_50,
+                    ema_200              = EXCLUDED.ema_200,
+                    week_return_pct      = EXCLUDED.week_return_pct,
+                    week_gain_pct        = EXCLUDED.week_gain_pct,
+                    week_decline_pct     = EXCLUDED.week_decline_pct,
+                    cam_median_range_pct = EXCLUDED.cam_median_range_pct
             """, records)
         return len(records)
 

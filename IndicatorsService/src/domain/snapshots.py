@@ -22,6 +22,7 @@ class MetricsSnapshot:
     week_return_pct: float | None = None
     week_gain_pct: float | None = None
     week_decline_pct: float | None = None
+    cam_median_range_pct: float | None = None
 
 
 @dataclass(frozen=True)

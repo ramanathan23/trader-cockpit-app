@@ -59,6 +59,9 @@ class Settings(BaseServiceSettings):
     # ── Gap detector ──────────────────────────────────────────────────────────────
     gap_min_pct:            float = Field(default=1.5)
 
+    # ── Camarilla ─────────────────────────────────────────────────────────────
+    cam_narrow_range_pct:   float = Field(default=0.03)  # H4-L4/prev_close ≤ → narrow (breakout)
+
     # ── Candle writer ─────────────────────────────────────────────────────────
     candle_write_batch_size: int   = Field(default=100)
     candle_write_flush_s:    float = Field(default=5.0)

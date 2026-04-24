@@ -13,7 +13,7 @@ const MAX_SIGNALS         = 200;
 const METRICS_BATCH_DELAY = 150; // ms — collect symbols then fire one POST
 
 /** Signal types that always create a new row (never dedup). */
-const ALWAYS_NEW_SIGNALS = new Set(['OPEN_DRIVE_ENTRY', 'DRIVE_FAILED', 'EXIT']);
+const ALWAYS_NEW_SIGNALS = new Set<string>();
 
 const DEFAULT_MARKET: MarketStatus = {
   phase: '--',

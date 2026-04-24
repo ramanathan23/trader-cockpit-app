@@ -4,14 +4,14 @@ import { memo } from 'react';
 import { signalColor } from '@/domain/signal';
 
 const SIGNAL_ROWS = [
-  { key: 'OPEN_DRIVE_ENTRY', label: 'Drive', desc: 'Open momentum through the early range.' },
-  { key: 'SPIKE_BREAKOUT', label: 'Spike', desc: 'Unusual volume with directional follow-through.' },
-  { key: 'ABSORPTION', label: 'Abs', desc: 'Heavy flow absorbed near a level.' },
-  { key: 'EXHAUSTION_REVERSAL', label: 'Exhaust', desc: 'Climactic move that may reverse.' },
-  { key: 'FADE_ALERT', label: 'Fade', desc: 'Extended move with fading participation.' },
-  { key: 'ORB_BREAKOUT', label: 'Breakout', desc: 'ORB, range, PDH/PDL, and 52-week breaks.' },
-  { key: 'VWAP_BREAKOUT', label: 'VWAP', desc: 'Reclaim or loss of the session benchmark.' },
-  { key: 'CAM_H4_BREAKOUT', label: 'CAM', desc: 'Camarilla H/L breakouts and reversals.' },
+  { key: 'RANGE_BREAKOUT',  label: 'RNG+',   desc: 'Rectangle consolidation broke upward on volume.' },
+  { key: 'RANGE_BREAKDOWN', label: 'RNG-',   desc: 'Rectangle consolidation broke downward on volume.' },
+  { key: 'CAM_H4_BREAKOUT', label: 'CAM H4+', desc: 'Closed above H4 on volume — narrow pivot range.' },
+  { key: 'CAM_L4_BREAKDOWN',label: 'CAM L4-', desc: 'Closed below L4 on volume — narrow pivot range.' },
+  { key: 'CAM_H4_REVERSAL', label: 'CAM H4↓', desc: 'Bearish pin rejection at H4 — wide pivot range.' },
+  { key: 'CAM_H3_REVERSAL', label: 'CAM H3↓', desc: 'Bearish pin rejection at H3 — wide pivot range.' },
+  { key: 'CAM_L3_REVERSAL', label: 'CAM L3↑', desc: 'Bullish pin bounce from L3 — wide pivot range.' },
+  { key: 'CAM_L4_REVERSAL', label: 'CAM L4↑', desc: 'Bullish pin bounce from L4 — wide pivot range.' },
 ] as const;
 
 const METRIC_ROWS = [

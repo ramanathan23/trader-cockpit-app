@@ -79,22 +79,17 @@ class _FeedSignalMixin:
             s       = self._settings
             metrics = self._metrics_service.get_daily(meta.symbol) or {}
             self._engines[meta.symbol] = SignalEngine(
-                symbol           = meta.symbol,
-                builder          = self._tick_router.get_builder(meta.dhan_security_id),
-                session_manager  = self._session_mgr,
-                drive_candles    = s.drive_candles,
-                min_body_ratio   = s.drive_min_body_ratio,
-                confirmed_thresh = s.drive_confirmed_thresh,
-                weak_thresh      = s.drive_weak_thresh,
-                range_lookback   = s.range_lookback,
-                range_vol_ratio  = s.range_vol_ratio,
-                range_max_pct    = s.range_max_pct,
-                vwap_hysteresis_min = s.vwap_hysteresis_min,
-                min_adv_cr       = s.min_adv_cr,
-                confluence_15m   = s.confluence_15m_candles,
-                confluence_1h    = s.confluence_1h_candles,
+                symbol                  = meta.symbol,
+                builder                 = self._tick_router.get_builder(meta.dhan_security_id),
+                session_manager         = self._session_mgr,
+                range_lookback          = s.range_lookback,
+                range_vol_ratio         = s.range_vol_ratio,
+                range_max_pct           = s.range_max_pct,
+                min_adv_cr              = s.min_adv_cr,
+                confluence_15m          = s.confluence_15m_candles,
+                confluence_1h           = s.confluence_1h_candles,
                 confluence_min_move_pct = s.confluence_min_move_pct,
-                gap_min_pct      = s.gap_min_pct,
-                daily_metrics    = metrics,
+                cam_narrow_range_pct    = s.cam_narrow_range_pct,
+                daily_metrics           = metrics,
             )
         return self._engines[meta.symbol]
