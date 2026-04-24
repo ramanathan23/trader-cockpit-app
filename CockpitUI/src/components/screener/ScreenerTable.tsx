@@ -5,7 +5,8 @@ import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { advColor } from '@/domain/signal';
-import { fmt2, fmtAdv } from '@/lib/fmt';
+import { LivePrice } from '@/components/ui/LivePrice';
+import { fmtAdv } from '@/lib/fmt';
 
 interface ScreenerTableProps {
   rows: ScreenerRow[];
@@ -17,6 +18,7 @@ interface ScreenerTableProps {
   onLoadMore?: () => void;
   onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
+  marketOpen: boolean;
 }
 
 const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right' }[] = [
@@ -65,7 +67,7 @@ function pctText(value?: number | null, forcePlus = false): string {
   return `${prefix}${value.toFixed(1)}%`;
 }
 
-export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, hasMore, onLoadMore, onChart, onOptionChain }: ScreenerTableProps) => {
+export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, hasMore, onLoadMore, onChart, onOptionChain, marketOpen }: ScreenerTableProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -129,7 +131,7 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
             <tr><td colSpan={COLS.length} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>
           )}
           {items.map(item => (
-            <ScreenerTableRow key={rows[item.index].symbol} row={rows[item.index]} onChart={onChart} onOptionChain={onOptionChain} />
+            <ScreenerTableRow key={rows[item.index].symbol} row={rows[item.index]} onChart={onChart} onOptionChain={onOptionChain} marketOpen={marketOpen} />
           ))}
           {items.length > 0 && (
             <tr><td colSpan={COLS.length} style={{ height: total - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>
@@ -141,10 +143,11 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
 });
 ScreenerTable.displayName = 'ScreenerTable';
 
-const ScreenerTableRow = memo(({ row: r, onChart }: {
+const ScreenerTableRow = memo(({ row: r, onChart, marketOpen }: {
   row: ScreenerRow;
   onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
+  marketOpen: boolean;
 }) => {
   const f52hColor =
     r.f52h == null ? 'rgb(var(--ghost))' :
@@ -171,7 +174,7 @@ const ScreenerTableRow = memo(({ row: r, onChart }: {
       <td className="text-right"><span className="num text-[11px] font-black" style={{ color: stageColor(r.stage) }}>{stageLabel(r.stage)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : 'rgb(var(--ghost))' }}>{fmtAdv(r.adv_20_cr)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: 'rgb(var(--amber))' }}>{r.atr_14 != null ? r.atr_14.toFixed(2) : '-'}</span></td>
-      <td className="text-right"><span className="num text-[13px] font-black text-fg">{fmt2(r.display_price)}</span></td>
+      <td className="text-right"><LivePrice ltp={r.current_price} prevClose={r.prev_day_close} marketOpen={marketOpen} className="text-[13px]" /></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>{pctText(r.dvwap_delta_pct, true)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>{pctText(r.ema50_delta_pct, true)}</span></td>
       <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>{pctText(r.ema200_delta_pct, true)}</span></td>

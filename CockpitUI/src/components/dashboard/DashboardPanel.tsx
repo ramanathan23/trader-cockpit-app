@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart2, ChevronDown, ChevronUp, ChevronsUpDown, Crosshair, LayoutGrid, List, RotateCcw } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useLivePrices } from '@/hooks/useLivePrices';
+import { LivePrice } from '@/components/ui/LivePrice';
+import type { LivePriceData } from '@/components/ui/LivePrice';
 import { ClusterChart } from './ClusterChart';
 import { WatchlistSplitView } from './WatchlistSplitView';
 import { SymbolModal } from './SymbolModal';
@@ -29,6 +32,7 @@ type StageFilter = 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4';
 interface DashboardPanelProps {
   active: boolean;
   initialData?: DashboardResponse | null;
+  marketOpen: boolean;
 }
 
 const HEADERS: { key: string; label: string; title: string; align: 'left' | 'right' | 'center'; sortable: boolean }[] = [
@@ -48,7 +52,7 @@ const HEADERS: { key: string; label: string; title: string; align: 'left' | 'rig
   { key: 'oc', label: 'OC', title: 'Option chain', align: 'center', sortable: false },
 ];
 
-export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
+export function DashboardPanel({ active, initialData, marketOpen }: DashboardPanelProps) {
   const { stats, scores, loading, fetched, loadDashboard } = useDashboard(initialData);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'cluster' | 'charts'>('table');
@@ -123,6 +127,9 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
 
   const virtualItems = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
+
+  const filteredSymbols = useMemo(() => filtered.slice(0, 200).map(r => r.symbol), [filtered]);
+  const livePrices = useLivePrices(filteredSymbols, marketOpen);
 
   const derivedStats = useMemo(() => {
     const withComfort = filtered.filter(r => r.comfort_score != null);
@@ -241,7 +248,7 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
       </div>
 
       {viewMode === 'charts' ? (
-        <WatchlistSplitView scores={filtered} loading={loading} />
+        <WatchlistSplitView scores={filtered} loading={loading} marketOpen={marketOpen} livePrices={livePrices} />
       ) : viewMode === 'cluster' ? (
         <ClusterChart scores={filtered} loading={loading} />
       ) : viewMode === 'card' ? (
@@ -256,6 +263,8 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
               <ScoreCard
                 key={row.symbol}
                 row={row}
+                livePrice={livePrices[row.symbol]}
+                marketOpen={marketOpen}
                 onOpen={openDetail}
               />
             ))}
@@ -301,6 +310,8 @@ export function DashboardPanel({ active, initialData }: DashboardPanelProps) {
                   <ScoreRow
                     key={row.symbol}
                     row={row}
+                    livePrice={livePrices[row.symbol]}
+                    marketOpen={marketOpen}
                     onOpen={openDetail}
                   />
                 );
@@ -350,9 +361,13 @@ function StatCard({ label, value, tone, title }: { label: string; value: string 
 
 function ScoreCard({
   row,
+  livePrice,
+  marketOpen,
   onOpen,
 }: {
   row: ScoredSymbol;
+  livePrice?: LivePriceData;
+  marketOpen: boolean;
   onOpen: (sym: string, tab?: 'chart' | 'oc') => void;
 }) {
   return (
@@ -370,7 +385,14 @@ function ScoreCard({
             {row.bb_squeeze && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--violet))' }}>SQ{row.squeeze_days}</span>}
             {row.nr7 && <span className="chip h-4 min-h-0 px-1" style={{ color: 'rgb(var(--sky))' }}>NR7</span>}
           </div>
-          {row.company_name && <div className="mt-0.5 max-w-full truncate text-[10px] text-ghost">{row.company_name}</div>}
+          <div className="mt-0.5 flex items-center gap-2">
+            <LivePrice
+              ltp={livePrice?.ltp ?? undefined}
+              prevClose={livePrice?.prevClose ?? row.prev_day_close ?? undefined}
+              marketOpen={marketOpen}
+            />
+            {row.company_name && <span className="max-w-full truncate text-[10px] text-ghost">{row.company_name}</span>}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="num text-[10px] text-ghost">#{row.rank}</span>
@@ -393,11 +415,11 @@ function ScoreCard({
       </div>
 
       <div className="mt-2 flex items-center justify-between text-[11px]">
-        <span className="num text-ghost">ADX <span className="text-fg">{row.adx_14 != null ? row.adx_14.toFixed(0) : '-'}</span></span>
-        <span className="num text-ghost">RSI <span style={{ color: rsiColor(row.rsi_14) }}>{row.rsi_14 != null ? row.rsi_14.toFixed(0) : '-'}</span></span>
-        <span className="num text-ghost">ADV <span className="text-fg">{fmtAdv(row.adv_20_cr)}</span></span>
+        <span className="num text-ghost" title="ADX(14) — trend strength">ADX <span className="text-fg">{row.adx_14 != null ? row.adx_14.toFixed(0) : '-'}</span></span>
+        <span className="num text-ghost" title="RSI(14) — momentum oscillator">RSI <span style={{ color: rsiColor(row.rsi_14) }}>{row.rsi_14 != null ? row.rsi_14.toFixed(0) : '-'}</span></span>
+        <span className="num text-ghost" title="Average daily value (20-day)">ADV <span className="text-fg">{fmtAdv(row.adv_20_cr)}</span></span>
         {row.comfort_score != null && (
-          <span className="num text-ghost" title={row.comfort_interpretation ?? undefined}>
+          <span className="num text-ghost" title={row.comfort_interpretation ?? 'Comfort score — hold-ease index (0–100)'}>
             C <span style={{ color: comfortColor(row.comfort_score) }}>{row.comfort_score.toFixed(0)}</span>
           </span>
         )}
@@ -410,9 +432,13 @@ function ScoreCard({
 
 function ScoreRow({
   row,
+  livePrice,
+  marketOpen,
   onOpen,
 }: {
   row: ScoredSymbol;
+  livePrice?: LivePriceData;
+  marketOpen: boolean;
   onOpen: (sym: string, tab?: 'chart' | 'oc') => void;
 }) {
   return (
@@ -427,6 +453,11 @@ function ScoreRow({
             {row.is_new_watchlist && <span className="chip h-5 min-h-0 px-1.5" title="New to watchlist in the last 7 days" style={{ color: 'rgb(var(--accent))' }}>NEW</span>}
             {row.bb_squeeze && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--violet))' }}>SQ{row.squeeze_days}</span>}
             {row.nr7 && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--sky))' }}>NR7</span>}
+            <LivePrice
+              ltp={livePrice?.ltp ?? undefined}
+              prevClose={livePrice?.prevClose ?? row.prev_day_close ?? undefined}
+              marketOpen={marketOpen}
+            />
           </div>
           {row.company_name && <div className="max-w-[220px] truncate text-[10px] text-ghost">{row.company_name}</div>}
         </td>

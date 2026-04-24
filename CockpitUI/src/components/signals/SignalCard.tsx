@@ -12,6 +12,7 @@ import {
   type Signal,
 } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
+import { LivePrice } from '@/components/ui/LivePrice';
 import { fmt2, fmtAdv, spct, timeStr } from '@/lib/fmt';
 
 const BiasTag = memo(({ label, bias }: { label: string; bias: Direction }) => (
@@ -112,13 +113,14 @@ NoteBar.displayName = 'NoteBar';
 interface SignalCardProps {
   signal: Signal;
   metrics?: InstrumentMetrics | null;
+  marketOpen: boolean;
   note?: string;
   onSave: (id: string, text: string) => void;
   onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
 }
 
-export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, onOptionChain }: SignalCardProps) => {
+export const SignalCard = memo(({ signal: s, metrics: m, marketOpen, note, onSave, onChart, onOptionChain }: SignalCardProps) => {
   const color = signalColor(s.signal_type);
   const directionColor = dirColor(s.direction);
 
@@ -139,7 +141,10 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
               {s._count > 1 && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--amber))' }}>{s._count}x</span>}
               {m?.is_fno && <span className="chip h-5 min-h-0 px-1.5" style={{ color: 'rgb(var(--violet))' }}>F&O</span>}
             </div>
-            <div className="mt-1 text-[10px] text-ghost">{timeStr(s.timestamp)}</div>
+            <div className="mt-0.5 flex items-center gap-2">
+              <LivePrice ltp={m?.day_close} prevClose={m?.prev_day_close} marketOpen={marketOpen} />
+              <span className="text-[10px] text-ghost">{timeStr(s.timestamp)}</span>
+            </div>
           </div>
 
           <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -238,7 +243,7 @@ export const SignalCard = memo(({ signal: s, metrics: m, note, onSave, onChart, 
             </button>
           )}
         </div>
-        {s.score != null && <span className="chip num h-5 min-h-0 px-1.5">Score {s.score.toFixed(0)}</span>}
+        {s.score != null && <span className="chip num h-5 min-h-0 px-1.5" title="Signal quality score (0–100)">Score {s.score.toFixed(0)}</span>}
       </div>
 
       <NoteBar id={s.id} note={note} onSave={onSave} />

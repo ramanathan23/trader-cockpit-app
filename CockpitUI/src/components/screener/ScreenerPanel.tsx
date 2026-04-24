@@ -13,9 +13,10 @@ interface ScreenerPanelProps {
   active: boolean;
   viewMode: 'card' | 'table';
   onViewMode: (v: 'card' | 'table') => void;
+  marketOpen: boolean;
 }
 
-export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelProps) {
+export function ScreenerPanel({ active, viewMode, onViewMode, marketOpen }: ScreenerPanelProps) {
   const effectiveMode: 'card' | 'table' = viewMode === 'table' ? 'table' : 'card';
 
   const {
@@ -54,8 +55,8 @@ export function ScreenerPanel({ active, viewMode, onViewMode }: ScreenerPanelPro
       <ScreenerStatsBar stats={breadth} total={totalCount} />
 
       {effectiveMode === 'table'
-        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} />
-        : <ScreenerCards rows={filteredRows} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} />
+        ? <ScreenerTable rows={filteredRows} sortCol={sortCol} sortAsc={sortAsc} onSort={sortBy} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} marketOpen={marketOpen} />
+        : <ScreenerCards rows={filteredRows} loading={loading} hasMore={hasMore} onLoadMore={loadMore} onChart={setDetailSymbol} marketOpen={marketOpen} />
       }
 
       {detailSymbol && (

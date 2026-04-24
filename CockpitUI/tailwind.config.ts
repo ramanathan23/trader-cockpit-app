@@ -45,11 +45,16 @@ const config: Config = {
           '0%, 100%': { opacity: '1' },
           '50%':      { opacity: '0.25' },
         },
+        'price-blink': {
+          '0%, 100%': { opacity: '1' },
+          '50%':      { opacity: '0.35' },
+        },
       },
       animation: {
         'enter':    'enter 0.15s cubic-bezier(0.25,0.1,0.25,1)',
         'fade-up':  'fade-up 0.15s ease',
-        'blink':    'blink 1.2s ease-in-out infinite',
+        'blink':       'blink 1.2s ease-in-out infinite',
+        'price-blink': 'price-blink 2s ease-in-out infinite',
       },
       fontSize: {
         'ticker': ['17px', { lineHeight: '1.2', fontWeight: '750', letterSpacing: '0' }],

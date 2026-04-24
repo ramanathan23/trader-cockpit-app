@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import type { ScoredSymbol } from '@/domain/dashboard';
+import { LivePrice } from '@/components/ui/LivePrice';
+import type { LivePriceData } from '@/components/ui/LivePrice';
 import { DailyChart } from './DailyChart';
 
 function stageColor(stage: string | null | undefined): string {
@@ -35,9 +37,11 @@ function comfortColor(v: number | null | undefined): string {
 interface WatchlistSplitViewProps {
   scores: ScoredSymbol[];
   loading: boolean;
+  marketOpen: boolean;
+  livePrices: Record<string, LivePriceData>;
 }
 
-export function WatchlistSplitView({ scores, loading }: WatchlistSplitViewProps) {
+export function WatchlistSplitView({ scores, loading, marketOpen, livePrices }: WatchlistSplitViewProps) {
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,18 +102,24 @@ export function WatchlistSplitView({ scores, loading }: WatchlistSplitViewProps)
                   )}
                 </div>
                 <div className="flex items-center gap-2 font-mono text-[9px] text-ghost">
-                  <span>
+                  <LivePrice
+                    ltp={livePrices[row.symbol]?.ltp ?? undefined}
+                    prevClose={livePrices[row.symbol]?.prevClose ?? row.prev_day_close ?? undefined}
+                    marketOpen={marketOpen}
+                  />
+                  <span title="Total score (0–100)">
                     T{' '}
                     <span style={{ color: 'rgb(var(--accent))' }}>{row.total_score.toFixed(0)}</span>
                   </span>
                   {row.comfort_score != null && (
-                    <span>
+                    <span title="Comfort score — hold-ease index (0–100)">
                       C{' '}
                       <span style={{ color: comfortColor(row.comfort_score) }}>{row.comfort_score.toFixed(0)}</span>
                     </span>
                   )}
                   <span
                     className="font-black"
+                    title="Weinstein stage"
                     style={{ color: stageColor(row.stage) }}
                   >
                     {stageLabel(row.stage)}

@@ -13,6 +13,7 @@ import { SignalRow } from './SignalRow';
 interface SignalFeedProps {
   signals: Signal[];
   metricsCache: Record<string, InstrumentMetrics | null>;
+  marketOpen: boolean;
   notes: Record<string, string>;
   onSaveNote: (id: string, text: string) => void;
   category: SignalCategory;
@@ -88,6 +89,7 @@ NoteModal.displayName = 'NoteModal';
 export const SignalFeed = memo(({
   signals,
   metricsCache,
+  marketOpen,
   notes,
   onSaveNote,
   category,
@@ -270,6 +272,7 @@ export const SignalFeed = memo(({
                   key={sortedFiltered[item.index].id}
                   signal={sortedFiltered[item.index]}
                   metrics={metricsCache[sortedFiltered[item.index].symbol]}
+                  marketOpen={marketOpen}
                   note={notes[sortedFiltered[item.index].id]}
                   onNoteClick={openNote}
                   onChart={openChart}
@@ -325,6 +328,7 @@ export const SignalFeed = memo(({
               key={signal.id}
               signal={signal}
               metrics={metricsCache[signal.symbol]}
+              marketOpen={marketOpen}
               note={notes[signal.id]}
               onSave={onSaveNote}
               onChart={openChart}

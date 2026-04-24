@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { filterSignals, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import type { DashboardResponse } from '@/domain/dashboard';
+import type { MarketPhase } from '@/domain/market';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
@@ -19,6 +20,8 @@ import { AdminPanel } from '@/components/admin/AdminPanel';
 import { ConnectionDot } from '@/components/ui/ConnectionDot';
 
 type AppView = 'dashboard' | 'live' | 'history' | 'screener' | 'admin';
+
+const OPEN_PHASES = new Set<MarketPhase>(['DRIVE_WINDOW', 'EXECUTION', 'CLOSE_MOMENTUM']);
 type ThemeMode = 'dark' | 'light';
 
 const VIEWS: { key: AppView; label: string; caption: string }[] = [
@@ -185,6 +188,7 @@ export function CockpitApp({
       .catch(() => {});
   }, [history.signals, metricsCache, mergeMetrics]);
 
+  const marketOpen = OPEN_PHASES.has(marketStatus.phase) && connState === 'connected';
   const currentSignals = view === 'history' ? history.signals : signals;
 
   const filteredCount = useMemo(
@@ -252,10 +256,10 @@ export function CockpitApp({
 
             {/* Always mounted — no remount on tab switch, state preserved */}
             <div className={view !== 'dashboard' ? 'hidden' : 'contents'}>
-              <DashboardPanel active={view === 'dashboard'} initialData={initialDashboard} />
+              <DashboardPanel active={view === 'dashboard'} initialData={initialDashboard} marketOpen={marketOpen} />
             </div>
             <div className={view !== 'screener' ? 'hidden' : 'contents'}>
-              <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} />
+              <ScreenerPanel active={view === 'screener'} viewMode={viewMode} onViewMode={setViewMode} marketOpen={marketOpen} />
             </div>
             <div className={view !== 'admin' ? 'hidden' : 'contents'}>
               <AdminPanel initialConfigs={initialConfigs} />
@@ -265,6 +269,7 @@ export function CockpitApp({
               <SignalFeed
                 signals={currentSignals}
                 metricsCache={metricsCache}
+                marketOpen={marketOpen}
                 notes={notes}
                 onSaveNote={saveNote}
                 category={category}
