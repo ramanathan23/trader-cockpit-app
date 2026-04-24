@@ -18,7 +18,11 @@ async def trigger_compute(
     background_tasks: BackgroundTasks,
     svc: ScoreServiceDep,
 ):
-    background_tasks.add_task(svc.compute_unified)
+    async def _run():
+        count, msg = await svc.compute_unified()
+        logger.info("Background score run: %s", msg)
+
+    background_tasks.add_task(_run)
     return {"status": "started", "scorer": "unified"}
 
 
@@ -33,8 +37,9 @@ async def trigger_compute_sse(svc: ScoreServiceDep):
             elapsed += 3
             yield f"data: {json.dumps({'status': 'running', 'message': f'Scoring symbols… {elapsed}s'})}\n\n"
         try:
-            count = task.result()
-            yield f"data: {json.dumps({'status': 'ok', 'message': f'Scored {count} symbols'})}\n\n"
+            count, msg = task.result()
+            status = "ok" if count > 0 else "error"
+            yield f"data: {json.dumps({'status': status, 'message': msg})}\n\n"
         except Exception as exc:
             logger.exception("compute_sse task failed")
             yield f"data: {json.dumps({'status': 'error', 'message': str(exc) or type(exc).__name__})}\n\n"

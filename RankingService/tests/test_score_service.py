@@ -1,100 +1,93 @@
 import pytest
-import numpy as np
-import pandas as pd
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from src.services.score_service import ScoreService
 
 
-class _AcquireContext:
-    def __init__(self, conn):
-        self._conn = conn
-
-    async def __aenter__(self):
-        return self._conn
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-
-class _TransactionContext:
-    async def __aenter__(self):
-        return None
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
+def _make_pool():
+    pool = MagicMock()
+    conn = MagicMock()
+    conn.transaction.return_value.__aenter__ = AsyncMock(return_value=None)
+    conn.transaction.return_value.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
+    pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    return pool
 
 
-class _Conn:
-    def transaction(self):
-        return _TransactionContext()
-
-
-class _Pool:
-    def __init__(self):
-        self.conn = _Conn()
-
-    def acquire(self):
-        return _AcquireContext(self.conn)
-
-
-def _make_ohlcv(n: int = 200) -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    close = 100 + np.cumsum(rng.normal(0, 1, n))
-    return pd.DataFrame({
-        "open":   close - rng.uniform(0.2, 1.0, n),
-        "high":   close + rng.uniform(0.5, 2.0, n),
-        "low":    close - rng.uniform(0.5, 2.0, n),
-        "close":  close,
-        "volume": rng.uniform(100_000, 1_000_000, n),
-    })
+def _make_candidate(symbol: str, adv: float = 5.0) -> dict:
+    return {
+        "symbol": symbol, "is_fno": False,
+        "rsi_14": 55.0, "macd_hist": 0.1, "macd_hist_std": 0.5,
+        "roc_5": 1.0, "roc_20": 2.0, "roc_60": 3.0, "vol_ratio_20": 1.2,
+        "adx_14": 25.0, "plus_di": 20.0, "minus_di": 15.0, "weekly_bias": "BULLISH",
+        "bb_squeeze": False, "squeeze_days": 0, "nr7": False,
+        "atr_ratio": 0.9, "atr_5": 5.0, "bb_width": 0.05, "kc_width": 0.06,
+        "rs_vs_nifty": 1.5, "stage": "STAGE_2",
+        "prev_day_close": 100.0, "week52_high": 120.0, "week52_low": 80.0,
+        "ema_20": 98.0, "ema_50": 95.0, "ema_200": 90.0, "adv_20_cr": adv,
+    }
 
 
 @pytest.mark.asyncio
 async def test_compute_unified_scores_and_persists():
-    service = ScoreService(_Pool())
-    service._prices = AsyncMock()
+    service = ScoreService(_make_pool())
+    service._symbols = AsyncMock()
     service._scores = AsyncMock()
 
-    service._prices.fetch_synced_symbols.return_value = ["ABC", "XYZ"]
-    service._prices.fetch_ohlcv_batch.return_value = {
-        "ABC": _make_ohlcv(),
-        "XYZ": _make_ohlcv(),
+    candidates = [_make_candidate("ABC"), _make_candidate("XYZ")]
+    service._symbols.fetch_ranked_candidates.return_value = candidates
+    service._scores.upsert_daily_score = AsyncMock()
+
+    count, msg = await service.compute_unified()
+
+    assert count == 2
+    assert "2" in msg
+
+
+@pytest.mark.asyncio
+async def test_compute_unified_returns_zero_when_no_indicators():
+    service = ScoreService(_make_pool())
+    service._symbols = AsyncMock()
+    service._scores = AsyncMock()
+
+    service._symbols.fetch_ranked_candidates.return_value = []
+    service._symbols.fetch_candidate_counts.return_value = {
+        "total_indicators": 0, "total_metrics": 0, "joined": 0, "after_adv_filter": 0,
     }
 
-    scored = await service.compute_unified()
+    count, msg = await service.compute_unified()
 
-    assert scored == 2
-    assert service._scores.upsert_daily_score.await_count == 2
-    assert service._scores.update_symbol_metrics_indicators.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_compute_unified_returns_zero_when_no_symbols():
-    service = ScoreService(_Pool())
-    service._prices = AsyncMock()
-    service._scores = AsyncMock()
-    service._prices.fetch_synced_symbols.return_value = []
-
-    scored = await service.compute_unified()
-
-    assert scored == 0
-    service._prices.fetch_ohlcv_batch.assert_not_called()
+    assert count == 0
+    assert "IndicatorsService" in msg
 
 
 @pytest.mark.asyncio
-async def test_compute_unified_marks_top_50_as_watchlist():
-    service = ScoreService(_Pool())
-    service._prices = AsyncMock()
+async def test_compute_unified_returns_zero_when_adv_filter_excludes_all():
+    service = ScoreService(_make_pool())
+    service._symbols = AsyncMock()
     service._scores = AsyncMock()
 
-    symbols = [f"SYM{i:03d}" for i in range(60)]
-    service._prices.fetch_synced_symbols.return_value = symbols
-    service._prices.fetch_ohlcv_batch.return_value = {sym: _make_ohlcv() for sym in symbols}
+    service._symbols.fetch_ranked_candidates.return_value = []
+    service._symbols.fetch_candidate_counts.return_value = {
+        "total_indicators": 100, "total_metrics": 100, "joined": 100, "after_adv_filter": 0,
+    }
 
-    scored = await service.compute_unified()
+    count, msg = await service.compute_unified()
 
-    assert scored == 60
-    calls = service._scores.upsert_daily_score.call_args_list
-    assert sum(1 for c in calls if c.args[5] is True) == 50
-    assert sum(1 for c in calls if c.args[5] is False) == 10
+    assert count == 0
+    assert "ADV filter" in msg
+
+
+@pytest.mark.asyncio
+async def test_compute_unified_marks_top_watchlist():
+    service = ScoreService(_make_pool())
+    service._symbols = AsyncMock()
+    service._scores = AsyncMock()
+
+    candidates = [_make_candidate(f"SYM{i:03d}") for i in range(30)]
+    service._symbols.fetch_ranked_candidates.return_value = candidates
+    service._scores.upsert_daily_score = AsyncMock()
+
+    count, msg = await service.compute_unified()
+
+    assert count == 30

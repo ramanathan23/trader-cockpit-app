@@ -28,13 +28,20 @@ class ScoreService(ScoreWatchlistMixin):
         self._symbols = SymbolRepository(pool)
         self._sem = asyncio.Semaphore(settings.score_concurrency)
 
-    async def compute_unified(self) -> int:
+    async def compute_unified(self) -> tuple[int, str]:
         candidates = await self._symbols.fetch_ranked_candidates(
             min_adv_crores=settings.min_adv_crores,
         )
         if not candidates:
-            logger.warning("No indicator data — run IndicatorsService first")
-            return 0
+            counts = await self._symbols.fetch_candidate_counts(min_adv_crores=settings.min_adv_crores)
+            if counts["total_indicators"] == 0:
+                msg = "No indicator data — run IndicatorsService first"
+            elif counts["joined"] == 0:
+                msg = f"symbol_indicators ({counts['total_indicators']}) and symbol_metrics ({counts['total_metrics']}) have no overlapping symbols"
+            else:
+                msg = f"ADV filter ({settings.min_adv_crores}₹Cr) excluded all {counts['joined']} candidates — lower min_adv_crores or re-sync data"
+            logger.warning("Scored 0: %s", msg)
+            return 0, msg
 
         logger.info("Scoring %d candidates", len(candidates))
         score_date = datetime.now(tz=_IST).date()
@@ -53,8 +60,9 @@ class ScoreService(ScoreWatchlistMixin):
                 valid.append(result)
 
         if not valid:
-            logger.warning("No valid scores produced")
-            return 0
+            msg = f"All {len(candidates)} candidates missing required indicators (rsi_14 or ROC values null)"
+            logger.warning("Scored 0: %s", msg)
+            return 0, msg
 
         stage_watchlist = self._build_watchlist_set(valid)
         fno = [(s, b) for s, b, fno in valid if fno]
@@ -70,7 +78,8 @@ class ScoreService(ScoreWatchlistMixin):
             "Scoring complete: %d/%d scored — Stage2=%d Stage4=%d watchlist=%d",
             scored, len(candidates), s2, s4, len(stage_watchlist),
         )
-        return scored
+        msg = f"Scored {scored} symbols"
+        return scored, msg
 
     async def _score_one(self, row: dict):
         async with self._sem:
