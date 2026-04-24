@@ -16,7 +16,8 @@
       "Bash(curl -s http://localhost:8003/api/v1/status)",
       "Bash(grep -v \"^$\")",
       "Bash(kill %1)",
-      "Bash(curl -s \"http://localhost:8003/api/v1/screener?limit=1\")"
+      "Bash(curl -s \"http://localhost:8003/api/v1/screener?limit=1\")",
+      "Bash(npm install *)"
     ]
   }
 }

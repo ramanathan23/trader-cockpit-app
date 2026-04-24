@@ -1,12 +1,10 @@
 'use client';
 
 import { memo, useCallback, useRef } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
-import { advColor } from '@/domain/signal';
-import { LivePrice } from '@/components/ui/LivePrice';
-import { fmtAdv } from '@/lib/fmt';
+import { ScreenerTableHead, COLS } from './ScreenerTableHead';
+import { ScreenerTableRow } from './ScreenerTableRow';
 
 interface ScreenerTableProps {
   rows: ScreenerRow[];
@@ -19,52 +17,6 @@ interface ScreenerTableProps {
   onChart?: (sym: string) => void;
   onOptionChain?: (sym: string) => void;
   marketOpen: boolean;
-}
-
-const COLS: { key: string; label: string; title?: string; align?: 'left' | 'right' }[] = [
-  { key: 'symbol', label: 'Symbol', align: 'left' },
-  { key: 'stage', label: 'Stage', title: 'Weinstein stage' },
-  { key: 'adv_20_cr', label: 'ADV' },
-  { key: 'atr_14', label: 'ATR' },
-  { key: 'display_price', label: 'Price', title: 'Live price when available, otherwise previous close' },
-  { key: 'dvwap_delta_pct', label: 'DVWAP%', title: 'Percent above or below session VWAP' },
-  { key: 'ema50_delta_pct', label: '50E%', title: 'Percent above or below 50-day EMA' },
-  { key: 'ema200_delta_pct', label: '200E%', title: 'Percent above or below 200-day EMA' },
-  { key: 'rs_vs_nifty', label: 'RS', title: 'Relative strength vs Nifty 500' },
-  { key: 'f52h', label: '52H%', title: 'Distance from 52-week high' },
-  { key: 'f52l', label: '52L%', title: 'Distance from 52-week low' },
-  { key: 'week_return_pct', label: 'WK%', title: 'Five-session return' },
-  { key: 'week_gain_pct', label: 'W+%', title: 'Percent above rolling five-session low' },
-  { key: 'week_decline_pct', label: 'W-%', title: 'Percent below rolling five-session high' },
-];
-
-function stageColor(stage?: string): string {
-  switch (stage) {
-    case 'STAGE_2': return 'rgb(var(--bull))';
-    case 'STAGE_4': return 'rgb(var(--bear))';
-    case 'STAGE_1': return 'rgb(var(--amber))';
-    default:        return 'rgb(var(--ghost))';
-  }
-}
-
-function stageLabel(stage?: string): string {
-  if (!stage) return '-';
-  return stage.replace('STAGE_', 'S');
-}
-
-function pctColor(value?: number | null, invert = false): string {
-  if (value == null) return 'rgb(var(--ghost))';
-  const score = invert ? -value : value;
-  if (score >= 2) return 'rgb(var(--bull))';
-  if (score >= 0) return 'rgb(var(--fg))';
-  if (score >= -3) return 'rgb(var(--amber))';
-  return 'rgb(var(--bear))';
-}
-
-function pctText(value?: number | null, forcePlus = false): string {
-  if (value == null) return '-';
-  const prefix = value > 0 || (forcePlus && value >= 0) ? '+' : '';
-  return `${prefix}${value.toFixed(1)}%`;
 }
 
 export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, hasMore, onLoadMore, onChart, onOptionChain, marketOpen }: ScreenerTableProps) => {
@@ -85,7 +37,6 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
   if (loading && rows.length === 0) {
     return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">Loading metrics</div>;
   }
-
   if (rows.length === 0) {
     return <div className="flex flex-1 items-center justify-center text-[13px] text-dim">No data matches the active filters.</div>;
   }
@@ -96,95 +47,17 @@ export const ScreenerTable = memo(({ rows, sortCol, sortAsc, onSort, loading, ha
   return (
     <div ref={parentRef} className="table-wrap flex-1" onScroll={handleScroll}>
       <table className="data-table">
-        <thead>
-          <tr>
-            <th colSpan={5} className="border-r border-border/50 text-left">Price data</th>
-            <th colSpan={4} className="border-r border-border/50 text-left">Indicators</th>
-            <th colSpan={5} className="text-left">52-week and momentum</th>
-          </tr>
-          <tr>
-            {COLS.map(col => (
-              <th
-                key={col.key}
-                title={col.title}
-                onClick={() => onSort(col.key)}
-                className={`${col.align === 'left' ? 'text-left' : 'text-right'} cursor-pointer hover:text-fg`}
-                style={{ color: sortCol === col.key ? 'rgb(var(--accent))' : undefined }}
-              >
-                <span className="inline-flex items-center gap-0.5">
-                  {col.label}
-                  <span className="inline-flex opacity-60">
-                    {sortCol === col.key
-                      ? sortAsc
-                        ? <ChevronUp size={11} aria-hidden="true" />
-                        : <ChevronDown size={11} aria-hidden="true" />
-                      : <ChevronsUpDown size={11} className="opacity-50" aria-hidden="true" />
-                    }
-                  </span>
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
+        <ScreenerTableHead sortCol={sortCol} sortAsc={sortAsc} onSort={onSort} />
         <tbody>
-          {items.length > 0 && (
-            <tr><td colSpan={COLS.length} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>
-          )}
+          {items.length > 0 && <tr><td colSpan={COLS.length} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>}
           {items.map(item => (
-            <ScreenerTableRow key={rows[item.index].symbol} row={rows[item.index]} onChart={onChart} onOptionChain={onOptionChain} marketOpen={marketOpen} />
+            <ScreenerTableRow key={rows[item.index].symbol} row={rows[item.index]}
+              onChart={onChart} onOptionChain={onOptionChain} marketOpen={marketOpen} />
           ))}
-          {items.length > 0 && (
-            <tr><td colSpan={COLS.length} style={{ height: total - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>
-          )}
+          {items.length > 0 && <tr><td colSpan={COLS.length} style={{ height: total - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>}
         </tbody>
       </table>
     </div>
   );
 });
 ScreenerTable.displayName = 'ScreenerTable';
-
-const ScreenerTableRow = memo(({ row: r, onChart, marketOpen }: {
-  row: ScreenerRow;
-  onChart?: (sym: string) => void;
-  onOptionChain?: (sym: string) => void;
-  marketOpen: boolean;
-}) => {
-  const f52hColor =
-    r.f52h == null ? 'rgb(var(--ghost))' :
-    r.f52h >= -2 ? 'rgb(var(--bull))' :
-    r.f52h >= -10 ? 'rgb(var(--amber))' : 'rgb(var(--bear))';
-
-  const f52lColor =
-    r.f52l == null ? 'rgb(var(--ghost))' :
-    r.f52l > 50 ? 'rgb(var(--bull))' :
-    r.f52l > 20 ? 'rgb(var(--amber))' :
-    r.f52l > 5 ? 'rgb(var(--fg))' : 'rgb(var(--bear))';
-
-  return (
-    <tr className="cursor-pointer" onClick={() => onChart?.(r.symbol)}>
-      <td className="text-left">
-        <span className="inline-flex items-center gap-1">
-          <span className="text-ticker text-fg">{r.symbol}</span>
-          {r.is_fno && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--violet))', borderColor: 'rgb(var(--violet) / 0.35)' }}>F&O</span>}
-          {r.is_watchlist && <span className="text-[10px]" style={{ color: 'rgb(var(--amber))' }} title="Watchlist">★</span>}
-          {r.vcp_detected && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--bull))', borderColor: 'rgb(var(--bull) / 0.35)' }}>VCP</span>}
-          {r.rect_breakout && <span className="chip px-1 py-0" style={{ fontSize: 9, color: 'rgb(var(--accent))', borderColor: 'rgb(var(--accent) / 0.35)' }}>RECT</span>}
-        </span>
-      </td>
-      <td className="text-right"><span className="num text-[11px] font-black" style={{ color: stageColor(r.stage) }}>{stageLabel(r.stage)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: r.adv_20_cr != null ? advColor(r.adv_20_cr) : 'rgb(var(--ghost))' }}>{fmtAdv(r.adv_20_cr)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: 'rgb(var(--amber))' }}>{r.atr_14 != null ? r.atr_14.toFixed(2) : '-'}</span></td>
-      <td className="text-right"><LivePrice ltp={r.current_price} prevClose={r.prev_day_close} marketOpen={marketOpen} className="text-[13px]" /></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.dvwap_delta_pct) }}>{pctText(r.dvwap_delta_pct, true)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema50_delta_pct) }}>{pctText(r.ema50_delta_pct, true)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.ema200_delta_pct) }}>{pctText(r.ema200_delta_pct, true)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.rs_vs_nifty) }}>{r.rs_vs_nifty != null ? `${r.rs_vs_nifty > 0 ? '+' : ''}${r.rs_vs_nifty.toFixed(1)}` : '-'}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: f52hColor }}>{pctText(r.f52h)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: f52lColor }}>{r.f52l != null ? `+${r.f52l.toFixed(1)}%` : '-'}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_return_pct) }}>{pctText(r.week_return_pct, true)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_gain_pct, true) }}>{pctText(r.week_gain_pct, true)}</span></td>
-      <td className="text-right"><span className="num font-bold" style={{ color: pctColor(r.week_decline_pct, true) }}>{pctText(r.week_decline_pct)}</span></td>
-    </tr>
-  );
-});
-ScreenerTableRow.displayName = 'ScreenerTableRow';

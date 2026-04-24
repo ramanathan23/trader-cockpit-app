@@ -291,6 +291,29 @@
     animation: pulse-new 1100ms ease-out;
   }
 
+  /* Badge chip size variants — always combined with color utility (text-X) */
+  .badge-sm {
+    @apply chip h-4 min-h-0 px-1;
+  }
+
+  .badge-md {
+    @apply chip h-5 min-h-0 px-1.5;
+  }
+
+  /* Compact uppercase label — section headers, stat titles */
+  .label-xs {
+    @apply text-[9px] font-black uppercase text-ghost;
+  }
+
+  .label-sm {
+    @apply text-[10px] font-black uppercase text-ghost;
+  }
+
+  /* Numeric stat pair — ghost label + colored value side by side */
+  .stat-pair {
+    @apply num text-ghost;
+  }
+
   .help-signal-grid,
   .help-pair-grid {
     display: grid;
