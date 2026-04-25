@@ -3,7 +3,10 @@
     "allow": [
       "**",
       "Bash(npx tsc *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(python -m pytest tests/ -x -q --tb=short)",
+      "Bash(python -m pytest tests/ -x -q --tb=short --ignore=tests/test_signal_publisher.py --ignore=tests/test_signal_websocket.py --ignore=tests/test_metrics_loader.py)",
+      "Bash(python -m pytest tests/ -q --tb=short --ignore=tests/test_signal_publisher.py --ignore=tests/test_signal_websocket.py --ignore=tests/test_metrics_loader.py)"
     ],
     "defaultMode": "bypassPermissions"
   }

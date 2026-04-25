@@ -20,7 +20,7 @@ class Signal:
     id:            str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp:     datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     symbol:        str = ""
-    signal_type:   SignalType   = SignalType.OPEN_DRIVE_ENTRY
+    signal_type:   SignalType   = SignalType.RANGE_BREAKOUT
     direction:     Direction    = Direction.NEUTRAL
     strength:      Strength     = Strength.MEDIUM
     score:         float        = 0.0

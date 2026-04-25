@@ -47,13 +47,13 @@ class _FakeRedisClient:
 
 def test_signal_websocket_replays_catchup_then_streams_live(monkeypatch) -> None:
     catchup = [
-        {"id": "catchup-1", "symbol": "ABC", "signal_type": "ORB_BREAKOUT", "timestamp": "t1"},
-        {"id": "catchup-2", "symbol": "XYZ", "signal_type": "VWAP_BREAKOUT", "timestamp": "t2"},
+        {"id": "catchup-1", "symbol": "ABC", "signal_type": "RANGE_BREAKOUT", "timestamp": "t1"},
+        {"id": "catchup-2", "symbol": "XYZ", "signal_type": "CAM_H4_BREAKOUT", "timestamp": "t2"},
     ]
     live_payload = json.dumps({
         "id": "live-1",
         "symbol": "ABC",
-        "signal_type": "ORB_BREAKOUT",
+        "signal_type": "RANGE_BREAKOUT",
         "timestamp": "t3",
     })
     fake_redis = _FakeRedisClient([
