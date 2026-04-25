@@ -40,7 +40,11 @@ export type DashboardAccount = {
 export type Dashboard = {
   totals: { strategy_capital: number; broker_net: number; realized_pnl: number; realized_after_charges: number; charges: number; unrealized_pnl: number; open_exposure: number; open_positions: number; trades_today: number; orders_today: number };
   accounts: DashboardAccount[];
-  daily: { date: string; cashflow: number; executions: number }[];
+  daily: {
+    date: string; cashflow: number; executions: number;
+    trades?: number; wins?: number; losses?: number; flat?: number;
+    win_pct?: number; loss_pct?: number; flat_pct?: number;
+  }[];
   sync_note: string;
 };
 
