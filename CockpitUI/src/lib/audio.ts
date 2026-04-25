@@ -35,27 +35,14 @@ function chirp(startHz: number, endHz: number, dur = 0.08, vol = 0.28): void {
 export function alertSound(type: string): void {
   if (typeof window === 'undefined') return;
   switch (type) {
-    case 'OPEN_DRIVE_ENTRY':    return chirp(1100, 2000, 0.09);
-    case 'SPIKE_BREAKOUT':      return chirp(750,  1600, 0.09);
-    case 'ABSORPTION':          return chirp(1300, 800,  0.10);
-    case 'EXHAUSTION_REVERSAL': return chirp(650,  1450, 0.10);
-    case 'DRIVE_FAILED':        return chirp(1400, 500,  0.14);
-    case 'EXIT':                return chirp(1000, 600,  0.12);
-    case 'FADE_ALERT':          return chirp(1100, 750,  0.09);
-    case 'ORB_BREAKOUT':
-    case 'RANGE_BREAKOUT':
-    case 'WEEK52_BREAKOUT':
-    case 'PDH_BREAKOUT':
-    case 'VWAP_BREAKOUT':       return chirp(900,  1800, 0.09);
-    case 'ORB_BREAKDOWN':
-    case 'RANGE_BREAKDOWN':
-    case 'WEEK52_BREAKDOWN':
-    case 'PDL_BREAKDOWN':
-    case 'VWAP_BREAKDOWN':      return chirp(1700, 700,  0.09);
+    case 'RANGE_BREAKOUT':      return chirp(900,  1800, 0.09);
+    case 'RANGE_BREAKDOWN':     return chirp(1700, 700,  0.09);
     case 'CAM_H3_REVERSAL':
     case 'CAM_L3_REVERSAL':     return chirp(1000, 1300, 0.07);
     case 'CAM_H4_BREAKOUT':     return chirp(850,  1700, 0.09);
     case 'CAM_L4_BREAKDOWN':    return chirp(1600, 650,  0.09);
+    case 'CAM_H4_REVERSAL':     return chirp(950,  600,  0.09);
+    case 'CAM_L4_REVERSAL':     return chirp(650,  1100, 0.09);
   }
 }
 

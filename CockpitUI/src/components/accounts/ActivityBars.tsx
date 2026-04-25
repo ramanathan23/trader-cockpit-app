@@ -1,120 +1,130 @@
-'use client';
-
-import { useEffect, useMemo, useRef } from 'react';
-import {
-  createChart, LineSeries,
-  type IChartApi, type ISeriesApi, type LineData, type Time,
-} from 'lightweight-charts';
 import type { Dashboard } from './accountTypes';
 import { money } from './accountFmt';
 
-const PCT_RANGE = { priceRange: { minValue: 0, maxValue: 100 } };
+type Point = { date: string; value: number; raw: number };
+
+const W = 760;
+const H = 150;
+const PL = 34;
+const PR = 62;
+const PT = 12;
+const PB = 28;
+const IW = W - PL - PR;
+const IH = H - PT - PB;
 
 export function ActivityBars({ daily }: { daily: Dashboard['daily'] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<{
-    trades: ISeriesApi<'Line'> | null;
-    wins: ISeriesApi<'Line'> | null;
-    losses: ISeriesApi<'Line'> | null;
-  }>({ trades: null, wins: null, losses: null });
-
-  const rows = useMemo(() => daily.slice(-28), [daily]);
-  const totals = useMemo(() => {
-    const trades = rows.reduce((sum, row) => sum + (row.trades ?? 0), 0);
-    const wins = rows.reduce((sum, row) => sum + (row.wins ?? 0), 0);
-    const losses = rows.reduce((sum, row) => sum + (row.losses ?? 0), 0);
-    const executions = rows.reduce((sum, row) => sum + row.executions, 0);
-    return { trades, wins, losses, executions, winRate: trades ? Math.round((wins / trades) * 100) : 0 };
-  }, [rows]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const chart = createChart(container, {
-      height: 128,
-      layout: { background: { color: 'transparent' }, textColor: 'rgb(var(--ghost))', fontSize: 10 },
-      grid: { vertLines: { color: 'rgba(109,124,132,0.14)' }, horzLines: { color: 'rgba(109,124,132,0.14)' } },
-      crosshair: { vertLine: { color: 'rgba(34,153,139,0.3)', width: 1, style: 2 }, horzLine: { color: 'rgba(34,153,139,0.3)', width: 1, style: 2 } },
-      timeScale: { borderColor: 'rgba(109,124,132,0.35)', timeVisible: false },
-      rightPriceScale: { borderColor: 'rgba(109,124,132,0.35)' },
-    });
-    chartRef.current = chart;
-
-    const fixedPercentScale = () => PCT_RANGE;
-    const trades = chart.addSeries(LineSeries, {
-      color: 'rgb(var(--accent))', lineWidth: 2, priceLineVisible: false,
-      title: 'Trades % of peak', autoscaleInfoProvider: fixedPercentScale,
-    });
-    const wins = chart.addSeries(LineSeries, {
-      color: 'rgb(var(--bull))', lineWidth: 2, priceLineVisible: false,
-      title: 'Win %', autoscaleInfoProvider: fixedPercentScale,
-    });
-    const losses = chart.addSeries(LineSeries, {
-      color: 'rgb(var(--bear))', lineWidth: 2, priceLineVisible: false,
-      title: 'Loss %', autoscaleInfoProvider: fixedPercentScale,
-    });
-    seriesRef.current = { trades, wins, losses };
-
-    const ro = new ResizeObserver(entries => {
-      chart.applyOptions({ width: entries[0].contentRect.width, height: 128 });
-    });
-    ro.observe(container);
-
-    return () => {
-      ro.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = { trades: null, wins: null, losses: null };
-    };
-  }, []);
-
-  useEffect(() => {
-    const maxTrades = Math.max(1, ...rows.map(row => row.trades ?? 0));
-    const tradeData: LineData<Time>[] = rows.map(row => ({
-      time: row.date as Time,
-      value: Math.round(((row.trades ?? 0) / maxTrades) * 100),
-    }));
-    const winData: LineData<Time>[] = rows.map(row => ({ time: row.date as Time, value: row.win_pct ?? 0 }));
-    const lossData: LineData<Time>[] = rows.map(row => ({ time: row.date as Time, value: row.loss_pct ?? 0 }));
-    seriesRef.current.trades?.setData(tradeData);
-    seriesRef.current.wins?.setData(winData);
-    seriesRef.current.losses?.setData(lossData);
-    chartRef.current?.timeScale().fitContent();
-  }, [rows]);
+  const rows = daily.slice(-28);
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.trades += row.trades ?? 0;
+      acc.wins += row.wins ?? 0;
+      acc.losses += row.losses ?? 0;
+      acc.executions += row.executions;
+      return acc;
+    },
+    { trades: 0, wins: 0, losses: 0, executions: 0 },
+  );
+  const winRate = totals.trades ? Math.round((totals.wins / totals.trades) * 100) : 0;
+  const maxTrades = Math.max(1, ...rows.map(row => row.trades ?? 0));
+  const tradeLine = rows.map(row => ({ date: row.date, raw: row.trades ?? 0, value: ((row.trades ?? 0) / maxTrades) * 100 }));
+  const winLine = rows.map(row => ({ date: row.date, raw: row.wins ?? 0, value: row.win_pct ?? 0 }));
+  const lossLine = rows.map(row => ({ date: row.date, raw: row.losses ?? 0, value: row.loss_pct ?? 0 }));
+  const last = rows[rows.length - 1];
 
   return (
-    <div className="h-52 rounded-lg border border-border bg-panel p-3">
-      <div className="mb-2 flex items-start justify-between gap-3">
+    <div className="rounded-lg border border-border bg-panel p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <span className="block text-[12px] font-black text-fg">Trades vs Win/Loss Since Apr 2026</span>
-          <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-ghost">
-            <Legend color="bg-accent" label="Trades % of peak" />
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-ghost">
+            <Legend color="bg-accent" label={`Trades, scaled to peak ${money(maxTrades)}`} />
             <Legend color="bg-bull" label="Win %" />
             <Legend color="bg-bear" label="Loss %" />
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-right">
+        <div className="grid grid-cols-3 gap-3 text-right">
           <Metric value={money(totals.trades)} label="trades" />
-          <Metric value={`${totals.winRate}%`} label="win rate" tone="text-bull" />
+          <Metric value={`${winRate}%`} label="win rate" tone="text-bull" />
           <Metric value={money(totals.executions)} label="fills" />
         </div>
       </div>
-      <div className="relative h-32 w-full">
-        <div ref={containerRef} className="h-full w-full" />
-        {!rows.length && (
-        <div className="absolute inset-0 flex items-center justify-center rounded border border-dashed border-border bg-panel text-[11px] text-ghost">
+
+      {rows.length ? (
+        <div className="h-40">
+          <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" role="img" aria-label="Trades, win percentage, and loss percentage line chart">
+            {[0, 50, 100].map(tick => {
+              const y = yFor(tick);
+              return (
+                <g key={tick}>
+                  <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="rgb(var(--border))" strokeWidth="1" opacity={tick === 0 ? 0.9 : 0.55} />
+                  <text x={PL - 8} y={y + 3} textAnchor="end" className="fill-ghost num text-[9px]">{tick}</text>
+                </g>
+              );
+            })}
+
+            <Line points={tradeLine} color="rgb(var(--accent))" />
+            <Line points={winLine} color="rgb(var(--bull))" />
+            <Line points={lossLine} color="rgb(var(--bear))" />
+
+            {rows.map((row, idx) => {
+              const show = idx === 0 || idx === rows.length - 1 || idx % 4 === 0;
+              if (!show) return null;
+              return (
+                <text key={row.date} x={xFor(idx, rows.length)} y={H - 8} textAnchor="middle" className="fill-ghost num text-[9px]">
+                  {row.date.slice(8, 10)}
+                </text>
+              );
+            })}
+
+            <EndpointLabel point={tradeLine[tradeLine.length - 1]} count={rows.length} text={`${last?.trades ?? 0} trades`} color="rgb(var(--accent))" lane={0} />
+            <EndpointLabel point={winLine[winLine.length - 1]} count={rows.length} text={`${last?.win_pct ?? 0}% win`} color="rgb(var(--bull))" lane={1} />
+            <EndpointLabel point={lossLine[lossLine.length - 1]} count={rows.length} text={`${last?.loss_pct ?? 0}% loss`} color="rgb(var(--bear))" lane={2} />
+
+            {rows.map((row, idx) => (
+              <circle key={row.date} cx={xFor(idx, rows.length)} cy={yFor(row.win_pct ?? 0)} r="7" fill="transparent">
+                <title>{row.date}: {row.trades ?? 0} trades, {row.wins ?? 0} wins, {row.losses ?? 0} losses</title>
+              </circle>
+            ))}
+          </svg>
+        </div>
+      ) : (
+        <div className="flex h-40 items-center justify-center rounded border border-dashed border-border text-[11px] text-ghost">
           No closed trades synced yet.
         </div>
-        )}
-      </div>
+      )}
+
       <div className="mt-1 flex justify-end gap-3 text-[10px]">
         <span className="num text-bull">{totals.wins} wins</span>
         <span className="num text-bear">{totals.losses} losses</span>
       </div>
     </div>
   );
+}
+
+function Line({ points, color }: { points: Point[]; color: string }) {
+  const d = points.map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${xFor(idx, points.length)} ${yFor(point.value)}`).join(' ');
+  return <path d={d} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />;
+}
+
+function EndpointLabel({ point, count, text, color, lane }: { point?: Point; count: number; text: string; color: string; lane: number }) {
+  if (!point) return null;
+  const x = W - PR + 8;
+  const y = Math.max(PT + 10 + lane * 16, Math.min(H - PB - 6, yFor(point.value)));
+  return (
+    <g>
+      <line x1={xFor(count - 1, count)} x2={x - 3} y1={yFor(point.value)} y2={y} stroke={color} strokeWidth="1" opacity="0.5" />
+      <text x={x} y={y + 3} className="num text-[9px] font-black" fill={color}>{text}</text>
+    </g>
+  );
+}
+
+function xFor(idx: number, count: number) {
+  if (count <= 1) return PL + IW;
+  return PL + (idx / (count - 1)) * IW;
+}
+
+function yFor(value: number) {
+  return PT + (1 - Math.max(0, Math.min(100, value)) / 100) * IH;
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
