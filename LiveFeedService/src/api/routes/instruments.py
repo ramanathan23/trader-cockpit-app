@@ -10,6 +10,16 @@ from ..deps import FeedServiceDep
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_LIVE_SESSION_PHASES = {
+    "PRE_SIGNAL",
+    "DRIVE_WINDOW",
+    "EXECUTION",
+    "TRANSITION",
+    "MID_SESSION",
+    "DEAD_ZONE",
+    "CLOSE_MOMENTUM",
+    "SESSION_END",
+}
 
 _UI_FILE = Path(__file__).parent.parent.parent / "ui" / "index.html"
 _JS_FILE = Path(__file__).parent.parent.parent / "ui" / "cockpit.js"
@@ -34,6 +44,29 @@ async def batch_instrument_metrics(body: BatchMetricsRequest, request: Request, 
         data[symbol]["day_close"] = current_price
         if prev_close:
             data[symbol]["day_chg_pct"] = round((current_price - prev_close) / prev_close * 100, 2)
+    daily_refs = await request.app.state.metrics.get_daily_reference_closes(body.symbols)
+    phase = svc.current_session_phase()
+    is_live_session = phase in _LIVE_SESSION_PHASES
+    for symbol, refs in daily_refs.items():
+        if symbol not in data:
+            continue
+        latest_close = refs.get("latest_close")
+        previous_close = refs.get("previous_close")
+        has_live_price = data[symbol].get("current_price") is not None
+        price = data[symbol].get("current_price") if is_live_session and has_live_price else latest_close
+        if is_live_session and has_live_price:
+            reference_close = latest_close or previous_close
+        elif previous_close:
+            reference_close = previous_close
+        else:
+            reference_close = latest_close
+        if price is None or not reference_close:
+            continue
+        data[symbol]["prev_day_close"] = reference_close
+        data[symbol]["day_close"] = price
+        if not is_live_session:
+            data[symbol].pop("current_price", None)
+        data[symbol]["day_chg_pct"] = round((price - reference_close) / reference_close * 100, 2)
     return data
 
 

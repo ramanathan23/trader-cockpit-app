@@ -32,15 +32,15 @@ class TickRouter:
             self._register(meta)
         logger.info("TickRouter initialised with %d instruments", len(self._builders))
 
-    async def on_tick(self, raw: dict) -> None:
+    async def on_tick(self, raw: dict) -> dict | None:
         """Process one raw Dhan tick dict."""
         try:
             sec_id = _extract_security_id(raw)
         except (KeyError, TypeError, ValueError):
-            return
+            return None
         entry = self._builders.get(sec_id)
         if entry is None:
-            return
+            return None
         meta, builder = entry
         try:
             price     = float(raw["LTP"])
@@ -49,14 +49,19 @@ class TickRouter:
             tick_time = _parse_ltt(ltt)
         except (KeyError, TypeError, ValueError) as exc:
             logger.debug("Malformed tick for security %d: %s", sec_id, exc)
-            return
+            return None
         if tick_time is None:
-            return
+            return None
         if not self._session.is_market_open(tick_time):
-            return
+            return None
         candle = builder.on_tick(price, qty, tick_time)
         if candle is not None:
             await self._on_candle(meta, candle)
+        return {
+            "symbol": builder.symbol,
+            "current_price": price,
+            "tick_time": tick_time.isoformat(),
+        }
 
     def register(self, meta: InstrumentMeta) -> None:
         """Dynamically add a new instrument."""

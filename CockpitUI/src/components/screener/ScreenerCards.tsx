@@ -61,6 +61,8 @@ export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart
           return (
             <div
               key={row.symbol}
+              ref={virtualizer.measureElement}
+              data-index={item.index}
               className="absolute top-0"
               style={{
                 left: `calc(${item.lane} * (${cardWidth} + ${gap}px))`,

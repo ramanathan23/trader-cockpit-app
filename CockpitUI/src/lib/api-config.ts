@@ -14,6 +14,7 @@
 
 export const LIVE_FEED = {
   SIGNALS_WS:           '/api/v1/signals/ws',
+  PRICES_STREAM:        '/api/v1/prices/stream',
   TOKEN_STATUS:         '/api/v1/token/status',
   INSTRUMENTS_METRICS:  '/api/v1/instruments/metrics',
   SCREENER:             '/api/v1/screener',

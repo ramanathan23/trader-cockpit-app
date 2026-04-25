@@ -13,6 +13,7 @@ from ._history_ops import _HistoryOpsMixin, DAILY_TTL_S
 logger = logging.getLogger(__name__)
 
 _CHANNEL_ALL    = "signals"
+_CHANNEL_PRICES = "prices"
 _CHANNEL_PREFIX = "signals:"
 _HISTORY_KEY    = "signals:history"
 _DAILY_PREFIX   = "signals:daily:"
@@ -52,6 +53,13 @@ class SignalPublisher(_HistoryOpsMixin):
             return
         payload = json.dumps({"type": "market_status", **data})
         await self._redis.publish(_CHANNEL_ALL, payload)
+
+    async def publish_price(self, data: dict) -> None:
+        """Broadcast a lightweight live-price envelope (no history)."""
+        if self._redis is None:
+            return
+        payload = json.dumps({"type": "price", **data})
+        await self._redis.publish(_CHANNEL_PRICES, payload)
 
     async def publish(self, signal: Signal) -> bool:
         """Persist signal to history and broadcast via pub/sub. Returns False if suppressed."""

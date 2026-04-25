@@ -2,8 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+_IST = ZoneInfo("Asia/Kolkata")
+_LIVE_PRICE_PHASES = {
+    "PRE_SIGNAL",
+    "DRIVE_WINDOW",
+    "EXECUTION",
+    "TRANSITION",
+    "MID_SESSION",
+    "DEAD_ZONE",
+    "CLOSE_MOMENTUM",
+    "SESSION_END",
+}
 
 
 class _FeedStatusMixin:
@@ -49,9 +62,19 @@ class _FeedStatusMixin:
             },
         }
 
+    def current_session_phase(self) -> str:
+        return self._session_mgr.current_phase().value
+
+    def _has_current_live_ticks(self) -> bool:
+        if self.current_session_phase() not in _LIVE_PRICE_PHASES:
+            return False
+        if self._last_tick_at is None:
+            return False
+        return self._last_tick_at.astimezone(_IST).date() == datetime.now(_IST).date()
+
     def screener_live_metrics(self) -> dict[str, dict]:
         """Lightweight live snapshot for the screener."""
-        if not self._tick_router:
+        if not self._tick_router or not self._has_current_live_ticks():
             return {}
         live: dict[str, dict] = {}
         for row in self._tick_router.builder_summary():
@@ -72,7 +95,7 @@ class _FeedStatusMixin:
 
     def live_price_metrics(self) -> dict[str, dict]:
         """Latest in-memory LTP snapshot keyed by symbol."""
-        if not self._tick_router:
+        if not self._tick_router or not self._has_current_live_ticks():
             return {}
         live: dict[str, dict] = {}
         for row in self._tick_router.builder_summary():

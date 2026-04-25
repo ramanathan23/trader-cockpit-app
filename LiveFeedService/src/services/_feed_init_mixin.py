@@ -67,5 +67,7 @@ class _FeedInitMixin:
             tick = await self._sub_mgr.tick_queue.get()
             self._ticks_received += 1
             self._last_tick_at = datetime.now(tz=_IST)
-            await self._tick_router.on_tick(tick)
+            price_update = await self._tick_router.on_tick(tick)
+            if price_update is not None:
+                await self._publisher.publish_price(price_update)
             self._check_session_reset()

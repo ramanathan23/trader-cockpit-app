@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import asyncpg
 
 
@@ -100,3 +102,46 @@ async def fetch_intraday_metrics(pool: asyncpg.Pool, symbol: str, daily: dict) -
             "day_chg_pct": day_chg_pct,
         }
     return {}
+
+
+async def fetch_daily_reference_closes(pool: asyncpg.Pool, symbols: list[str]) -> dict[str, dict]:
+    """Fetch latest and previous daily closes in one query for daily % change."""
+    if not symbols:
+        return {}
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            WITH requested AS (
+                SELECT unnest($1::text[]) AS symbol
+            ),
+            ranked AS (
+                SELECT
+                    r.symbol,
+                    p.time::date AS bar_date,
+                    p.close::float AS close,
+                    row_number() OVER (PARTITION BY r.symbol ORDER BY p.time DESC) AS rn
+                FROM requested r
+                LEFT JOIN LATERAL (
+                    SELECT time, close
+                    FROM price_data_daily
+                    WHERE symbol = r.symbol
+                    ORDER BY time DESC
+                    LIMIT 2
+                ) p ON TRUE
+            )
+            SELECT
+                symbol,
+                max(bar_date) FILTER (WHERE rn = 1) AS latest_date,
+                max(close)    FILTER (WHERE rn = 1) AS latest_close,
+                max(close)    FILTER (WHERE rn = 2) AS previous_close
+            FROM ranked
+            WHERE rn <= 2 AND close IS NOT NULL
+            GROUP BY symbol
+        """, symbols)
+    return {
+        row["symbol"]: {
+            "latest_date": row["latest_date"] if isinstance(row["latest_date"], date) else None,
+            "latest_close": round(float(row["latest_close"]), 2) if row["latest_close"] is not None else None,
+            "previous_close": round(float(row["previous_close"]), 2) if row["previous_close"] is not None else None,
+        }
+        for row in rows
+    }

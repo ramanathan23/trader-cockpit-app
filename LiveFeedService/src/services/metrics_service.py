@@ -8,7 +8,7 @@ from typing import Optional
 
 import asyncpg
 
-from ._metrics_loader import load_daily_metrics, fetch_intraday_metrics
+from ._metrics_loader import load_daily_metrics, fetch_intraday_metrics, fetch_daily_reference_closes
 
 _IST = timezone(timedelta(hours=5, minutes=30))
 logger = logging.getLogger(__name__)
@@ -99,3 +99,6 @@ class MetricsService:
         data = await fetch_intraday_metrics(self._pool, symbol, self._daily)
         self._intraday_cache[symbol] = {"data": data, "ts": time.monotonic()}
         return data
+
+    async def get_daily_reference_closes(self, symbols: list[str]) -> dict[str, dict]:
+        return await fetch_daily_reference_closes(self._pool, symbols)

@@ -8,6 +8,9 @@ export interface HeatMapEntry {
   signal?: string;
 }
 
+export const HEATMAP_TOP_PER_SIDE = 25;
+export const HEATMAP_MIN_ADV_CR = 20;
+
 export function heatChgColor(pct: number | null): string {
   if (pct == null) return 'rgb(var(--lift))';
   if (pct > 5) return '#00a972';
@@ -59,6 +62,30 @@ export function heatWeight(pct: number | null): number {
 export function heatMoveSort(a: HeatMapEntry, b: HeatMapEntry): number {
   const move = Math.abs(b.chgPct ?? 0) - Math.abs(a.chgPct ?? 0);
   return move !== 0 ? move : a.symbol.localeCompare(b.symbol);
+}
+
+export function topLiquidMovers(
+  entries: HeatMapEntry[],
+  perSide = HEATMAP_TOP_PER_SIDE,
+  minAdvCr = HEATMAP_MIN_ADV_CR,
+): HeatMapEntry[] {
+  const liquid = entries.filter(entry =>
+    entry.chgPct != null
+    && Number.isFinite(entry.chgPct)
+    && entry.adv >= minAdvCr
+  );
+
+  const gainers = liquid
+    .filter(entry => (entry.chgPct ?? 0) > 0)
+    .sort((a, b) => (b.chgPct ?? 0) - (a.chgPct ?? 0))
+    .slice(0, perSide);
+
+  const losers = liquid
+    .filter(entry => (entry.chgPct ?? 0) < 0)
+    .sort((a, b) => (a.chgPct ?? 0) - (b.chgPct ?? 0))
+    .slice(0, perSide);
+
+  return [...gainers, ...losers].sort(heatMoveSort);
 }
 
 export function heatTone(pct: number | null): 'bull' | 'bear' | 'flat' | 'empty' {
