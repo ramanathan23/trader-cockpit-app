@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { ZerodhaAccountStatus } from '@/components/admin/adminTypes';
 import { EMPTY_FORM, type AccountForm } from './accountTypes';
 import { statusClass } from './accountFmt';
+import { HistoryImport } from './HistoryImport';
 
 const FIELDS: [keyof AccountForm, string, string][] = [
   ['account_id', 'Account ID', 'text'], ['client_id', 'Client ID', 'text'],
@@ -11,16 +12,24 @@ const FIELDS: [keyof AccountForm, string, string][] = [
   ['api_secret', 'API Secret', 'password'], ['strategy_capital', 'Strategy Capital', 'number'],
 ];
 
-export function ConfigureAccounts({ accounts, onSave }: { accounts: ZerodhaAccountStatus[]; onSave: (form: AccountForm) => Promise<boolean> }) {
+export function ConfigureAccounts({
+  accounts, onSave, onImport, onPnlImport,
+}: {
+  accounts: ZerodhaAccountStatus[];
+  onSave: (form: AccountForm) => Promise<boolean>;
+  onImport: (accountId: string, file: File) => Promise<boolean>;
+  onPnlImport: (accountId: string, file: File) => Promise<boolean>;
+}) {
   const [form, setForm] = useState<AccountForm>(EMPTY_FORM);
   async function save() {
     if (await onSave(form)) setForm(EMPTY_FORM);
   }
   return (
     <div className="grid gap-4 xl:grid-cols-[370px_1fr]">
-      <div className="rounded-lg border border-border bg-panel p-4">
-        <h2 className="text-[13px] font-black text-fg">Add / Update Account</h2>
-        <div className="mt-3 grid gap-2">
+      <div className="grid gap-4">
+        <div className="rounded-lg border border-border bg-panel p-4">
+          <h2 className="text-[13px] font-black text-fg">Add / Update Account</h2>
+          <div className="mt-3 grid gap-2">
           {FIELDS.map(([key, label, type]) => (
             <label key={key} className="block">
               <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-ghost">{label}</span>
@@ -28,8 +37,10 @@ export function ConfigureAccounts({ accounts, onSave }: { accounts: ZerodhaAccou
                 className="w-full rounded-lg border border-border bg-base px-3 py-2 text-[12px] text-fg outline-none focus:border-accent" />
             </label>
           ))}
-          <button type="button" onClick={() => void save()} className="mt-1 rounded-lg border border-accent/50 bg-accent/10 px-4 py-2 text-[12px] font-black text-accent hover:bg-accent/20">Save Account</button>
+            <button type="button" onClick={() => void save()} className="mt-1 rounded-lg border border-accent/50 bg-accent/10 px-4 py-2 text-[12px] font-black text-accent hover:bg-accent/20">Save Account</button>
+          </div>
         </div>
+      <HistoryImport accounts={accounts} onImport={onImport} onPnlImport={onPnlImport} />
       </div>
       <div className="rounded-lg border border-border bg-panel">
         <div className="border-b border-border px-4 py-3 text-[13px] font-black text-fg">Configured Accounts</div>

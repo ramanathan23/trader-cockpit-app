@@ -6,8 +6,10 @@ import { statusClass, when } from './accountFmt';
 import { AccountMetric } from './AccountMetric';
 import { BehaviorPanel } from './BehaviorPanel';
 import { CapitalSummary } from './CapitalSummary';
+import { HoldingsTable } from './HoldingsTable';
+import { PerformanceStats } from './PerformanceStats';
 import { PnLCurve } from './PnLCurve';
-import { positionsOf, PositionsTable } from './PositionsTable';
+import { PositionsTable } from './PositionsTable';
 import { TradeBars } from './TradeBars';
 import { TradesTable } from './TradesTable';
 
@@ -44,6 +46,8 @@ export const IndividualDashboard = memo(function IndividualDashboard({ dashboard
       <div className="grid gap-3 md:grid-cols-4">
         <AccountMetric label="Capital" value={account.strategy_capital} />
         <AccountMetric label="Net P&L" value={account.net_pnl} signed />
+        <AccountMetric label="Charges" value={account.charges} />
+        <AccountMetric label="Net Realized" value={account.realized_after_charges} signed />
         <AccountMetric label="Return" value={`${account.return_pct}%`} />
         <AccountMetric label="Win Rate" value={`${account.win_rate_pct}%`} />
       </div>
@@ -55,12 +59,15 @@ export const IndividualDashboard = memo(function IndividualDashboard({ dashboard
 
       <TradeBars trades={accountTrades} />
 
+      <PerformanceStats account={account} />
+
       <BehaviorPanel account={account} trades={accountTrades} />
 
       <div className="grid gap-4 xl:grid-cols-[1fr_1.3fr]">
         <PositionsTable rows={account.open_positions.map(p => ({ ...p, account_id: account.account_id }))} />
         <TradesTable rows={accountTrades} title={`Stored Trades — ${account.display_name || account.account_id}`} />
       </div>
+      <HoldingsTable rows={account.holdings.map(h => ({ ...h, account_id: account.account_id }))} />
     </div>
   );
 });

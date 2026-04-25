@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS broker_accounts (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_broker_account UNIQUE (broker, account_id)
 );
-
-ALTER TABLE broker_accounts ADD COLUMN IF NOT EXISTS api_key TEXT;
-ALTER TABLE broker_accounts ADD COLUMN IF NOT EXISTS api_secret TEXT;
-ALTER TABLE broker_accounts ADD COLUMN IF NOT EXISTS strategy_capital NUMERIC(18,2);
+ALTER TABLE broker_accounts
+    ADD COLUMN IF NOT EXISTS api_key TEXT,
+    ADD COLUMN IF NOT EXISTS api_secret TEXT,
+    ADD COLUMN IF NOT EXISTS strategy_capital NUMERIC(18,2);
 
 CREATE TABLE IF NOT EXISTS broker_tokens (
     broker          VARCHAR(20) NOT NULL,
@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS broker_tokens (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_tokens PRIMARY KEY (broker, account_id)
 );
-
 CREATE TABLE IF NOT EXISTS broker_orders_raw (
     broker          VARCHAR(20) NOT NULL,
     account_id      VARCHAR(80) NOT NULL,
@@ -44,7 +43,6 @@ CREATE TABLE IF NOT EXISTS broker_orders_raw (
     synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_orders_raw PRIMARY KEY (broker, account_id, order_id)
 );
-
 CREATE TABLE IF NOT EXISTS broker_trades_raw (
     broker          VARCHAR(20) NOT NULL,
     account_id      VARCHAR(80) NOT NULL,
@@ -60,7 +58,6 @@ CREATE TABLE IF NOT EXISTS broker_trades_raw (
     synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_trades_raw PRIMARY KEY (broker, account_id, trade_id)
 );
-
 CREATE TABLE IF NOT EXISTS broker_positions_raw (
     broker          VARCHAR(20) NOT NULL,
     account_id      VARCHAR(80) NOT NULL,
@@ -69,7 +66,6 @@ CREATE TABLE IF NOT EXISTS broker_positions_raw (
     synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_positions_raw PRIMARY KEY (broker, account_id, snapshot_date)
 );
-
 CREATE TABLE IF NOT EXISTS broker_holdings_raw (
     broker          VARCHAR(20) NOT NULL,
     account_id      VARCHAR(80) NOT NULL,
@@ -78,7 +74,6 @@ CREATE TABLE IF NOT EXISTS broker_holdings_raw (
     synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_holdings_raw PRIMARY KEY (broker, account_id, snapshot_date)
 );
-
 CREATE TABLE IF NOT EXISTS broker_margins_raw (
     broker          VARCHAR(20) NOT NULL,
     account_id      VARCHAR(80) NOT NULL,
@@ -87,7 +82,6 @@ CREATE TABLE IF NOT EXISTS broker_margins_raw (
     synced_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT pk_broker_margins_raw PRIMARY KEY (broker, account_id, snapshot_date)
 );
-
 CREATE TABLE IF NOT EXISTS broker_sync_runs (
     id              BIGSERIAL PRIMARY KEY,
     broker          VARCHAR(20) NOT NULL,
@@ -100,8 +94,6 @@ CREATE TABLE IF NOT EXISTS broker_sync_runs (
     error_msg       TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_broker_trades_account_time
-    ON broker_trades_raw (broker, account_id, fill_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_broker_trades_account_time ON broker_trades_raw (broker, account_id, fill_timestamp DESC);
 
-CREATE INDEX IF NOT EXISTS idx_broker_orders_account_time
-    ON broker_orders_raw (broker, account_id, order_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_broker_orders_account_time ON broker_orders_raw (broker, account_id, order_timestamp DESC);

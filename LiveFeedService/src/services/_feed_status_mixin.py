@@ -69,3 +69,16 @@ class _FeedStatusMixin:
             if snapshot:
                 live[symbol] = snapshot
         return live
+
+    def live_price_metrics(self) -> dict[str, dict]:
+        """Latest in-memory LTP snapshot keyed by symbol."""
+        if not self._tick_router:
+            return {}
+        live: dict[str, dict] = {}
+        for row in self._tick_router.builder_summary():
+            if row["is_index_future"] or row["last_price"] is None:
+                continue
+            live[row["symbol"]] = {
+                "current_price": round(float(row["last_price"]), 2),
+            }
+        return live

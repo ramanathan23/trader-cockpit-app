@@ -20,8 +20,20 @@ class BatchMetricsRequest(BaseModel):
 
 
 @router.post("/instruments/metrics", summary="Batch metrics for multiple symbols")
-async def batch_instrument_metrics(body: BatchMetricsRequest, request: Request):
+async def batch_instrument_metrics(body: BatchMetricsRequest, request: Request, svc: FeedServiceDep):
     data = await request.app.state.metrics.get_batch_with_intraday(body.symbols)
+    live = svc.live_price_metrics()
+    for symbol, snapshot in live.items():
+        if symbol not in data:
+            continue
+        current_price = snapshot.get("current_price")
+        if current_price is None:
+            continue
+        prev_close = data[symbol].get("prev_day_close")
+        data[symbol]["current_price"] = current_price
+        data[symbol]["day_close"] = current_price
+        if prev_close:
+            data[symbol]["day_chg_pct"] = round((current_price - prev_close) / prev_close * 100, 2)
     return data
 
 

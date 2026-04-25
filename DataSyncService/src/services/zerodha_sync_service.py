@@ -9,8 +9,11 @@ import asyncpg
 from .zerodha_accounts import configured_accounts, delete_account, save_account
 from .zerodha_auth import complete_login, infer_single_account_id, list_accounts, login_url
 from .zerodha_dashboard import dashboard
+from .zerodha_history_import import import_tradebook_csv
 from .zerodha_ingest import sync_account
-from .zerodha_trades import performance_summary, reconstructed_trades
+from .zerodha_performance import performance_summary
+from .zerodha_pnl_import import import_pnl_csv
+from .zerodha_trades import reconstructed_trades
 
 logger = logging.getLogger(__name__)
 
@@ -60,3 +63,9 @@ class ZerodhaSyncService:
 
     async def dashboard(self, start: date | None = None, end: date | None = None) -> dict[str, Any]:
         return await dashboard(self._pool, start, end)
+
+    async def import_tradebook_csv(self, account_id: str, csv_text: str) -> dict[str, Any]:
+        return await import_tradebook_csv(self._pool, account_id, csv_text)
+
+    async def import_pnl_csv(self, account_id: str, csv_text: str) -> dict[str, Any]:
+        return await import_pnl_csv(self._pool, account_id, csv_text)

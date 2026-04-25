@@ -82,7 +82,14 @@ export function CockpitMain({
       </div>
 
       {isSignalView && viewMode === 'heatmap' && (
-        <LiveHeatMapView metricsCache={metricsCache} />
+        <LiveHeatMapView
+          metricsCache={metricsCache}
+          signals={currentSignals}
+          category={category}
+          subType={subType}
+          fnoOnly={fnoOnly}
+          minAdvCr={minAdvCr}
+        />
       )}
       {isSignalView && viewMode !== 'heatmap' && (
         <SignalFeed signals={currentSignals} metricsCache={metricsCache} marketOpen={marketOpen}

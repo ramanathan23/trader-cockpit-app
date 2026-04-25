@@ -50,6 +50,10 @@ class ZerodhaClient:
     async def margins(self, access_token: str) -> dict[str, Any]:
         return await self._get_data("/user/margins", access_token)
 
+    async def order_charges(self, access_token: str, orders: list[dict[str, Any]]) -> Any:
+        payload = await self._post("/charges/orders", data=orders, auth=True, access_token=access_token)
+        return payload.get("data")
+
     async def _get_data(self, path: str, access_token: str) -> Any:
         payload = await self._get(path, access_token=access_token)
         return payload.get("data")
@@ -66,11 +70,11 @@ class ZerodhaClient:
         res.raise_for_status()
         return res.json()
 
-    async def _post(self, path: str, *, data: dict[str, Any], auth: bool) -> dict[str, Any]:
+    async def _post(self, path: str, *, data: Any, auth: bool, access_token: str | None = None) -> dict[str, Any]:
         headers = {"X-Kite-Version": "3"}
         if auth:
-            raise ValueError("authenticated post is not implemented")
+            headers["Authorization"] = f"token {self._account.api_key}:{access_token}"
         async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-            res = await client.post(f"{self._base_url}{path}", data=data, headers=headers)
+            res = await client.post(f"{self._base_url}{path}", json=data if auth else None, data=None if auth else data, headers=headers)
         res.raise_for_status()
         return res.json()

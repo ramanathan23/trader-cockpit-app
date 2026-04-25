@@ -6,6 +6,7 @@ import { money, tone } from './accountFmt';
 import { AccountMetric } from './AccountMetric';
 import { ActivityBars } from './ActivityBars';
 import { positionsOf, PositionsTable } from './PositionsTable';
+import { holdingsOf, HoldingsTable } from './HoldingsTable';
 import { TradesTable } from './TradesTable';
 
 function WinBar({ pct }: { pct: number }) {
@@ -30,6 +31,7 @@ function AccountCard({ a }: { a: DashboardAccount }) {
       <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 text-[11px]">
         <div><span className="text-ghost">Return</span> <b className="num text-fg">{a.return_pct}%</b></div>
         <div><span className="text-ghost">Trades</span> <b className="num text-fg">{a.closed_trades}</b></div>
+        <div><span className="text-ghost">Avg/day</span> <b className="num text-fg">{a.avg_trades_per_day}</b></div>
         <div><span className="text-ghost">Open</span> <b className="num text-fg">{a.open_positions_count}</b></div>
         <div>
           <span className="text-ghost">Win Rate</span> <b className={`num ${a.win_rate_pct >= 50 ? 'text-bull' : 'text-bear'}`}>{a.win_rate_pct}%</b>
@@ -47,6 +49,7 @@ function AccountCard({ a }: { a: DashboardAccount }) {
           <span className="text-ghost">/</span>
           <b className="num text-bear">{a.open_losers}</b>
         </div>
+        <div><span className="text-ghost">Net Real.</span> <b className={`num ${tone(a.realized_after_charges)}`}>{money(a.realized_after_charges)}</b></div>
       </div>
     </div>
   );
@@ -60,6 +63,7 @@ export const OverallDashboard = memo(function OverallDashboard({ dashboard, late
         <AccountMetric label="Strategy Capital" value={totals?.strategy_capital ?? 0} />
         <AccountMetric label="Broker Net" value={totals?.broker_net ?? 0} />
         <AccountMetric label="Realized P&L" value={totals?.realized_pnl ?? 0} signed />
+        <AccountMetric label="Net Realized" value={totals?.realized_after_charges ?? 0} signed />
         <AccountMetric label="Unrealized P&L" value={totals?.unrealized_pnl ?? 0} signed />
         <AccountMetric label="Open Exposure" value={totals?.open_exposure ?? 0} />
         <AccountMetric label="Open Positions" value={`${totals?.open_positions ?? 0}`} />
@@ -72,6 +76,7 @@ export const OverallDashboard = memo(function OverallDashboard({ dashboard, late
         <PositionsTable rows={positionsOf(dashboard?.accounts ?? [])} />
         <TradesTable rows={latestDayTrades} title="Trades: Today or Last Trade Day" />
       </div>
+      <HoldingsTable rows={holdingsOf(dashboard?.accounts ?? [])} />
     </div>
   );
 });

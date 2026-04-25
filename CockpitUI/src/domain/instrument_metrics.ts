@@ -7,6 +7,7 @@ export interface InstrumentMetrics {
   day_low?: number;
   day_open?: number;
   day_close?: number;
+  current_price?: number;
   day_chg_pct?: number;
   week52_high?: number;
   week52_low?: number;
@@ -19,4 +20,5 @@ export interface InstrumentMetrics {
   prev_month_low?: number;
   atr_14?: number;
   adv_20_cr?: number;
+  stage?: string | null;
 }

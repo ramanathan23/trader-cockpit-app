@@ -36,13 +36,17 @@ export const CapitalSummary = memo(function CapitalSummary({ account }: { accoun
         <Row label="Open Exposure" value={account.open_exposure} pct={account.utilization_pct} color="bg-violet/55" />
         <Row label="Cash Available" value={account.cash} pct={account.cash / cap * 100} color="bg-sky/55" />
         <Row label="Realized P&L" value={account.realized_pnl} pct={Math.abs(account.realized_pnl) / cap * 100} color={account.realized_pnl >= 0 ? 'bg-bull/65' : 'bg-bear/65'} signed />
+        <Row label="Net Realized" value={account.realized_after_charges} pct={Math.abs(account.realized_after_charges) / cap * 100} color={account.realized_after_charges >= 0 ? 'bg-bull/65' : 'bg-bear/65'} signed />
         <Row label="Unrealized P&L" value={account.unrealized_pnl} pct={Math.abs(account.unrealized_pnl) / cap * 100} color={account.unrealized_pnl >= 0 ? 'bg-bull/40' : 'bg-bear/40'} signed />
+        <Row label="Holdings Value" value={account.holdings_value} pct={account.holdings_value / cap * 100} color="bg-amber/45" />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3 text-[11px]">
         <div><span className="text-ghost">CE Open</span> <b className="num text-violet">{account.ce_count}</b></div>
         <div><span className="text-ghost">PE Open</span> <b className="num text-amber">{account.pe_count}</b></div>
         <div><span className="text-ghost">Concentration</span> <b className="num text-fg">{account.concentration_pct}%</b></div>
         <div><span className="text-ghost">Utilization</span> <b className={`num ${account.utilization_pct > 80 ? 'text-bear' : account.utilization_pct > 50 ? 'text-amber' : 'text-fg'}`}>{account.utilization_pct}%</b></div>
+        <div><span className="text-ghost">Charges</span> <b className="num text-fg">{money(account.charges)}</b></div>
+        <div><span className="text-ghost">Holdings P&L</span> <b className={`num ${account.holdings_pnl >= 0 ? 'text-bull' : 'text-bear'}`}>{money(account.holdings_pnl)}</b></div>
       </div>
     </div>
   );

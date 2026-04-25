@@ -10,7 +10,7 @@ import { useAccountsData } from './useAccountsData';
 
 export function AccountsPanel() {
   const [tab, setTab] = useState<AccountTab>('overall');
-  const { accounts, dashboard, trades, latestDayTrades, message, loading, load, saveAccount, syncNow } = useAccountsData();
+  const { accounts, dashboard, trades, latestDayTrades, message, loading, load, saveAccount, syncNow, importHistory, importPnl } = useAccountsData();
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-base">
       <div className="mx-auto max-w-7xl px-5 py-5">
@@ -27,7 +27,7 @@ export function AccountsPanel() {
         <AccountTabs active={tab} onChange={setTab} />
         {message && <div className="mb-3 rounded-lg border border-border bg-card px-3 py-2 text-[12px] text-dim">{message}</div>}
         {dashboard?.sync_note && <div className="mb-4 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn">{dashboard.sync_note}</div>}
-        {tab === 'configure' && <ConfigureAccounts accounts={accounts} onSave={saveAccount} />}
+        {tab === 'configure' && <ConfigureAccounts accounts={accounts} onSave={saveAccount} onImport={importHistory} onPnlImport={importPnl} />}
         {tab === 'overall' && <OverallDashboard dashboard={dashboard} latestDayTrades={latestDayTrades} />}
         {tab === 'individual' && <IndividualDashboard dashboard={dashboard} trades={trades} />}
       </div>

@@ -8,7 +8,7 @@ import asyncpg
 from ..config import settings
 from .zerodha_constants import BROKER
 from .zerodha_dashboard_cards import account_card
-from .zerodha_trades import performance_summary
+from .zerodha_performance import performance_summary
 
 
 async def latest(pool: asyncpg.Pool, table: str):
@@ -33,12 +33,13 @@ async def dashboard(pool: asyncpg.Pool, start: date | None, end: date | None) ->
         )
     margins = {r["account_id"]: r for r in await latest(pool, "broker_margins_raw")}
     positions = {r["account_id"]: r for r in await latest(pool, "broker_positions_raw")}
+    holdings = {r["account_id"]: r for r in await latest(pool, "broker_holdings_raw")}
     runs_by = {r["account_id"]: r for r in runs}
     cards, totals = [], empty_totals()
     for account in accounts:
         card = account_card(
             account, margins.get(account["account_id"]), positions.get(account["account_id"]),
-            runs_by.get(account["account_id"]), perf.get(account["account_id"], {}),
+            holdings.get(account["account_id"]), runs_by.get(account["account_id"]), perf.get(account["account_id"], {}),
         )
         cards.append(card)
         add_totals(totals, card)
@@ -52,11 +53,11 @@ async def dashboard(pool: asyncpg.Pool, start: date | None, end: date | None) ->
 
 
 def empty_totals():
-    return {"strategy_capital": 0.0, "broker_net": 0.0, "realized_pnl": 0.0, "unrealized_pnl": 0.0, "open_exposure": 0.0, "open_positions": 0, "trades_today": 0, "orders_today": 0}
+    return {"strategy_capital": 0.0, "broker_net": 0.0, "realized_pnl": 0.0, "realized_after_charges": 0.0, "charges": 0.0, "unrealized_pnl": 0.0, "open_exposure": 0.0, "open_positions": 0, "trades_today": 0, "orders_today": 0}
 
 
 def add_totals(totals, card):
-    for key in ["strategy_capital", "broker_net", "realized_pnl", "unrealized_pnl", "open_exposure"]:
+    for key in ["strategy_capital", "broker_net", "realized_pnl", "realized_after_charges", "charges", "unrealized_pnl", "open_exposure"]:
         totals[key] += card[key]
     totals["open_positions"] += card["open_positions_count"]
     totals["trades_today"] += card["latest_sync"]["trades_count"]

@@ -60,5 +60,25 @@ export function useAccountsData() {
     await load();
   }
 
-  return { ...state, load, saveAccount, syncNow };
+  async function importHistory(accountId: string, file: File) {
+    return importCsv(accountId, file, '/datasync/zerodha/history/tradebook', 'historical trades imported', 'trades_imported');
+  }
+
+  async function importPnl(accountId: string, file: File) {
+    return importCsv(accountId, file, '/datasync/zerodha/history/pnl-statement', 'P&L rows imported', 'pnl_rows_imported');
+  }
+
+  async function importCsv(accountId: string, file: File, url: string, label: string, countKey: string) {
+    const csvText = await file.text();
+    const res = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_id: accountId, csv_text: csvText }),
+    });
+    const data = await res.json().catch(() => ({}));
+    patch({ message: res.ok ? `${data[countKey]} ${label} for ${accountId}` : data.detail ?? 'history import failed' });
+    if (res.ok) await load();
+    return res.ok;
+  }
+
+  return { ...state, load, saveAccount, syncNow, importHistory, importPnl };
 }

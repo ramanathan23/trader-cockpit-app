@@ -34,7 +34,7 @@ export function useLivePrices(
           const map: Record<string, LivePriceData> = {};
           for (const [sym, m] of Object.entries(data)) {
             map[sym] = {
-              ltp:      m.day_close   ?? null,
+              ltp:      m.current_price ?? m.day_close ?? null,
               prevClose: m.prev_day_close ?? null,
             };
           }
