@@ -7,6 +7,7 @@ import asyncpg
 
 from ..infrastructure.zerodha.client import ZerodhaAccount
 from .zerodha_auth import client
+from .zerodha_charges import sync_charges
 from .zerodha_constants import BROKER
 from .zerodha_utils import json_text, parse_ts
 
@@ -36,6 +37,7 @@ async def sync_account(pool: asyncpg.Pool, account: ZerodhaAccount) -> dict[str,
         async with pool.acquire() as conn, conn.transaction():
             await store_orders(conn, account.account_id, orders or [])
             await store_trades(conn, account.account_id, trades or [])
+            charges_count = await sync_charges(conn, api, token, account.account_id, orders or [])
             await store_snapshot(conn, "broker_positions_raw", account.account_id, positions)
             await store_snapshot(conn, "broker_holdings_raw", account.account_id, holdings)
             await store_snapshot(conn, "broker_margins_raw", account.account_id, margins)
@@ -43,7 +45,7 @@ async def sync_account(pool: asyncpg.Pool, account: ZerodhaAccount) -> dict[str,
                 "UPDATE broker_sync_runs SET finished_at=NOW(), status='ok', orders_count=$2, trades_count=$3 WHERE id=$1",
                 run_id, len(orders or []), len(trades or []),
             )
-        return {"account_id": account.account_id, "status": "ok", "orders": len(orders or []), "trades": len(trades or [])}
+        return {"account_id": account.account_id, "status": "ok", "orders": len(orders or []), "trades": len(trades or []), "charges": charges_count}
     except Exception as exc:
         await mark_error(pool, run_id, account.account_id, str(exc))
         raise

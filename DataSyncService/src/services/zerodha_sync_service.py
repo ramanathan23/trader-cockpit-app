@@ -14,6 +14,7 @@ from .zerodha_ingest import sync_account
 from .zerodha_performance import performance_summary
 from .zerodha_pnl_import import import_pnl_csv
 from .zerodha_trades import reconstructed_trades
+from .zerodha_xlsx_import import import_pnl_xlsx
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +70,6 @@ class ZerodhaSyncService:
 
     async def import_pnl_csv(self, account_id: str, csv_text: str) -> dict[str, Any]:
         return await import_pnl_csv(self._pool, account_id, csv_text)
+
+    async def import_pnl_xlsx(self, account_id: str, xlsx_base64: str) -> dict[str, Any]:
+        return await import_pnl_xlsx(self._pool, account_id, xlsx_base64)

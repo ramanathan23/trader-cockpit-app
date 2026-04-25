@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_RANGE,
   ScreenerPreset,
@@ -13,7 +13,7 @@ import {
 
 export type { ScreenerRangeFilter, ScreenerPreset };
 
-const PAGE_SIZE = 2000;
+const PAGE_SIZE = 500;
 
 export function useScreener() {
   const [rows,         setRows]         = useState<ScreenerRow[]>([]);
@@ -27,6 +27,7 @@ export function useScreener() {
   const [sortAsc,      setSortAsc]      = useState(false);
   const [fnoOnly,      setFnoOnly]      = useState(false);
   const offsetRef = useRef(0);
+  const deferredQuery = useDeferredValue(query);
 
   const loadScreener = useCallback(async () => {
     setLoading(true);
@@ -42,22 +43,6 @@ export function useScreener() {
         setTotalFromApi(d.total ?? decorated.length);
         offsetRef.current = decorated.length;
         setLoading(false);
-        // Background-load remaining pages so breadth stats cover full universe
-        if (more) {
-          let nextMore = more;
-          while (nextMore) {
-            try {
-              const r2 = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
-              if (!r2.ok) break;
-              const d2 = await r2.json();
-              const extra = decorateRows(d2.symbols ?? []);
-              setRows(prev => [...prev, ...extra]);
-              nextMore = d2.has_more ?? false;
-              offsetRef.current += extra.length;
-              setHasMore(nextMore);
-            } catch { break; }
-          }
-        }
         return;
       }
     } catch { /* ignore */ }
@@ -107,9 +92,9 @@ export function useScreener() {
   }, []);
 
   const filteredRows = useMemo(() => {
-    const filtered = applyFilters(rows, query, range, presets, fnoOnly);
+    const filtered = applyFilters(rows, deferredQuery, range, presets, fnoOnly);
     return sortRows(filtered, sortCol, sortAsc);
-  }, [rows, query, range, presets, fnoOnly, sortCol, sortAsc]);
+  }, [rows, deferredQuery, range, presets, fnoOnly, sortCol, sortAsc]);
 
   return {
     rows,

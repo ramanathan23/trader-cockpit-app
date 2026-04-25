@@ -56,6 +56,8 @@ export const StockListPanel = memo(({
           onSort={list.sortBy}           onToggle={state.toggleExpand}
           onOpenModal={state.openModal}  onAddNote={onAddNote}
           onDeleteNote={onDeleteNote}
+          loading={list.loading}          hasMore={list.hasMore}
+          onLoadMore={list.loadMore}
         />
       )}
 
@@ -65,11 +67,15 @@ export const StockListPanel = memo(({
           livePrices={livePrices}
           noteEntries={noteEntries}
           onOpenModal={state.openModal}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          onLoadMore={list.loadMore}
         />
       )}
 
       {state.viewMode === 'chart' && (
-        <StockListChartView rows={list.filteredRows} livePrices={livePrices} />
+        <StockListChartView rows={list.filteredRows} livePrices={livePrices}
+          loading={list.loading} hasMore={list.hasMore} onLoadMore={list.loadMore} />
       )}
 
       {state.viewMode === 'cluster' && (

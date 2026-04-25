@@ -62,6 +62,10 @@ def record(account_id: str, row: dict[str, str], idx: int) -> tuple:
 async def import_pnl_csv(pool: asyncpg.Pool, account_id: str, csv_text: str) -> dict[str, Any]:
     reader = csv.DictReader(io.StringIO(csv_text.lstrip("\ufeff")))
     rows = [row for row in reader if any((value or "").strip() for value in row.values())]
+    return await import_pnl_rows(pool, account_id, rows)
+
+
+async def import_pnl_rows(pool: asyncpg.Pool, account_id: str, rows: list[dict[str, str]]) -> dict[str, Any]:
     records = [record(account_id, row, idx) for idx, row in enumerate(rows, 1)]
     records = [r for r in records if r[3] and (r[6] or r[7] or r[8])]
     async with pool.acquire() as conn:

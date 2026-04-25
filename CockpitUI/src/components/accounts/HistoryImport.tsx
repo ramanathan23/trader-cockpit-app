@@ -39,7 +39,7 @@ export function HistoryImport({
           className="rounded-lg border border-accent/50 bg-accent/10 px-4 py-2 text-[12px] font-black text-accent hover:bg-accent/20 disabled:opacity-50">
           Import Tradebook
         </button>
-        <input type="file" accept=".csv,text/csv" onChange={e => setPnl(e.target.files?.[0] ?? null)}
+        <input type="file" accept=".csv,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={e => setPnl(e.target.files?.[0] ?? null)}
           className="rounded-lg border border-border bg-base px-3 py-2 text-[12px] text-fg" />
         <button type="button" onClick={() => void submitPnl()} disabled={!active || !pnl}
           className="rounded-lg border border-bull/50 bg-bull/10 px-4 py-2 text-[12px] font-black text-bull hover:bg-bull/20 disabled:opacity-50">

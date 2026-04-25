@@ -9,16 +9,16 @@ export interface HeatMapEntry {
 }
 
 export function heatChgColor(pct: number | null): string {
-  if (pct == null) return 'linear-gradient(135deg, rgb(var(--lift)), rgb(var(--card)))';
-  if (pct > 5) return 'linear-gradient(135deg, #04945f, #19c985)';
-  if (pct > 3) return 'linear-gradient(135deg, #087f5b, #16b97b)';
-  if (pct > 1.5) return 'linear-gradient(135deg, #116f58, #0ea66f)';
-  if (pct > 0.5) return 'linear-gradient(135deg, #1d5f54, #17815f)';
-  if (pct > -0.5) return 'linear-gradient(135deg, rgb(var(--lift)), #33424a)';
-  if (pct > -1.5) return 'linear-gradient(135deg, #6f3842, #9b3e4d)';
-  if (pct > -3) return 'linear-gradient(135deg, #863340, #c44154)';
-  if (pct > -5) return 'linear-gradient(135deg, #9c2f40, #dd4558)';
-  return 'linear-gradient(135deg, #8f2334, #ef4058)';
+  if (pct == null) return 'rgb(var(--lift))';
+  if (pct > 5) return '#00a972';
+  if (pct > 3) return '#078d67';
+  if (pct > 1.5) return '#16775f';
+  if (pct > 0.5) return '#2f665a';
+  if (pct > -0.5) return '#879295';
+  if (pct > -1.5) return '#8b5d66';
+  if (pct > -3) return '#a84d5d';
+  if (pct > -5) return '#bf4055';
+  return '#d73751';
 }
 
 export function heatTextColor(pct: number | null): string {
@@ -26,17 +26,14 @@ export function heatTextColor(pct: number | null): string {
   return '#ffffff';
 }
 
-export function heatSize(adv: number, chgPct: number | null): { w: number; h: number } {
-  const w = adv > 5000 ? 160
-    : adv > 2000 ? 134
-      : adv > 800 ? 110
-        : adv > 250 ? 90
-          : adv > 80 ? 74
-            : adv > 20 ? 60
-              : 48;
-
+export function heatSize(_adv: number, chgPct: number | null): { w: number; h: number } {
   const mag = Math.min(Math.abs(chgPct ?? 0), 8);
-  const h = mag > 5 ? 98
+  const w = mag > 5 ? 150
+    : mag > 3 ? 126
+      : mag > 1.5 ? 104
+        : mag > 0.5 ? 82
+          : 60;
+  const h = mag > 5 ? 94
     : mag > 3 ? 84
       : mag > 1.5 ? 70
         : mag > 0.5 ? 60
@@ -46,12 +43,23 @@ export function heatSize(adv: number, chgPct: number | null): { w: number; h: nu
 }
 
 export const HEAT_LEGEND = [
-  { label: '>+5%', color: '#19c985' },
-  { label: '+1.5%', color: '#0ea66f' },
-  { label: 'Flat', color: '#33424a' },
-  { label: '-1.5%', color: '#c44154' },
-  { label: '<-5%', color: '#ef4058' },
+  { label: '>+5%', color: '#00a972' },
+  { label: '+1.5%', color: '#16775f' },
+  { label: 'Flat', color: '#879295' },
+  { label: '-1.5%', color: '#a84d5d' },
+  { label: '<-5%', color: '#d73751' },
 ] as const;
+
+export function heatWeight(pct: number | null): number {
+  const mag = Math.abs(pct ?? 0);
+  if (mag < 0.05) return 0.35;
+  return Math.max(0.35, Math.min(mag, 8));
+}
+
+export function heatMoveSort(a: HeatMapEntry, b: HeatMapEntry): number {
+  const move = Math.abs(b.chgPct ?? 0) - Math.abs(a.chgPct ?? 0);
+  return move !== 0 ? move : a.symbol.localeCompare(b.symbol);
+}
 
 export function heatTone(pct: number | null): 'bull' | 'bear' | 'flat' | 'empty' {
   if (pct == null) return 'empty';

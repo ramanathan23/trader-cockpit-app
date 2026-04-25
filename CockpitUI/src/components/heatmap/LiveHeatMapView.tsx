@@ -4,7 +4,7 @@ import { memo, useState, useMemo } from 'react';
 import { filterSignals, signalShort } from '@/domain/signal';
 import type { Signal, SignalCategory, SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
-import type { HeatMapEntry } from '@/lib/heatmap';
+import { heatMoveSort, type HeatMapEntry } from '@/lib/heatmap';
 import { useLivePrices } from '@/hooks/useLivePrices';
 import { SymbolModal } from '@/components/dashboard/SymbolModal';
 import { HeatMapView } from '@/components/heatmap/HeatMapView';
@@ -51,10 +51,7 @@ export const LiveHeatMapView = memo(({ metricsCache, signals, category, subType,
           signal: signalShort(signal.signal_type),
         };
       })
-      .sort((a, b) => {
-        const move = Math.abs(b.chgPct ?? 0) - Math.abs(a.chgPct ?? 0);
-        return move !== 0 ? move : (b.adv ?? 0) - (a.adv ?? 0);
-      });
+      .sort(heatMoveSort);
   }, [filteredSignals, livePrices, metricsCache]);
 
   const entriesFromCache = useMemo<HeatMapEntry[]>(() =>
@@ -67,7 +64,7 @@ export const LiveHeatMapView = memo(({ metricsCache, signals, category, subType,
         price:  m.current_price ?? m.day_close ?? null,
         stage:  m.stage ?? undefined,
       }))
-      .sort((a, b) => (b.adv ?? 0) - (a.adv ?? 0)),
+      .sort(heatMoveSort),
   [metricsCache]);
 
   return (

@@ -1,6 +1,7 @@
 'use client';
 
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ScreenerRow } from '@/domain/screener';
 import { ScreenerCard } from './ScreenerCard';
 
@@ -15,6 +16,29 @@ interface ScreenerCardsProps {
 
 export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart, marketOpen }: ScreenerCardsProps) => {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [lanes, setLanes] = useState(1);
+  const gap = 12;
+  const cardWidth = `calc((100% - ${(lanes - 1) * gap}px) / ${lanes})`;
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 186,
+    overscan: lanes * 4,
+    lanes,
+  });
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const update = () => {
+      const minWidth = el.clientWidth >= 1536 ? 260 : el.clientWidth >= 640 ? 300 : el.clientWidth;
+      setLanes(Math.max(1, Math.floor((el.clientWidth - 32 + gap) / (minWidth + gap))));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handleScroll = useCallback(() => {
     const el = parentRef.current;
@@ -31,8 +55,23 @@ export const ScreenerCards = memo(({ rows, loading, hasMore, onLoadMore, onChart
 
   return (
     <div ref={parentRef} className="flex-1 overflow-y-auto p-4" onScroll={handleScroll}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {rows.map(row => <ScreenerCard key={row.symbol} row={row} onChart={onChart} marketOpen={marketOpen} />)}
+      <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map(item => {
+          const row = rows[item.index];
+          return (
+            <div
+              key={row.symbol}
+              className="absolute top-0"
+              style={{
+                left: `calc(${item.lane} * (${cardWidth} + ${gap}px))`,
+                width: cardWidth,
+                transform: `translateY(${item.start}px)`,
+              }}
+            >
+              <ScreenerCard row={row} onChart={onChart} marketOpen={marketOpen} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

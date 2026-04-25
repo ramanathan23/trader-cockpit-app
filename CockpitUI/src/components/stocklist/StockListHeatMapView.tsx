@@ -3,7 +3,7 @@
 import { memo, useState, useMemo } from 'react';
 import type { StockRow } from '@/domain/stocklist';
 import type { LivePriceData } from '@/components/ui/LivePrice';
-import type { HeatMapEntry } from '@/lib/heatmap';
+import { heatMoveSort, type HeatMapEntry } from '@/lib/heatmap';
 import { SymbolModal } from '@/components/dashboard/SymbolModal';
 import { HeatMapView } from '@/components/heatmap/HeatMapView';
 
@@ -32,7 +32,7 @@ export const StockListHeatMapView = memo(({ rows, livePrices }: StockListHeatMap
         score:  row.total_score ?? undefined,
         stage:  row.stage ?? undefined,
       }))
-      .sort((a, b) => (b.adv ?? 0) - (a.adv ?? 0)),
+      .sort(heatMoveSort),
   [rows, livePrices]);
 
   return (

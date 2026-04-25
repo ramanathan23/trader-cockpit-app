@@ -39,10 +39,12 @@ def empty_account(account_id: str) -> dict[str, Any]:
 
 
 def apply_statement(acc: dict[str, Any], stmt: dict[str, Any]) -> None:
-    net_default = acc["realized_pnl"]
-    acc["statement_realized_pnl"] = round(float(stmt.get("realized_pnl") or 0), 2)
-    acc["charges"] = round(float(stmt.get("charges") or 0), 2)
-    acc["realized_after_charges"] = round(float(stmt.get("net_realized_pnl") or net_default), 2)
+    gross = float(stmt.get("realized_pnl") or 0)
+    charges = float(stmt.get("charges") or 0)
+    net = float(stmt.get("net_realized_pnl") or 0)
+    acc["statement_realized_pnl"] = round(gross, 2)
+    acc["charges"] = round(charges, 2)
+    acc["realized_after_charges"] = round(net if gross else acc["realized_pnl"] - charges, 2)
 
 
 async def pnl_statement(pool: asyncpg.Pool, start_date: date, end_date: date):

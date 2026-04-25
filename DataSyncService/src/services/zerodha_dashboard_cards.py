@@ -5,7 +5,7 @@ def account_card(account, margin_row, position_row, holding_row, run, perf):
     equity = payload(margin_row["payload"] if margin_row else {}).get("equity", {})
     available, utilised = equity.get("available", {}), equity.get("utilised", {})
     positions = payload(position_row["payload"] if position_row else {}).get("net", [])
-    holdings = payload(holding_row["payload"] if holding_row else [])
+    holdings = holding_list(payload(holding_row["payload"] if holding_row else []))
     open_positions = [position_item(p) for p in positions if p.get("quantity")]
     unrealized, exposure = unrealized_of(open_positions), exposure_of(open_positions)
     abs_pnls = [abs(money_float(p.get("unrealised") or p.get("pnl"))) for p in open_positions]
@@ -54,6 +54,15 @@ def holding_items(items):
         "average_price": h.get("average_price"), "last_price": h.get("last_price"),
         "pnl": h.get("pnl"), "product": h.get("product"), "exchange": h.get("exchange"),
     } for h in items[:12]]
+
+
+def holding_list(value):
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        data = value.get("data") or value.get("holdings") or value.get("net") or []
+        return data if isinstance(data, list) else []
+    return []
 
 
 def sync_info(run):

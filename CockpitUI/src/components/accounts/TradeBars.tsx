@@ -6,6 +6,7 @@ import { money } from './accountFmt';
 
 const W = 600, H = 110, PL = 8, PR = 8, PT = 10, PB = 22;
 const IW = W - PL - PR, IH = H - PT - PB;
+const MAX_BARS = 180;
 
 export const TradeBars = memo(function TradeBars({ trades }: { trades: TradeRow[] }) {
   if (!trades.length) {
@@ -16,7 +17,10 @@ export const TradeBars = memo(function TradeBars({ trades }: { trades: TradeRow[
     );
   }
 
-  const sorted = [...trades].sort((a, b) => (a.exit_time ?? '').localeCompare(b.exit_time ?? ''));
+  const totalTrades = trades.length;
+  const sorted = [...trades]
+    .sort((a, b) => (a.exit_time ?? '').localeCompare(b.exit_time ?? ''))
+    .slice(-MAX_BARS);
   const maxAbs = Math.max(1, ...sorted.map(t => Math.abs(t.pnl)));
   const midY = PT + IH / 2;
   const halfH = IH / 2 - 2;
@@ -33,7 +37,7 @@ export const TradeBars = memo(function TradeBars({ trades }: { trades: TradeRow[
           <span className="text-bull font-black">{wins}W</span>
           <span className="mx-1 text-ghost">/</span>
           <span className="text-bear font-black">{losses}L</span>
-          <span className="ml-2">{sorted.length} total</span>
+          <span className="ml-2">{sorted.length}/{totalTrades} shown</span>
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 110 }}>

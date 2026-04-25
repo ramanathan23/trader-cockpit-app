@@ -65,6 +65,13 @@ export function useAccountsData() {
   }
 
   async function importPnl(accountId: string, file: File) {
+    if (/\.(xlsx|xlsm)$/i.test(file.name)) {
+      const res = await fetch('/datasync/zerodha/history/pnl-statement-xlsx', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, xlsx_base64: await fileBase64(file) }),
+      });
+      return finishImport(res, accountId, 'P&L rows imported', 'pnl_rows_imported');
+    }
     return importCsv(accountId, file, '/datasync/zerodha/history/pnl-statement', 'P&L rows imported', 'pnl_rows_imported');
   }
 
@@ -74,6 +81,10 @@ export function useAccountsData() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account_id: accountId, csv_text: csvText }),
     });
+    return finishImport(res, accountId, label, countKey);
+  }
+
+  async function finishImport(res: Response, accountId: string, label: string, countKey: string) {
     const data = await res.json().catch(() => ({}));
     patch({ message: res.ok ? `${data[countKey]} ${label} for ${accountId}` : data.detail ?? 'history import failed' });
     if (res.ok) await load();
@@ -81,4 +92,9 @@ export function useAccountsData() {
   }
 
   return { ...state, load, saveAccount, syncNow, importHistory, importPnl };
+}
+
+async function fileBase64(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''));
 }

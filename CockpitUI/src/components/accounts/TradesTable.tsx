@@ -1,17 +1,27 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { TradeRow } from './accountTypes';
 import { money, when, holdMinutes, fmtHold } from './accountFmt';
 
 export const TradesTable = memo(function TradesTable({ rows, title }: { rows: TradeRow[]; title: string }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 34,
+    overscan: 12,
+  });
+  const items = virtualizer.getVirtualItems();
+
   return (
     <div className="rounded-lg border border-border bg-panel">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-[13px] font-black text-fg">{title}</span>
         <span className="text-[10px] text-ghost">{rows.length} trades</span>
       </div>
-      <div className="max-h-[420px] overflow-auto">
+      <div ref={parentRef} className="max-h-[420px] overflow-auto">
         <table className="w-full text-left text-[11px]">
           <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-widest text-ghost">
             <tr>
@@ -26,7 +36,10 @@ export const TradesTable = memo(function TradesTable({ rows, title }: { rows: Tr
             </tr>
           </thead>
           <tbody>
-            {rows.map((t, i) => {
+            {items.length > 0 && <tr><td colSpan={8} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>}
+            {items.map(item => {
+              const t = rows[item.index];
+              const i = item.index;
               const hold = holdMinutes(t.entry_time, t.exit_time);
               const isWin = t.pnl > 0, isLoss = t.pnl < 0;
               const fastStop = isLoss && hold > 0 && hold < 30;
@@ -53,6 +66,7 @@ export const TradesTable = memo(function TradesTable({ rows, title }: { rows: Tr
                 </tr>
               );
             })}
+            {items.length > 0 && <tr><td colSpan={8} style={{ height: virtualizer.getTotalSize() - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>}
             {rows.length === 0 && (
               <tr><td colSpan={8} className="px-3 py-8 text-center text-ghost">No completed trades stored yet.</td></tr>
             )}

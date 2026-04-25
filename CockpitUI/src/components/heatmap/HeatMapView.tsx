@@ -1,7 +1,8 @@
 'use client';
 
-import { memo } from 'react';
-import { HEAT_LEGEND, heatStats } from '@/lib/heatmap';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { hierarchy, treemap, treemapSquarify } from 'd3-hierarchy';
+import { HEAT_LEGEND, heatStats, heatWeight } from '@/lib/heatmap';
 import type { HeatMapEntry } from '@/lib/heatmap';
 import { HeatMapCell } from './HeatMapCell';
 
@@ -18,6 +19,48 @@ HeatMapView.displayName = 'HeatMapView';
 function HeatMapFrame({ entries, onCellClick }: HeatMapViewProps) {
   const stats = heatStats(entries);
   const avg = stats.avgMove;
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const rect = entry.contentRect;
+      setSize({
+        width:  Math.floor(rect.width),
+        height: Math.floor(rect.height),
+      });
+    });
+    observer.observe(mapRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const nodes = useMemo(() => {
+    if (size.width <= 0 || size.height <= 0 || entries.length === 0) return [];
+    const root = hierarchy<{ children: HeatMapEntry[] } | HeatMapEntry>({ children: entries })
+      .sum(node => {
+        if (!('symbol' in node)) return 0;
+        return heatWeight(node.chgPct);
+      })
+      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+
+    const laidOut = treemap<typeof root.data>()
+      .size([size.width, size.height])
+      .paddingInner(3)
+      .paddingOuter(0)
+      .tile(treemapSquarify.ratio(1.2))
+      .round(true)(root);
+
+    return laidOut.leaves()
+      .filter(node => 'symbol' in node.data)
+      .map(node => ({
+        entry: node.data as HeatMapEntry,
+        x: node.x0,
+        y: node.y0,
+        w: Math.max(0, node.x1 - node.x0),
+        h: Math.max(0, node.y1 - node.y0),
+      }));
+  }, [entries, size]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-base">
@@ -42,16 +85,33 @@ function HeatMapFrame({ entries, onCellClick }: HeatMapViewProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-3">
-        {entries.length === 0 ? (
-          <div className="flex h-32 items-center justify-center text-[12px] text-ghost">No data</div>
-        ) : (
-          <div className="flex flex-wrap content-start gap-1.5">
-            {entries.map(e => (
-              <HeatMapCell key={e.symbol} entry={e} onClick={onCellClick} />
-            ))}
-          </div>
-        )}
+      <div className="relative min-h-[360px] flex-1 overflow-hidden">
+        <div ref={mapRef} className="absolute inset-3">
+          {entries.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-[12px] text-ghost">No data</div>
+          ) : nodes.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-[12px] text-ghost">Sizing heatmap</div>
+          ) : (
+            nodes.map(node => (
+              <div
+                key={node.entry.symbol}
+                className="absolute"
+                style={{
+                  transform: `translate(${node.x}px, ${node.y}px)`,
+                  width:     node.w,
+                  height:    node.h,
+                }}
+              >
+                <HeatMapCell
+                  entry={node.entry}
+                  onClick={onCellClick}
+                  width={node.w}
+                  height={node.h}
+                />
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

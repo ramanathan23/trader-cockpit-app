@@ -1,3 +1,7 @@
+'use client';
+
+import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DashboardAccount, HoldingRow } from './accountTypes';
 import { money } from './accountFmt';
 
@@ -8,22 +12,37 @@ export function holdingsOf(accounts: DashboardAccount[]): Row[] {
 }
 
 export function HoldingsTable({ rows }: { rows: Row[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 36,
+    overscan: 10,
+  });
+  const items = virtualizer.getVirtualItems();
+
   return (
     <div className="rounded-lg border border-border bg-panel">
       <div className="border-b border-border px-4 py-3 text-[13px] font-black text-fg">Holdings</div>
-      <div className="max-h-[320px] overflow-auto">
+      <div ref={parentRef} className="max-h-[320px] overflow-auto">
         <table className="w-full text-left text-[12px]">
           <thead className="sticky top-0 bg-card text-[10px] uppercase tracking-widest text-ghost">
             <tr><th className="px-3 py-2">Account</th><th className="px-3 py-2">Symbol</th><th className="px-3 py-2">Qty</th><th className="px-3 py-2">Value</th><th className="px-3 py-2">P&L</th></tr>
           </thead>
           <tbody>
-            {rows.map((h, i) => (
+            {items.length > 0 && <tr><td colSpan={5} style={{ height: items[0].start, padding: 0, border: 'none' }} /></tr>}
+            {items.map(item => {
+              const h = rows[item.index];
+              const i = item.index;
+              return (
               <tr key={`${h.account_id}-${h.symbol}-${i}`} className="border-t border-border">
                 <td className="px-3 py-2 text-dim">{h.account_id}</td><td className="px-3 py-2 font-black text-fg">{h.symbol}</td>
                 <td className="num px-3 py-2 text-dim">{h.quantity}</td><td className="num px-3 py-2 text-dim">{money(h.last_price * h.quantity)}</td>
                 <td className={`num px-3 py-2 ${(h.pnl ?? 0) >= 0 ? 'text-bull' : 'text-bear'}`}>{money(h.pnl)}</td>
               </tr>
-            ))}
+              );
+            })}
+            {items.length > 0 && <tr><td colSpan={5} style={{ height: virtualizer.getTotalSize() - items[items.length - 1].end, padding: 0, border: 'none' }} /></tr>}
             {rows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-ghost">No holdings in latest snapshot.</td></tr>}
           </tbody>
         </table>

@@ -2,6 +2,7 @@
 .github
 __pycache__
 *.pyc
+*.tsbuildinfo
 node_modules
 .next
 coverage.xml
