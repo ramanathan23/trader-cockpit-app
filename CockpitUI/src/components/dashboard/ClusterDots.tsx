@@ -2,7 +2,7 @@
 
 import { memo } from 'react';
 import type { ScoredSymbol } from '@/domain/dashboard';
-import { dotColor, dotRadius, PAD, PW, PH } from '@/lib/clusterUtils';
+import { dotColor, dotRadius, dotJitter, PAD, PW, PH } from '@/lib/clusterUtils';
 import type { ViewBounds } from '@/lib/clusterUtils';
 
 interface ClusterDotsProps {
@@ -18,7 +18,9 @@ interface ClusterDotsProps {
   isDraggingRef: React.MutableRefObject<boolean>;
 }
 
-export const ClusterDots = memo(({ plotable, scores, bounds, toX, toY, hoveredRow, setHoveredRow, selected, setSelected, isDraggingRef }: ClusterDotsProps) => (
+export const ClusterDots = memo(({ plotable, scores, bounds, toX, toY, hoveredRow, setHoveredRow, selected, setSelected, isDraggingRef }: ClusterDotsProps) => {
+  const sorted = [...plotable].sort((a, b) => a.total_score - b.total_score);
+  return (
   <>
     <defs>
       <clipPath id="plot-area">
@@ -26,12 +28,13 @@ export const ClusterDots = memo(({ plotable, scores, bounds, toX, toY, hoveredRo
       </clipPath>
     </defs>
     <g clipPath="url(#plot-area)">
-      {plotable.map(row => {
+      {sorted.map(row => {
         const cs = row.comfort_score!;
         if (row.total_score < bounds.x0 || row.total_score > bounds.x1) return null;
         if (cs < bounds.y0 || cs > bounds.y1) return null;
-        const cx    = toX(row.total_score);
-        const cy    = toY(cs);
+        const jitter = dotJitter(row.symbol);
+        const cx    = toX(row.total_score) + jitter.dx;
+        const cy    = toY(cs) + jitter.dy;
         const r     = dotRadius(row.total_score);
         const color = dotColor(row);
         const isSel = selected === row.symbol;
@@ -39,8 +42,8 @@ export const ClusterDots = memo(({ plotable, scores, bounds, toX, toY, hoveredRo
         return (
           <g key={row.symbol}>
             <circle cx={cx} cy={cy} r={r + (isSel || isHov ? 3 : 0)}
-              fill={color} fillOpacity={isSel ? 1 : isHov ? 0.85 : 0.6}
-              stroke={color} strokeWidth={isSel ? 2 : isHov ? 1.5 : 1} strokeOpacity={0.9}
+              fill={color} fillOpacity={isSel ? 0.95 : isHov ? 0.8 : 0.4}
+              stroke={color} strokeWidth={isSel ? 2 : isHov ? 1.5 : 0} strokeOpacity={0.9}
               style={{ cursor: 'pointer', transition: 'r 0.1s, fill-opacity 0.1s' }}
               onMouseEnter={() => setHoveredRow(row)}
               onMouseLeave={() => setHoveredRow(null)}
@@ -62,5 +65,6 @@ export const ClusterDots = memo(({ plotable, scores, bounds, toX, toY, hoveredRo
       </text>
     )}
   </>
-));
+  );
+});
 ClusterDots.displayName = 'ClusterDots';

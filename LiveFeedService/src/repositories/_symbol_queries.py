@@ -10,26 +10,22 @@ _ACQUIRE_TIMEOUT = 30
 logger = logging.getLogger(__name__)
 
 
-async def _load_watchlist_instruments(pool: asyncpg.Pool, is_fno: bool) -> list[InstrumentMeta]:
-    """Load watchlisted symbols for one segment (FNO or equity)."""
-    fno_clause = (
-        "AND s.is_fno = TRUE"
-        if is_fno
-        else "AND (s.is_fno = FALSE OR s.is_fno IS NULL)"
-    )
+
+async def _load_liquid_instruments(pool: asyncpg.Pool, min_adv_cr: float) -> list[InstrumentMeta]:
+    """Load all scored equities with ADV >= min_adv_cr (liquid universe)."""
     async with pool.acquire(timeout=_ACQUIRE_TIMEOUT) as conn:
-        rows = await conn.fetch(f"""
+        rows = await conn.fetch("""
             SELECT s.symbol, s.dhan_security_id, s.exchange_segment
             FROM   daily_scores ds
-            JOIN   symbols s ON s.symbol = ds.symbol
+            JOIN   symbols s       ON s.symbol  = ds.symbol
+            JOIN   symbol_metrics sm ON sm.symbol = ds.symbol
             WHERE  ds.score_date = (SELECT MAX(score_date) FROM daily_scores)
-              AND  ds.is_watchlist = TRUE
               AND  s.dhan_security_id IS NOT NULL
               AND  s.series = 'EQ'
-              {fno_clause}
+              AND  sm.adv_20_cr >= $1
             ORDER  BY ds.rank ASC
-        """)
-    return [
+        """, min_adv_cr)
+    instruments = [
         InstrumentMeta(
             symbol           = r["symbol"],
             dhan_security_id = r["dhan_security_id"],
@@ -38,6 +34,8 @@ async def _load_watchlist_instruments(pool: asyncpg.Pool, is_fno: bool) -> list[
         )
         for r in rows
     ]
+    logger.info("Loaded %d liquid equity instruments (adv_20_cr >= %.1f)", len(instruments), min_adv_cr)
+    return instruments
 
 
 async def _load_all_equity_instruments(pool: asyncpg.Pool) -> list[InstrumentMeta]:

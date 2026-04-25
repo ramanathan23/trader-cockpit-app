@@ -17,7 +17,21 @@ export function dotColor(row: ScoredSymbol): string {
 }
 
 export function dotRadius(totalScore: number): number {
-  return Math.min(14, Math.max(4, 4 + (totalScore / 100) * 10));
+  return Math.min(7, Math.max(3, 3 + (totalScore / 100) * 4));
+}
+
+function strHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  return h;
+}
+
+export function dotJitter(symbol: string): { dx: number; dy: number } {
+  const h = strHash(symbol);
+  return {
+    dx: ((h & 0xff) / 255 - 0.5) * 10,
+    dy: (((h >> 8) & 0xff) / 255 - 0.5) * 10,
+  };
 }
 
 export function axisTicks(min: number, max: number): number[] {

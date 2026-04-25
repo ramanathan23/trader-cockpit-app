@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from 'react';
 import { filterSignals } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
-import type { DashboardResponse } from '@/domain/dashboard';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
 import { useHistory } from '@/hooks/useHistory';
@@ -17,11 +16,11 @@ import { useCockpitState } from './useCockpitState';
 import { OPEN_PHASES } from './appTypes';
 import type { InitialConfigs } from './appTypes';
 
-export function CockpitApp({ initialDashboard, initialConfigs }: { initialDashboard?: DashboardResponse | null; initialConfigs?: InitialConfigs | null }) {
+export function CockpitApp({ initialConfigs }: { initialConfigs?: InitialConfigs | null }) {
   const clock       = useClock();
   const tokenStatus = useTokenStatus();
   const { signals, paused, pendingCount, connState, metricsCache, marketStatus, mergeMetrics, togglePause, clearSignals } = useSignals();
-  const { notes, saveNote } = useNotes();
+  const { notes, noteEntries, addNote, deleteNote, saveNote } = useNotes();
   const history = useHistory();
 
   const { view, setView, category, setCategory, minAdvCr, setMinAdvCr, viewMode, setViewMode, showHelp, setShowHelp, theme, setTheme, subType, setSubType, fnoOnly, setFnoOnly } = useCockpitState();
@@ -54,18 +53,19 @@ export function CockpitApp({ initialDashboard, initialConfigs }: { initialDashbo
       <div className="flex h-full flex-col">
         <Header phase={marketStatus.phase} bias={marketStatus.bias} clock={clock} theme={theme} tokenStatus={tokenStatus}
           onToggleTheme={() => setTheme(m => m === 'dark' ? 'light' : 'dark')}
-          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view !== 'admin'}
+          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view !== 'admin' && view !== 'stocks' && view !== 'accounts'}
           showHelp={showHelp} onToggleHelp={() => setShowHelp(v => !v)} />
         <div className="flex min-h-0 flex-1">
           <AppRail view={view} onView={setView} signalCount={currentSignals.length} filteredCount={filteredCount} />
           <CockpitMain view={view} setView={setView} history={history} currentSignals={currentSignals}
             metricsCache={metricsCache} marketOpen={marketOpen} notes={notes} saveNote={saveNote}
+            noteEntries={noteEntries} onAddNote={addNote} onDeleteNote={deleteNote}
             filteredCount={filteredCount} paused={paused} pendingCount={pendingCount}
             togglePause={togglePause} clearSignals={clearSignals}
             category={category} setCategory={setCategory} subType={subType} setSubType={setSubType}
             fnoOnly={fnoOnly} setFnoOnly={setFnoOnly} minAdvCr={minAdvCr} setMinAdvCr={setMinAdvCr}
             viewMode={viewMode} setViewMode={setViewMode} showHelp={showHelp}
-            initialDashboard={initialDashboard} initialConfigs={initialConfigs} />
+            initialConfigs={initialConfigs} />
         </div>
       </div>
       <ConnectionDot state={connState} />

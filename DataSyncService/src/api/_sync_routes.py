@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from .deps import SyncStateRepoDep, SyncServiceDep
+from .deps import SyncStateRepoDep, SyncServiceDep, ZerodhaServiceDep
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -42,6 +42,37 @@ async def run_sync_sse(svc: SyncServiceDep):
             yield _sse({"status": "ok", "message": f"Daily sync complete — {updated} symbols updated"})
         except Exception as exc:
             logger.exception("run_sync_sse task failed")
+            yield _sse({"status": "error", "message": str(exc) or type(exc).__name__})
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post("/sync/run-zerodha-sse",
+             summary="Broker sync: fetch Zerodha orders/trades/positions for configured accounts")
+async def run_zerodha_sync_sse(svc: ZerodhaServiceDep):
+    async def generate():
+        yield _sse({"status": "running", "message": "Zerodha account sync started"})
+        task = asyncio.create_task(svc.sync_all())
+        elapsed = 0
+        while not task.done():
+            await asyncio.sleep(3)
+            elapsed += 3
+            yield _sse({"status": "running", "message": f"Syncing Zerodha accounts... {elapsed}s"})
+        try:
+            result = task.result()
+            accounts = result.get("accounts", [])
+            ok = sum(1 for account in accounts if account.get("status") == "ok")
+            login_required = sum(1 for account in accounts if account.get("status") == "login_required")
+            if login_required:
+                yield _sse({
+                    "status": "error",
+                    "message": f"{login_required} Zerodha account(s) need login; {ok} synced",
+                })
+            else:
+                yield _sse({"status": "ok", "message": f"Zerodha sync complete - {ok} account(s)"})
+        except Exception as exc:
+            logger.exception("run_zerodha_sync_sse task failed")
             yield _sse({"status": "error", "message": str(exc) or type(exc).__name__})
 
     return StreamingResponse(generate(), media_type="text/event-stream",

@@ -18,7 +18,6 @@ export const ScreenerTableRow = memo(({ row: r, onChart, marketOpen }: {
       <span className="inline-flex items-center gap-1">
         <span className="text-ticker text-fg">{r.symbol}</span>
         {r.is_fno       && <span className="chip px-1 py-0 text-[9px] text-violet border-violet/35">F&O</span>}
-        {r.is_watchlist && <span className="text-[10px] text-amber" title="Watchlist">★</span>}
         {r.vcp_detected  && <span className="chip px-1 py-0 text-[9px] text-bull border-bull/35">VCP</span>}
         {r.rect_breakout && <span className="chip px-1 py-0 text-[9px] text-accent border-accent/35">RECT</span>}
       </span>

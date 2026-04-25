@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     token_store = TokenStore(redis_url=settings.redis_url, env_fallback=settings.dhan_access_token)
     await token_store.seed_if_missing()
 
-    symbol_repo     = SymbolRepository(pool)
+    symbol_repo     = SymbolRepository(pool, min_adv_cr=settings.min_adv_cr)
     candle_repo     = CandleRepository(pool)
     metrics_service = MetricsService(pool)
 

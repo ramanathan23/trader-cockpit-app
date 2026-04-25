@@ -5,6 +5,7 @@ import type { AdminSection, InitialConfigs } from './adminTypes';
 import { AdminNav } from './AdminNav';
 import { FullSyncPane } from './FullSyncPane';
 import { TokenPane } from './TokenPane';
+import { ZerodhaPane } from './ZerodhaPane';
 import { ServiceConfigPane } from './ServiceConfigPane';
 
 interface AdminPanelProps {
@@ -35,6 +36,7 @@ export function AdminPanel({ initialConfigs }: AdminPanelProps) {
       <div className="min-w-0 flex-1 overflow-y-auto p-6">
         {/* Always-mounted panes preserve pipeline state + SSE across nav changes. */}
         <div className={section !== 'full-sync' ? 'hidden' : ''}><FullSyncPane /></div>
+        <div className={section !== 'zerodha'   ? 'hidden' : ''}><ZerodhaPane /></div>
         <div className={section !== 'token'     ? 'hidden' : ''}><TokenPane /></div>
         {isConfig && (
           <ServiceConfigPane key={section} sectionKey={section} initialConfig={configData} />

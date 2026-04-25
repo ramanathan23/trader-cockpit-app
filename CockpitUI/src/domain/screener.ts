@@ -25,7 +25,6 @@ export interface ScreenerRow {
   stage?: string;
   rs_vs_nifty?: number;
   weekly_bias?: string;
-  is_watchlist?: boolean;
   vcp_detected?: boolean;
   vcp_contractions?: number;
   rect_breakout?: boolean;
@@ -71,7 +70,7 @@ export const DEFAULT_RANGE: ScreenerRangeFilter = {
 
 export type ScreenerPreset = 'near52h' | 'near52l' | 'nearpdh' | 'nearpdl'
   | 'camH4x' | 'camS4x' | 'camH3rej' | 'camS3rej'
-  | 'vcp' | 'rectBreakout' | 'stage2' | 'stage4' | 'watchlist';
+  | 'vcp' | 'rectBreakout' | 'stage2' | 'stage4';
 
 export const SCREENER_PRESETS: { key: ScreenerPreset; label: string; group?: string }[] = [
   { key: 'near52h', label: 'NEAR 52H' },
@@ -86,7 +85,6 @@ export const SCREENER_PRESETS: { key: ScreenerPreset; label: string; group?: str
   { key: 'stage4',      label: 'STAGE 4',   group: 'stage' },
   { key: 'vcp',         label: 'VCP',       group: 'pattern' },
   { key: 'rectBreakout', label: 'RECT BRK', group: 'pattern' },
-  { key: 'watchlist',   label: 'WATCHLIST', group: 'watchlist' },
 ];
 
 /** Compute Camarilla pivot levels from previous-day OHLC. */
@@ -176,11 +174,12 @@ export function applyFilters(
   range: ScreenerRangeFilter,
   presets: Set<ScreenerPreset>,
   fnoOnly: boolean,
+  notes?: Record<string, string>,
 ): ScreenerRow[] {
   const q = query.trim().toUpperCase();
   return rows.filter(r => {
     if (fnoOnly && !r.is_fno) return false;
-    if (q && !r.symbol.includes(q)) return false;
+    if (q && !r.symbol.includes(q) && !(notes?.[r.symbol]?.toUpperCase().includes(q))) return false;
 
     const adv = r.adv_20_cr ?? 0;
     if (adv < range.advMin) return false;
@@ -233,7 +232,6 @@ export function applyFilters(
     if (presets.has('stage4')      && r.stage !== 'STAGE_4')  return false;
     if (presets.has('vcp')         && !r.vcp_detected)         return false;
     if (presets.has('rectBreakout') && !r.rect_breakout)       return false;
-    if (presets.has('watchlist')   && !r.is_watchlist)         return false;
 
     return true;
   });

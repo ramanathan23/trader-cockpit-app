@@ -1,5 +1,9 @@
 {
   "permissions": {
-    "allow": ["*"]
+    "allow": [
+      "**",
+      "Bash(npx tsc *)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

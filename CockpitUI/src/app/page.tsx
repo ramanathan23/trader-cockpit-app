@@ -1,4 +1,3 @@
-import type { DashboardResponse } from '@/domain/dashboard';
 import { CockpitApp } from './CockpitApp';
 
 export const dynamic = 'force-dynamic';
@@ -26,8 +25,7 @@ export default async function Page() {
   const LIVE_FEED_URL= process.env.LIVE_FEED_URL?? 'http://localhost:8003';
   const MODELING_URL = process.env.MODELING_URL ?? 'http://localhost:8004';
 
-  const [dashboard, scorer, datasync, livefeed, modeling] = await Promise.all([
-    safeFetch<DashboardResponse>(`${SCORER_URL}/api/v1/dashboard?limit=1000`),
+  const [scorer, datasync, livefeed, modeling] = await Promise.all([
     safeFetch<Record<string, unknown>>(`${SCORER_URL}/api/v1/config`),
     safeFetch<Record<string, unknown>>(`${DATASYNC_URL}/api/v1/config`),
     safeFetch<Record<string, unknown>>(`${LIVE_FEED_URL}/api/v1/config`),
@@ -36,5 +34,5 @@ export default async function Page() {
 
   const initialConfigs: ServiceConfigs = { scorer, datasync, livefeed, modeling };
 
-  return <CockpitApp initialDashboard={dashboard} initialConfigs={initialConfigs} />;
+  return <CockpitApp initialConfigs={initialConfigs} />;
 }

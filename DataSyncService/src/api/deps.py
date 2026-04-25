@@ -14,6 +14,7 @@ from ..repositories.price_repository import PriceRepository
 from ..repositories.symbol_repository import SymbolRepository
 from ..repositories.sync_state_repository import SyncStateRepository
 from ..services.sync_service import SyncService
+from ..services.zerodha_sync_service import ZerodhaSyncService
 
 
 def _price_repo(request: Request) -> PriceRepository:
@@ -32,7 +33,12 @@ def _sync_service(request: Request) -> SyncService:
     return request.app.state.sync_service
 
 
+def _zerodha_service(request: Request) -> ZerodhaSyncService:
+    return request.app.state.zerodha_service
+
+
 PriceRepoDep     = Annotated[PriceRepository,     Depends(_price_repo)]
 SymbolRepoDep    = Annotated[SymbolRepository,    Depends(_symbol_repo)]
 SyncStateRepoDep = Annotated[SyncStateRepository, Depends(_sync_state_repo)]
 SyncServiceDep   = Annotated[SyncService,         Depends(_sync_service)]
+ZerodhaServiceDep = Annotated[ZerodhaSyncService, Depends(_zerodha_service)]

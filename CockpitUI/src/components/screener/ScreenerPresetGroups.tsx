@@ -24,7 +24,7 @@ function PresetBtn({ preset, active, activeClass, label, onPreset }: {
   );
 }
 
-/** All preset filter button groups — ungrouped, CAM, stage, pattern, watchlist. */
+/** All preset filter button groups — ungrouped, CAM, stage, pattern. */
 export const ScreenerPresetGroups = memo(({ presets, onPreset }: ScreenerPresetGroupsProps) => {
   const byGroup = (group?: string) => SCREENER_PRESETS.filter(p => p.group === group);
 
@@ -53,13 +53,6 @@ export const ScreenerPresetGroups = memo(({ presets, onPreset }: ScreenerPresetG
           <PresetBtn key={p.key} preset={p.key} active={presets.has(p.key)} activeClass="text-accent" label={p.label} onPreset={onPreset} />
         ))}
       </div>
-
-      {byGroup('watchlist').map(p => (
-        <button key={p.key} type="button" onClick={() => onPreset(p.key)}
-          className={cn('seg-btn border border-border', presets.has(p.key) && 'active text-amber')}>
-          ★ {p.label}
-        </button>
-      ))}
     </>
   );
 });

@@ -15,8 +15,8 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   tokenStatus?: TokenStatus | null;
-  viewMode: 'card' | 'table';
-  onViewMode: (v: 'card' | 'table') => void;
+  viewMode: 'card' | 'table' | 'heatmap';
+  onViewMode: (v: 'card' | 'table' | 'heatmap') => void;
   showViewToggle: boolean;
   showHelp: boolean;
   onToggleHelp: () => void;

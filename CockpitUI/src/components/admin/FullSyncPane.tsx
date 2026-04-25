@@ -58,6 +58,8 @@ export function FullSyncPane() {
       </div>
 
       <div className="flex flex-col items-center">
+        {node('zerodha', 0)}
+        <VLine />
         <div className="relative flex gap-8">
           <div className="absolute -top-5 left-0 right-0 flex justify-center">
             <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[8px] font-black tracking-widest text-ghost">PARALLEL</span>

@@ -6,7 +6,7 @@ import logging
 import asyncpg
 
 from ..domain.instrument_meta import InstrumentMeta
-from ._symbol_queries import _load_watchlist_instruments, _load_all_equity_instruments
+from ._symbol_queries import _load_liquid_instruments, _load_all_equity_instruments
 
 logger = logging.getLogger(__name__)
 
@@ -14,31 +14,20 @@ _ACQUIRE_TIMEOUT = 30
 
 
 class SymbolRepository:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
+    def __init__(self, pool: asyncpg.Pool, min_adv_cr: float = 5.0) -> None:
+        self._pool       = pool
+        self._min_adv_cr = min_adv_cr
 
     async def load_equity_instruments(self) -> list[InstrumentMeta]:
-        """Load equities to subscribe to Dhan WebSocket (watchlist or full fallback)."""
-        fno_instruments    = await _load_watchlist_instruments(self._pool, is_fno=True)
-        equity_instruments = await _load_watchlist_instruments(self._pool, is_fno=False)
-
-        if fno_instruments or equity_instruments:
-            logger.info(
-                "Watchlist subscriptions — FNO: %d, equity: %d (total: %d)",
-                len(fno_instruments), len(equity_instruments),
-                len(fno_instruments) + len(equity_instruments),
-            )
-            seen: set[str] = set()
-            merged: list[InstrumentMeta] = []
-            for inst in fno_instruments + equity_instruments:
-                if inst.dhan_security_id not in seen:
-                    seen.add(inst.dhan_security_id)
-                    merged.append(inst)
-            return merged
+        """Load all liquid equities (adv_20_cr >= min_adv_cr) from scored universe."""
+        instruments = await _load_liquid_instruments(self._pool, self._min_adv_cr)
+        if instruments:
+            return instruments
 
         logger.warning(
-            "No daily_scores found — falling back to full equity universe. "
-            "Run POST /api/v1/scores/compute-unified on MomentumScorerService first."
+            "No scored liquid instruments found (adv_20_cr >= %.1f) — "
+            "falling back to full equity universe. Run scores/compute first.",
+            self._min_adv_cr,
         )
         return await _load_all_equity_instruments(self._pool)
 

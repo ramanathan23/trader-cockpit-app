@@ -5,6 +5,8 @@ import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { filterSignals, type Signal, type SignalCategory, type SignalType } from '@/domain/signal';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
+import type { AppView } from '@/app/appTypes';
+import { VIEWS } from '@/app/appTypes';
 import { SignalWorkspaceControls } from './SignalWorkspaceControls';
 
 interface SignalToolbarProps {
@@ -22,8 +24,8 @@ interface SignalToolbarProps {
   pendingCount: number;
   onTogglePause: () => void;
   onClear: () => void;
-  activeView: 'dashboard' | 'live' | 'history' | 'screener' | 'admin';
-  onViewChange: (v: 'dashboard' | 'live' | 'history' | 'screener' | 'admin') => void;
+  activeView: AppView;
+  onViewChange: (v: AppView) => void;
 }
 
 export const SignalToolbar = memo(({ category, onCategory, subType, onSubType, fnoOnly, onFnoOnly, minAdvCr, onMinAdv, signals, metricsCache, paused, pendingCount, onTogglePause, onClear, activeView, onViewChange }: SignalToolbarProps) => {
@@ -34,10 +36,10 @@ export const SignalToolbar = memo(({ category, onCategory, subType, onSubType, f
     <div className="shrink-0 border-b border-border bg-panel/88 px-3 py-3 xl:px-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="seg-group md:hidden">
-          {(['dashboard', 'live', 'history', 'screener', 'admin'] as const).map(view => (
-            <button key={view} type="button" onClick={() => onViewChange(view)}
-              className={cn('seg-btn', activeView === view && 'active text-accent')}>
-              {view}
+          {VIEWS.map(v => (
+            <button key={v.key} type="button" onClick={() => onViewChange(v.key)}
+              className={cn('seg-btn', activeView === v.key && 'active text-accent')}>
+              {v.label}
             </button>
           ))}
         </div>

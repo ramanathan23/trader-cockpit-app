@@ -24,6 +24,7 @@ from ..repositories.sync_state_repository import SyncStateRepository
 from .daily_fetcher import DailyFetcher
 from .sync_state_writer import SyncStateWriter
 from .minute_sync_service import MinuteSyncService
+from .zerodha_sync_service import ZerodhaSyncService
 from ._sync_orchestrator import run_daily_sync, build_gap_report
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class SyncService:
         writer        = SyncStateWriter(pool, self._prices, self._state)
         self._fetcher = DailyFetcher(YFinanceFetcher(), writer)
         self._minute  = MinuteSyncService(pool)
+        self._zerodha = ZerodhaSyncService(pool)
 
     async def bootstrap_symbols(self) -> int:
         return await self._symbols.upsert_many(load_from_csv())
@@ -66,6 +68,7 @@ class SyncService:
 
     async def run_sync(self) -> dict:
         """Auto-classify every symbol and apply the appropriate fetch action."""
+        zerodha_result = await self._zerodha.sync_all()
         symbols = load_from_csv()
         await self._symbols.upsert_many(symbols)
         all_symbols = [s.symbol for s in symbols]
@@ -73,7 +76,10 @@ class SyncService:
         daily_snapshots = await self._state.get_snapshots(all_symbols, "1d")
         daily_ts_map    = {s.symbol: s.last_data_ts for s in daily_snapshots}
         logger.info("run_sync: sync state loaded — starting sync")
-        return {"1d": await run_daily_sync(self._fetcher, all_symbols, daily_ts_map)}
+        return {
+            "zerodha": zerodha_result,
+            "1d": await run_daily_sync(self._fetcher, all_symbols, daily_ts_map),
+        }
 
     async def run_1min_sync(self) -> dict:
         """Sync 1-minute OHLCV for all F&O stocks from Dhan historical API."""
@@ -81,6 +87,7 @@ class SyncService:
 
     async def run_full_sync(self) -> dict:
         """Run daily (yfinance) and 1-min (Dhan) sync in parallel."""
+        zerodha_result = await self._zerodha.sync_all()
         symbols = load_from_csv()
         await self._symbols.upsert_many(symbols)
         all_symbols     = [s.symbol for s in symbols]
@@ -91,10 +98,9 @@ class SyncService:
             run_daily_sync(self._fetcher, all_symbols, daily_ts_map),
             self._minute.run_sync(),
         )
-        return {"1d": daily_result, "1m": minute_result}
+        return {"zerodha": zerodha_result, "1d": daily_result, "1m": minute_result}
 
     async def get_gap_report(self) -> dict:
         """Return per-symbol classification without fetching data (diagnostics)."""
         all_symbols = [s.symbol for s in load_from_csv()]
         return await build_gap_report(self._prices, all_symbols)
-

@@ -4,6 +4,7 @@ export type StepStatus = 'idle' | 'running' | 'ok' | 'error';
 
 export type AdminSection =
   | 'full-sync'
+  | 'zerodha'
   | 'token'
   | 'config-scorer'
   | 'config-datasync'
@@ -34,6 +35,20 @@ export interface ServiceConfigDef {
   name: string;
   endpoint: string;
   fields: FieldDef[];
+}
+
+export interface ZerodhaAccountStatus {
+  account_id: string;
+  client_id: string;
+  display_name?: string | null;
+  broker: string;
+  login_url: string;
+  status: 'connected' | 'expired' | 'not_connected' | 'login_required' | 'error';
+  strategy_capital?: number | null;
+  has_credentials?: boolean;
+  login_time?: string | null;
+  expires_at?: string | null;
+  last_error?: string | null;
 }
 
 /** Per-step state tracked during pipeline execution. */

@@ -36,6 +36,18 @@ export function useFullSync() {
     setTick(0);
     setStates(Object.fromEntries(PIPELINE_STEPS.map(s => [s.key, { ...EMPTY_STEP }])));
 
+    const zerodha = PIPELINE_STEPS.find(s => s.key === 'zerodha')!;
+    const zerodhaStart = Date.now();
+    setStep('zerodha', 'running', null, zerodhaStart);
+    try {
+      const msg = await readSSE(zerodha.endpoint, zerodha.method, m => setStep('zerodha', 'running', m, zerodhaStart));
+      setStep('zerodha', 'ok', msg, zerodhaStart, Date.now() - zerodhaStart);
+    } catch (err) {
+      setStep('zerodha', 'error', err instanceof Error ? err.message : 'failed', zerodhaStart, Date.now() - zerodhaStart);
+      running.current = false;
+      return;
+    }
+
     // sync-daily + sync-1min run in parallel (independent data sources)
     const syncDaily = PIPELINE_STEPS.find(s => s.key === 'sync-daily')!;
     const sync1min  = PIPELINE_STEPS.find(s => s.key === 'sync-1min')!;

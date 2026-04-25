@@ -151,7 +151,14 @@ export function useDailyChart(symbol: string, height: number | string) {
         }));
         dataRef.current.vol = volData;
         if (visRef.current.vol) volSeries.setData(volData);
-        chart.timeScale().fitContent();
+        if (isIntraday || tf === '1mo') {
+          chart.timeScale().fitContent();
+        } else {
+          const lookback = tf === '1w' ? 52 : 90;
+          const to   = bars.length - 0.5;
+          const from = Math.max(-0.5, to - lookback);
+          chart.timeScale().setVisibleLogicalRange({ from, to });
+        }
         setLoading(false);
         requestAnimationFrame(() => drawVP(bars));
       })

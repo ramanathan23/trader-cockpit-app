@@ -12,6 +12,7 @@ from .repositories.price_repository import PriceRepository
 from .repositories.symbol_repository import SymbolRepository
 from .repositories.sync_state_repository import SyncStateRepository
 from .services.sync_service import SyncService
+from .services.zerodha_sync_service import ZerodhaSyncService
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -48,6 +49,7 @@ async def lifespan(app: FastAPI):
     app.state.symbol_repo      = SymbolRepository(pool)
     app.state.sync_state_repo  = SyncStateRepository(pool)
     app.state.sync_service     = SyncService(pool)
+    app.state.zerodha_service  = ZerodhaSyncService(pool)
     logger.info("DataSyncService ready")
     yield
     await pool.close()

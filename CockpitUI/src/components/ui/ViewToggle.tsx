@@ -1,33 +1,31 @@
 'use client';
 
-import { LayoutGrid, List } from 'lucide-react';
+import { LayoutGrid, List, Map } from 'lucide-react';
+import { cn } from '@/lib/cn';
+
+type ViewMode = 'card' | 'table' | 'heatmap';
 
 interface ViewToggleProps {
-  view: 'card' | 'table';
-  onChange: (v: 'card' | 'table') => void;
+  view:     ViewMode;
+  onChange: (v: ViewMode) => void;
 }
+
+const BTNS: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
+  { mode: 'card',    icon: <LayoutGrid size={14} aria-hidden />, label: 'Card view'    },
+  { mode: 'table',   icon: <List       size={14} aria-hidden />, label: 'Table view'   },
+  { mode: 'heatmap', icon: <Map        size={14} aria-hidden />, label: 'Heatmap view' },
+];
 
 export function ViewToggle({ view, onChange }: ViewToggleProps) {
   return (
     <div className="seg-group">
-      <button
-        type="button"
-        onClick={() => onChange('card')}
-        title="Card view"
-        aria-label="Card view"
-        className={`seg-btn px-2 ${view === 'card' ? 'active' : ''}`}
-      >
-        <LayoutGrid size={14} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('table')}
-        title="Table view"
-        aria-label="Table view"
-        className={`seg-btn px-2 ${view === 'table' ? 'active' : ''}`}
-      >
-        <List size={14} aria-hidden="true" />
-      </button>
+      {BTNS.map(b => (
+        <button key={b.mode} type="button" onClick={() => onChange(b.mode)}
+          title={b.label} aria-label={b.label}
+          className={cn('seg-btn px-2', view === b.mode && 'active')}>
+          {b.icon}
+        </button>
+      ))}
     </div>
   );
 }

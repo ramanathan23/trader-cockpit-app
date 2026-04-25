@@ -3,10 +3,10 @@ import type { SignalCategory, SignalType } from '@/domain/signal';
 import type { AppView, ThemeMode } from './appTypes';
 
 export function useCockpitState() {
-  const [view,     setView]     = useState<AppView>('dashboard');
+  const [view,     setView]     = useState<AppView>('stocks');
   const [category, setCategory] = useState<SignalCategory>('ALL');
   const [minAdvCr, setMinAdvCr] = useState(0);
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'heatmap'>('table');
   const [showHelp, setShowHelp] = useState(false);
   const [theme,    setTheme]    = useState<ThemeMode>('dark');
   const [subType,  setSubType]  = useState<SignalType | null>(null);

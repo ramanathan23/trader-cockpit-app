@@ -24,6 +24,17 @@ class Settings(BaseServiceSettings):
     dhan_daily_budget:      int = Field(default=10_000)  # Dhan API calls/day cap
     dhan_budget_safety:     int = Field(default=100)     # reserve buffer before stopping
 
+    # Zerodha Kite Connect account sync.
+    # Accounts are configured from the UI and stored in broker_accounts.
+    zerodha_redirect_url: str = Field(
+        default="http://localhost:8001/api/v1/zerodha/callback"
+    )
+    zerodha_return_url: str = Field(default="http://localhost:3000/")
+    zerodha_api_base_url: str = Field(default="https://api.kite.trade")
+    zerodha_login_base_url: str = Field(default="https://kite.zerodha.com/connect/login")
+    zerodha_timeout_s: float = Field(default=20.0)
+    zerodha_performance_start_date: str = Field(default="2026-04-01")
+
     @model_validator(mode="after")
     def _validate_dhan_credentials(self) -> "Settings":
         if not self.dhan_client_id or not self.dhan_access_token:

@@ -3,6 +3,7 @@ import type { NavItem, ServiceConfigDef } from './adminTypes';
 
 export const NAV: NavItem[] = [
   { key: 'full-sync',       label: 'Full Sync',  caption: 'Run full pipeline' },
+  { key: 'zerodha',         label: 'Zerodha',    caption: 'Account login' },
   { key: 'token',           label: 'Token',      caption: 'Update Dhan token' },
   { key: 'config-scorer',   label: 'Ranking',    caption: 'Scoring params',    group: 'Config' },
   { key: 'config-datasync', label: 'Data Sync',  caption: 'Sync params',       group: 'Config' },
@@ -11,6 +12,7 @@ export const NAV: NavItem[] = [
 ];
 
 export const PIPELINE_STEPS = [
+  { key: 'zerodha',    label: 'Sync Zerodha',      endpoint: '/datasync/sync/run-zerodha-sse', method: 'POST' },
   { key: 'sync-daily',  label: 'Sync Daily Data',   endpoint: '/datasync/sync/run-sse',       method: 'POST' },
   { key: 'sync-1min',   label: 'Sync 1-Min Data',   endpoint: '/datasync/sync/run-1min-sse',  method: 'POST' },
   { key: 'indicators',  label: 'Compute Indicators', endpoint: '/indicators/compute-sse',      method: 'POST' },
@@ -37,6 +39,7 @@ export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
       { key: 'dhan_daily_budget',      label: 'Daily API budget',           type: 'int',   min: 100, max: 50000, group: 'Dhan API' },
       { key: 'dhan_budget_safety',     label: 'Budget safety buffer',       type: 'int',   min: 0,   max: 1000,  group: 'Dhan API' },
       { key: 'dhan_master_timeout_s',  label: 'Master CSV timeout (s)',     type: 'float', min: 5,   max: 120,   group: 'Dhan API', step: 1 },
+      { key: 'zerodha_performance_start_date', label: 'Performance start date', type: 'string', group: 'Zerodha' },
     ],
   },
   'config-livefeed': {
