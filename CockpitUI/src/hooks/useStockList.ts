@@ -9,6 +9,15 @@ import type { ScoredSymbol } from '@/domain/dashboard';
 import { mergeStockRows, sortStockRows, type StockRow } from '@/domain/stocklist';
 
 const PAGE_SIZE = 500;
+const SCORE_LIMIT = 2000;
+
+function mergeBySymbol(existingRows: StockRow[], nextRows: StockRow[]): StockRow[] {
+  const bySymbol = new Map(existingRows.map(row => [row.symbol, row]));
+  for (const row of nextRows) {
+    bySymbol.set(row.symbol, { ...(bySymbol.get(row.symbol) ?? {}), ...row });
+  }
+  return Array.from(bySymbol.values());
+}
 
 export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
   const [rows,    setRows]    = useState<StockRow[]>([]);
@@ -32,15 +41,16 @@ export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
     try {
       const [sr, dr] = await Promise.allSettled([
         fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`).then(r => r.ok ? r.json() : { symbols: [] }),
-        fetch(`/scorer/dashboard?limit=1000&_ts=${Date.now()}`).then(r => r.ok ? r.json() : { scores: [] }),
+        fetch(`/scorer/dashboard?limit=${SCORE_LIMIT}&_ts=${Date.now()}`).then(r => r.ok ? r.json() : { scores: [] }),
       ]);
       const screenerData = sr.status === 'fulfilled' ? sr.value : { symbols: [] };
       const dashData     = dr.status === 'fulfilled' ? dr.value : { scores: [] };
       const decorated    = decorateRows(screenerData.symbols ?? []);
       scoreRowsRef.current = dashData.scores ?? [];
-      setRows(mergeStockRows(decorated, scoreRowsRef.current));
+      const merged = mergeStockRows(decorated, scoreRowsRef.current);
+      setRows(merged);
       setHasMore(screenerData.has_more ?? false);
-      setTotalFromApi(screenerData.total ?? decorated.length);
+      setTotalFromApi(Math.max(screenerData.total ?? 0, dashData.stats?.total_scored ?? 0, merged.length));
       offsetRef.current = decorated.length;
     } catch { /* ignore */ }
     setLoading(false);
@@ -55,8 +65,8 @@ export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
       if (r.ok) {
         const d = await r.json();
         const decorated = decorateRows(d.symbols ?? []);
-        const merged = mergeStockRows(decorated, scoreRowsRef.current);
-        setRows(prev => [...prev, ...merged]);
+        const merged = mergeStockRows(decorated, scoreRowsRef.current, false);
+        setRows(prev => mergeBySymbol(prev, merged));
         setHasMore(d.has_more ?? false);
         setTotalFromApi(d.total ?? offsetRef.current + decorated.length);
         offsetRef.current += decorated.length;

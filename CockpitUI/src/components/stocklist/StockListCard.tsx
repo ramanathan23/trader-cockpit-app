@@ -10,6 +10,7 @@ import { setupTier, TIER_LABEL, TIER_TEXT_CLASS } from '@/lib/setupTier';
 import type { StockRow } from '@/domain/stocklist';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
 import type { LivePriceData } from '@/components/ui/LivePrice';
+import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
 import { StockListRowActions } from './StockListRowActions';
 
 interface StockListCardProps {
@@ -106,6 +107,12 @@ export const StockListCard = memo(({ row, livePrice, noteCount, onOpenModal }: S
             <span className="num font-black text-dim">{fmtAdv(row.adv_20_cr)}</span>
           </div>
         </div>
+
+        <IntradayBadge
+          sessionType={row.session_type_pred}
+          issScore={row.iss_score}
+          pullbackPred={row.pullback_depth_pred}
+        />
 
         {/* Score component bars */}
         {row.total_score != null && (

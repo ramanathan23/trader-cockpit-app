@@ -30,11 +30,18 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             sp.rect_breakout,
             sp.rect_range_pct,
             sp.consolidation_days,
+            sip.iss_score,
+            isp.session_type_pred,
+            isp.pullback_depth_pred,
             COALESCE(ds.is_watchlist, FALSE)  AS is_watchlist
         FROM symbol_metrics sm
         LEFT JOIN symbols s ON s.symbol = sm.symbol
         LEFT JOIN symbol_indicators si ON si.symbol = sm.symbol
         LEFT JOIN symbol_patterns sp ON sp.symbol = sm.symbol
+        LEFT JOIN symbol_intraday_profile sip ON sip.symbol = sm.symbol
+        LEFT JOIN intraday_session_predictions isp
+            ON isp.symbol = sm.symbol
+           AND isp.prediction_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
         LEFT JOIN (
             SELECT symbol, is_watchlist
             FROM daily_scores
@@ -71,6 +78,9 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             "consolidation_days": int(row["consolidation_days"])         if row["consolidation_days"] is not None else 0,
             "is_watchlist":           bool(row["is_watchlist"]),
             "cam_median_range_pct":   round(float(row["cam_median_range_pct"]), 6) if row["cam_median_range_pct"] else None,
+            "iss_score":              round(float(row["iss_score"]), 2) if row["iss_score"] is not None else None,
+            "session_type_pred":      row["session_type_pred"],
+            "pullback_depth_pred":    round(float(row["pullback_depth_pred"]), 4) if row["pullback_depth_pred"] is not None else None,
         }
         for row in rows
     }

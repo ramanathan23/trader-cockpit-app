@@ -30,8 +30,21 @@ class ScoreReadBalancedMixin:
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     ds.bb_squeeze, ds.squeeze_days, ds.nr7,
                     ds.adx_14, ds.rsi_14, ds.weekly_bias,
-                    (mp.predictions->>'comfort_score')::numeric AS comfort_score,
+                    COALESCE(
+                        (mp.predictions->>'comfort_score_v3')::numeric,
+                        (mp.predictions->>'comfort_score')::numeric
+                    ) AS comfort_score,
+                    (mp.predictions->>'comfort_score_v2')::numeric AS comfort_score_v2,
+                    (mp.predictions->>'comfort_score_v3')::numeric AS comfort_score_v3,
                     mp.predictions->>'interpretation' AS comfort_interpretation,
+                    isp.session_type_pred,
+                    isp.trend_up_prob,
+                    isp.chop_prob,
+                    isp.pullback_depth_pred,
+                    sip.iss_score,
+                    sip.choppiness_idx,
+                    sip.stop_hunt_rate,
+                    sip.pullback_depth_on_up_days AS pullback_depth_hist,
                     CASE
                         WHEN ds.is_watchlist
                              AND NOT EXISTS (
@@ -51,7 +64,11 @@ class ScoreReadBalancedMixin:
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
                 LEFT JOIN model_predictions mp ON mp.symbol = ds.symbol
                     AND mp.model_name = 'comfort_scorer'
-                    AND mp.prediction_date = ds.score_date"""
+                    AND mp.prediction_date = ds.score_date
+                LEFT JOIN intraday_session_predictions isp
+                    ON isp.symbol = ds.symbol AND isp.prediction_date = ds.score_date
+                LEFT JOIN symbol_intraday_profile sip
+                    ON sip.symbol = ds.symbol"""
 
             limit_param = "$2" if score_date else "$1"
 

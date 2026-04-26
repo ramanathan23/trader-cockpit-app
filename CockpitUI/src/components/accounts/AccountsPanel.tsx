@@ -27,9 +27,17 @@ export function AccountsPanel() {
         <AccountTabs active={tab} onChange={setTab} />
         {message && <div className="mb-3 rounded-lg border border-border bg-card px-3 py-2 text-[12px] text-dim">{message}</div>}
         {dashboard?.sync_note && <div className="mb-4 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] text-warn">{dashboard.sync_note}</div>}
-        {tab === 'configure' && <ConfigureAccounts accounts={accounts} onSave={saveAccount} onImport={importHistory} onPnlImport={importPnl} />}
-        {tab === 'overall' && <OverallDashboard dashboard={dashboard} latestDayTrades={latestDayTrades} />}
-        {tab === 'individual' && <IndividualDashboard dashboard={dashboard} trades={trades} />}
+        {tab === 'configure' && (
+          <ConfigureAccounts
+            accounts={accounts}
+            onSave={saveAccount}
+            onImport={importHistory}
+            onPnlImport={importPnl}
+            onGenerateLinks={load}
+          />
+        )}
+        {tab === 'overall' && <OverallDashboard dashboard={dashboard} latestDayTrades={latestDayTrades} accountStatuses={accounts} />}
+        {tab === 'individual' && <IndividualDashboard dashboard={dashboard} trades={trades} accountStatuses={accounts} />}
       </div>
     </section>
   );

@@ -53,6 +53,7 @@ class FeedService(_FeedInitMixin, _FeedStatusMixin, _FeedSignalMixin):
         self._sub_mgr:    SubscriptionManager | None = None
         self._tick_router: TickRouter | None         = None
         self._engines:    dict[str, SignalEngine]    = {}
+        self._regimes:    dict[str, tuple[str, datetime]] = {}
         self._index_bias = IndexBias()
         self._session_date: date | None              = None
         self._ticks_received:    int          = 0

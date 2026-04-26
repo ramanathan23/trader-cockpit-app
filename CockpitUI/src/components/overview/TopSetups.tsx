@@ -4,6 +4,7 @@ import type { Signal } from '@/domain/signal';
 import type { StockRow } from '@/domain/stocklist';
 import type { LivePriceData } from '@/components/ui/LivePrice';
 import { fmt2 } from '@/lib/fmt';
+import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
 import { computeChgPct, latestSignalLabel } from './overviewUtils';
 
 export function TopSetups({
@@ -49,6 +50,14 @@ function SetupCard({
         <SmallStat label="Trend" value={fmt2(row.trend_score)} />
         <SmallStat label="RSI" value={fmt2(row.rsi_14)} />
         <SmallStat label="Day" value={chg == null ? '-' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`} tone={tone} />
+      </div>
+      <div className="mt-2">
+        <IntradayBadge
+          sessionType={row.session_type_pred}
+          issScore={row.iss_score}
+          pullbackPred={row.pullback_depth_pred}
+          compact
+        />
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] text-ghost">
         <span>{latestSignalLabel(signals, row.symbol) ?? 'No live signal'}</span>

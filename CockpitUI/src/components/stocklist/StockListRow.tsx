@@ -11,6 +11,7 @@ import type { StockRow } from '@/domain/stocklist';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
 import type { LivePriceData } from '@/components/ui/LivePrice';
 import { setupTier, TIER_BG_CLASS, TIER_BORDER_CLASS } from '@/lib/setupTier';
+import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
 import { StockListRowActions } from './StockListRowActions';
 
 interface StockListRowProps {
@@ -63,6 +64,14 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
         {row.total_score != null
           ? <span className="font-black text-fg">{row.total_score.toFixed(0)}</span>
           : <span className="text-ghost">—</span>}
+      </td>
+      <td className="py-2 px-2">
+        <IntradayBadge
+          sessionType={row.session_type_pred}
+          issScore={row.iss_score}
+          pullbackPred={row.pullback_depth_pred}
+          compact
+        />
       </td>
       <td className="num py-2 px-2 text-right text-[12px] text-fg">{price != null ? fmt2(price) : '—'}</td>
       <td className="num py-2 px-2 text-right text-[11px]" style={{ color: screenerPctColor(chgPct) }}>

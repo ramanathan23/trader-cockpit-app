@@ -10,6 +10,7 @@ import { getSignalsWebSocketUrl, LIVE_FEED } from '@/lib/api-config';
 export type ConnState = 'connecting' | 'connected' | 'disconnected';
 
 const MAX_SIGNALS         = 200;
+const SIGNAL_CACHE_KEY    = 'trader-cockpit-live-signals';
 const METRICS_BATCH_DELAY = 150; // ms — collect symbols then fire one POST
 
 /** Signal types that always create a new row (never dedup). */
@@ -23,7 +24,7 @@ const DEFAULT_MARKET: MarketStatus = {
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSignals() {
-  const [signals,      setSignals]      = useState<Signal[]>([]);
+  const [signals,      setSignals]      = useState<Signal[]>(() => restoreSignals());
   const [paused,       setPaused]       = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [connState,    setConnState]    = useState<ConnState>('connecting');
@@ -35,9 +36,17 @@ export function useSignals() {
   const pendingRef = useRef<Signal[]>([]);
   // Tracks which symbols are already fetching/fetched — prevents duplicate requests.
   const fetchingRef = useRef<Set<string>>(new Set());
+  const regimeBySymbolRef = useRef<Record<string, Signal['regime']>>({});
+  const issBySymbolRef = useRef<Record<string, number>>({});
 
   // Keep ref in sync with state
   pausedRef.current = paused;
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(SIGNAL_CACHE_KEY, JSON.stringify(signals.slice(0, MAX_SIGNALS)));
+    } catch { /* ignore storage quota/private mode */ }
+  }, [signals]);
 
   // ── Batch metrics fetching ─────────────────────────────────────────────────
   // Symbols are collected for METRICS_BATCH_DELAY ms, then fetched in a single
@@ -85,6 +94,11 @@ export function useSignals() {
   // Re-assign on every render so the closure is always fresh.
   pushSignalRef.current = (raw: Signal) => {
     let s = raw.id ? raw : { ...raw, id: `${raw.symbol}-${raw.signal_type}-${raw.timestamp}` };
+    s = {
+      ...s,
+      regime: s.regime ?? regimeBySymbolRef.current[s.symbol],
+      iss_score: s.iss_score ?? issBySymbolRef.current[s.symbol],
+    };
     const isCatchup = Boolean(s._catchup);
 
     setSignals(prev => {
@@ -179,6 +193,18 @@ export function useSignals() {
             return;
           }
 
+          if (parsed.type === 'regime_update') {
+            regimeBySymbolRef.current[parsed.symbol] = parsed.regime;
+            setSignals(prev => prev.map(s => s.symbol === parsed.symbol ? { ...s, regime: parsed.regime } : s));
+            return;
+          }
+
+          if (parsed.type === 'session_prediction') {
+            if (parsed.iss_score != null) issBySymbolRef.current[parsed.symbol] = Number(parsed.iss_score);
+            setSignals(prev => prev.map(s => s.symbol === parsed.symbol ? { ...s, iss_score: parsed.iss_score } : s));
+            return;
+          }
+
           const s: Signal = parsed;
           if (pausedRef.current) {
             pendingRef.current.push(s);
@@ -233,6 +259,7 @@ export function useSignals() {
     setSignals([]);
     pendingRef.current = [];
     setPendingCount(0);
+    try { window.sessionStorage.removeItem(SIGNAL_CACHE_KEY); } catch {}
   }, []);
 
   return {
@@ -246,4 +273,21 @@ export function useSignals() {
     togglePause,
     clearSignals,
   };
+}
+
+function restoreSignals(): Signal[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.sessionStorage.getItem(SIGNAL_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, MAX_SIGNALS).map((signal: Signal) => ({
+      ...signal,
+      _count: signal._count ?? 1,
+      _fromCatchup: signal._fromCatchup ?? true,
+    }));
+  } catch {
+    return [];
+  }
 }

@@ -1,6 +1,11 @@
 import asyncpg
 
-from ..domain.snapshots import IndicatorSnapshot, MetricsSnapshot, PatternSnapshot
+from ..domain.snapshots import (
+    IndicatorSnapshot,
+    IntradayProfileSnapshot,
+    MetricsSnapshot,
+    PatternSnapshot,
+)
 
 
 class IndicatorRepository:
@@ -149,3 +154,69 @@ class IndicatorRepository:
                     consolidation_days = EXCLUDED.consolidation_days
             """, records)
         return len(records)
+
+    async def upsert_intraday_profiles_batch(self, snapshots: list[IntradayProfileSnapshot]) -> int:
+        if not snapshots:
+            return 0
+        records = [
+            (
+                s.symbol, s.sessions_analyzed, s.choppiness_idx, s.stop_hunt_rate,
+                s.orb_followthrough_rate, s.opening_drive_rate,
+                s.pullback_depth_on_up_days, s.volatility_compression_ratio,
+                s.trend_autocorr, s.iss_score,
+            )
+            for s in snapshots
+        ]
+        async with self._pool.acquire() as conn:
+            await conn.executemany("""
+                INSERT INTO symbol_intraday_profile (
+                    symbol, computed_at, sessions_analyzed, choppiness_idx,
+                    stop_hunt_rate, orb_followthrough_rate, opening_drive_rate,
+                    pullback_depth_on_up_days, volatility_compression_ratio,
+                    trend_autocorr, iss_score
+                ) VALUES (
+                    $1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10
+                )
+                ON CONFLICT (symbol) DO UPDATE SET
+                    computed_at                  = NOW(),
+                    sessions_analyzed            = EXCLUDED.sessions_analyzed,
+                    choppiness_idx               = EXCLUDED.choppiness_idx,
+                    stop_hunt_rate               = EXCLUDED.stop_hunt_rate,
+                    orb_followthrough_rate       = EXCLUDED.orb_followthrough_rate,
+                    opening_drive_rate           = EXCLUDED.opening_drive_rate,
+                    pullback_depth_on_up_days    = EXCLUDED.pullback_depth_on_up_days,
+                    volatility_compression_ratio = EXCLUDED.volatility_compression_ratio,
+                    trend_autocorr               = EXCLUDED.trend_autocorr,
+                    iss_score                    = EXCLUDED.iss_score
+            """, records)
+        return len(records)
+
+    async def fetch_intraday_profile(self, symbol: str) -> dict | None:
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT symbol, computed_at, sessions_analyzed, choppiness_idx,
+                       stop_hunt_rate, orb_followthrough_rate, opening_drive_rate,
+                       pullback_depth_on_up_days, volatility_compression_ratio,
+                       trend_autocorr, iss_score
+                FROM symbol_intraday_profile
+                WHERE symbol = $1
+            """, symbol)
+        if not row:
+            return None
+        out = dict(row)
+        for key, value in list(out.items()):
+            if key != "computed_at" and value is not None:
+                out[key] = float(value) if key != "sessions_analyzed" else int(value)
+        if out.get("computed_at") is not None:
+            out["computed_at"] = out["computed_at"].isoformat()
+        return out
+
+    async def delete_intraday_profiles(self, symbols: list[str]) -> int:
+        if not symbols:
+            return 0
+        async with self._pool.acquire() as conn:
+            result = await conn.execute("""
+                DELETE FROM symbol_intraday_profile
+                WHERE symbol = ANY($1::text[])
+            """, symbols)
+        return int(result.split()[-1]) if result.startswith("DELETE ") else 0

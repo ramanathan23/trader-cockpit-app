@@ -21,6 +21,10 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rankedRows = useMemo(() => rankedScoredRows(list.rows), [list.rows]);
+  const modalRow = useMemo(
+    () => modalSymbol ? rankedRows.find(row => row.symbol === modalSymbol) : undefined,
+    [modalSymbol, rankedRows],
+  );
   const symbols = useMemo(() => rankedRows.slice(0, 120).map(row => row.symbol), [rankedRows]);
   const livePrices = useLivePrices(symbols, active);
   const heatEntries = useMemo(() => buildHeatEntries(rankedRows, livePrices, signals), [rankedRows, livePrices, signals]);
@@ -40,8 +44,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
         bullish={bullish} bearish={bearish} />
       <OverviewCharts rows={rankedRows} heatEntries={heatEntries} scored={scored} loading={list.loading}
         signals={signals} metricsCache={metricsCache} livePrices={livePrices} onSymbol={setModalSymbol} />
-      {modalSymbol && <SymbolModal symbol={modalSymbol} initialTab="chart" onClose={() => setModalSymbol(null)} />}
+      {modalSymbol && <SymbolModal symbol={modalSymbol} row={modalRow} initialTab="chart" onClose={() => setModalSymbol(null)} />}
     </div>
   );
 });
-

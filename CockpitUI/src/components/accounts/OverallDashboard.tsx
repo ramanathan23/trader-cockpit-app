@@ -8,6 +8,8 @@ import { ActivityBars } from './ActivityBars';
 import { positionsOf, PositionsTable } from './PositionsTable';
 import { holdingsOf, HoldingsTable } from './HoldingsTable';
 import { TradesTable } from './TradesTable';
+import type { ZerodhaAccountStatus } from '@/components/admin/adminTypes';
+import { AccountLoginLink, needsLogin } from './AccountLoginLink';
 
 function WinBar({ pct }: { pct: number }) {
   return (
@@ -17,7 +19,7 @@ function WinBar({ pct }: { pct: number }) {
   );
 }
 
-function AccountCard({ a }: { a: DashboardAccount }) {
+function AccountCard({ a, auth }: { a: DashboardAccount; auth?: ZerodhaAccountStatus }) {
   const utilColor = a.utilization_pct > 80 ? 'text-bear' : a.utilization_pct > 50 ? 'text-amber' : 'text-fg';
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
@@ -51,12 +53,20 @@ function AccountCard({ a }: { a: DashboardAccount }) {
         </div>
         <div><span className="text-ghost">Net Real.</span> <b className={`num ${tone(a.realized_after_charges)}`}>{money(a.realized_after_charges)}</b></div>
       </div>
+      {needsLogin(auth) && <AccountLoginLink account={auth} />}
     </div>
   );
 }
 
-export const OverallDashboard = memo(function OverallDashboard({ dashboard, latestDayTrades }: { dashboard: Dashboard | null; latestDayTrades: TradeRow[] }) {
+export const OverallDashboard = memo(function OverallDashboard({
+  dashboard, latestDayTrades, accountStatuses,
+}: {
+  dashboard: Dashboard | null;
+  latestDayTrades: TradeRow[];
+  accountStatuses: ZerodhaAccountStatus[];
+}) {
   const totals = dashboard?.totals;
+  const authByAccount = new Map(accountStatuses.map(a => [a.account_id, a]));
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -70,7 +80,7 @@ export const OverallDashboard = memo(function OverallDashboard({ dashboard, late
       </div>
       <ActivityBars daily={dashboard?.daily ?? []} />
       <div className="grid gap-3 md:grid-cols-2">
-        {(dashboard?.accounts ?? []).map(a => <AccountCard key={a.account_id} a={a} />)}
+        {(dashboard?.accounts ?? []).map(a => <AccountCard key={a.account_id} a={a} auth={authByAccount.get(a.account_id)} />)}
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_1.3fr]">
         <PositionsTable rows={positionsOf(dashboard?.accounts ?? [])} />

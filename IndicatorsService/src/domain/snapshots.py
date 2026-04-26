@@ -58,3 +58,17 @@ class PatternSnapshot:
     rect_breakout: bool = False
     rect_range_pct: float | None = None
     consolidation_days: int = 0
+
+
+@dataclass(frozen=True)
+class IntradayProfileSnapshot:
+    symbol: str
+    sessions_analyzed: int = 0
+    choppiness_idx: float | None = None
+    stop_hunt_rate: float | None = None
+    orb_followthrough_rate: float | None = None
+    opening_drive_rate: float | None = None
+    pullback_depth_on_up_days: float | None = None
+    volatility_compression_ratio: float | None = None
+    trend_autocorr: float | None = None
+    iss_score: float | None = None

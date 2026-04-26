@@ -8,6 +8,7 @@ export type SignalType =
 export type SignalCategory = 'ALL' | 'BREAK' | 'CAM';
 
 export type Direction = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+export type Regime = 'TRENDING_UP' | 'TRENDING_DOWN' | 'CHOPPY' | 'SQUEEZE' | 'NEUTRAL' | 'UNKNOWN';
 
 export interface Signal {
   id: string;
@@ -27,6 +28,8 @@ export interface Signal {
   target_1?: number;
   trail_stop?: number;
   watchlist_conflict?: boolean;
+  regime?: Regime;
+  iss_score?: number;
   _count: number;
   _dedupKey?: string;
   _fromCatchup?: boolean;

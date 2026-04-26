@@ -31,6 +31,7 @@ class BatchMetricsRequest(BaseModel):
 
 @router.post("/instruments/metrics", summary="Batch metrics for multiple symbols")
 async def batch_instrument_metrics(body: BatchMetricsRequest, request: Request, svc: FeedServiceDep):
+    await request.app.state.metrics.precompute_daily()
     data = await request.app.state.metrics.get_batch_with_intraday(body.symbols)
     live = svc.live_price_metrics()
     for symbol, snapshot in live.items():
@@ -72,6 +73,7 @@ async def batch_instrument_metrics(body: BatchMetricsRequest, request: Request, 
 
 @router.get("/instrument/{symbol}/metrics", summary="52-week stats, ATR-14, today's range")
 async def instrument_metrics(symbol: str, request: Request):
+    await request.app.state.metrics.precompute_daily()
     data = await request.app.state.metrics.get_with_intraday(symbol)
     if data is None:
         raise HTTPException(status_code=404, detail=f"No daily data for {symbol}")
@@ -85,6 +87,7 @@ async def screener(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=200, ge=1, le=2000),
 ):
+    await request.app.state.metrics.precompute_daily()
     rows, total = request.app.state.metrics.all_daily(offset, limit)
     live = svc.screener_live_metrics()
     merged = [{**row, **live.get(row["symbol"], {})} for row in rows]

@@ -61,6 +61,21 @@ class SignalPublisher(_HistoryOpsMixin):
         payload = json.dumps({"type": "price", **data})
         await self._redis.publish(_CHANNEL_PRICES, payload)
 
+    async def publish_regime_update(self, symbol: str, data: dict) -> None:
+        if self._redis is None:
+            return
+        payload = json.dumps({"type": "regime_update", "symbol": symbol, **data})
+        await self._redis.publish(_CHANNEL_ALL, payload)
+        await self._redis.publish(f"{_CHANNEL_PREFIX}{symbol}", payload)
+
+    async def publish_session_prediction(self, data: dict) -> None:
+        if self._redis is None:
+            return
+        payload = json.dumps({"type": "session_prediction", **data})
+        await self._redis.publish(_CHANNEL_ALL, payload)
+        if data.get("symbol"):
+            await self._redis.publish(f"{_CHANNEL_PREFIX}{data['symbol']}", payload)
+
     async def publish(self, signal: Signal) -> bool:
         """Persist signal to history and broadcast via pub/sub. Returns False if suppressed."""
         if self._redis is None:

@@ -41,6 +41,8 @@ class Signal:
     bias_1h:             Direction       = Direction.NEUTRAL
     message:             str = ""
     watchlist_conflict:  bool = False
+    regime:              Optional[str] = None
+    iss_score:           Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -65,4 +67,6 @@ class Signal:
             "bias_1h":             self.bias_1h.value,
             "message":             self.message,
             "watchlist_conflict":  self.watchlist_conflict,
+            "regime":              self.regime,
+            "iss_score":           round(self.iss_score, 2) if self.iss_score is not None else None,
         }

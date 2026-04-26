@@ -13,6 +13,7 @@ from ..config import settings
 from ..core.base_model import PredictionResult
 from ..core.model_registry import ModelRegistry
 from ..repositories.prediction_repository import PredictionRepository
+from ..models.comfort_scorer._model_predict import apply_comfort_v3
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,14 @@ class ScoringService:
                 model = self._registry.get_model(model_name)
                 features = await model.extract_features(symbol, score_date)
                 prediction = await model.predict(features)
+                if model_name == "comfort_scorer":
+                    ctx = await self._fetch_intraday_context(symbol, score_date)
+                    prediction = apply_comfort_v3(
+                        prediction,
+                        ctx.get("iss_score"),
+                        ctx.get("pullback_depth_pred"),
+                        ctx.get("session_type_pred"),
+                    )
                 return PredictionResult(
                     model_name=model_name,
                     model_version=model.version,
@@ -108,3 +117,20 @@ class ScoringService:
                 score_date,
             )
         return [row["symbol"] for row in rows]
+
+    async def _fetch_intraday_context(self, symbol: str, score_date: date) -> dict:
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT sip.iss_score, isp.pullback_depth_pred, isp.session_type_pred
+                FROM (SELECT $1::text AS symbol) sym
+                LEFT JOIN symbol_intraday_profile sip ON sip.symbol = sym.symbol
+                LEFT JOIN intraday_session_predictions isp
+                    ON isp.symbol = sym.symbol AND isp.prediction_date = $2
+            """, symbol, score_date)
+        if not row:
+            return {}
+        return {
+            "iss_score": float(row["iss_score"]) if row["iss_score"] is not None else None,
+            "pullback_depth_pred": float(row["pullback_depth_pred"]) if row["pullback_depth_pred"] is not None else None,
+            "session_type_pred": row["session_type_pred"],
+        }

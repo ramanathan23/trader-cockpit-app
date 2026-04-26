@@ -8,9 +8,13 @@ export interface DashboardStats {
   min_score:       number;
   high_conviction: number;
   above_average:   number;
+  avg_iss_score?:  number | null;
+  low_iss_watchlist_count?: number;
   score_date:      string;
   computed_at:     string;
 }
+
+export type IntradaySessionType = 'TREND_UP' | 'TREND_DOWN' | 'CHOP' | 'VOLATILE' | 'GAP_FADE' | 'NEUTRAL';
 
 export interface ScoredSymbol {
   symbol:           string;
@@ -42,7 +46,17 @@ export interface ScoredSymbol {
   weekly_bias:      string | null;
   stage:            string | null;
   comfort_score:          number | null;
+  comfort_score_v2?:      number | null;
+  comfort_score_v3?:      number | null;
   comfort_interpretation: string | null;
+  iss_score?:             number | null;
+  choppiness_idx?:        number | null;
+  stop_hunt_rate?:        number | null;
+  pullback_depth_hist?:   number | null;
+  session_type_pred?:     IntradaySessionType | null;
+  trend_up_prob?:         number | null;
+  chop_prob?:             number | null;
+  pullback_depth_pred?:   number | null;
 }
 
 export interface DashboardResponse {

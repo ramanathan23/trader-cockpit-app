@@ -10,6 +10,8 @@ from shared.config_store import load_overrides, apply_overrides
 from .core.model_registry import ModelRegistry
 from .repositories.prediction_repository import PredictionRepository
 from .services.scoring_service import ScoringService
+from .services.session_classifier_service import SessionClassifierService
+from .services.training_data_service import TrainingDataService
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -42,12 +44,16 @@ async def lifespan(app: FastAPI):
     
     # Initialize services
     scoring_service = ScoringService(pool, registry, prediction_repo)
+    training_data_service = TrainingDataService(pool)
+    session_classifier_service = SessionClassifierService(pool)
 
     # Store in app state
     app.state.pool = pool
     app.state.registry = registry
     app.state.prediction_repo = prediction_repo
     app.state.scoring_service = scoring_service
+    app.state.training_data_service = training_data_service
+    app.state.session_classifier_service = session_classifier_service
 
     logger.info(f"ModelingService ready. Models loaded: {len(registry.models)}")
     yield

@@ -18,10 +18,56 @@ def predict_comfort(features: np.ndarray) -> Dict[str, Any]:
     comfort_score, components = compute_chart_comfort(features)
     return {
         "comfort_score": round(float(comfort_score), 2),
+        "comfort_score_v2": round(float(comfort_score), 2),
         "confidence": compute_confidence(comfort_score),
         "interpretation": interpret_score(comfort_score),
         "method": "chart_comfort_v2",
         "components": components,
+    }
+
+
+def predict_comfort_v3(
+    features: np.ndarray,
+    iss_score: float | None,
+    pullback_pred: float | None,
+    session_type_pred: str | None,
+) -> Dict[str, Any]:
+    prediction = predict_comfort(features)
+    return apply_comfort_v3(prediction, iss_score, pullback_pred, session_type_pred)
+
+
+def apply_comfort_v3(
+    prediction: Dict[str, Any],
+    iss_score: float | None,
+    pullback_pred: float | None,
+    session_type_pred: str | None,
+) -> Dict[str, Any]:
+    comfort_v2 = float(prediction.get("comfort_score_v2", prediction["comfort_score"]))
+    iss_penalty = max(0.0, (50.0 - iss_score) * 0.25) if iss_score is not None else 0.0
+    pullback_penalty = max(0.0, (pullback_pred - 0.45) * 25.0) if pullback_pred is not None else 0.0
+    session_modifier = {
+        "TREND_UP": 5.0,
+        "TREND_DOWN": -10.0,
+        "CHOP": -8.0,
+        "VOLATILE": -5.0,
+        "GAP_FADE": -3.0,
+        "NEUTRAL": 0.0,
+    }.get(session_type_pred or "NEUTRAL", 0.0)
+    comfort_v3 = round(max(0.0, min(100.0, comfort_v2 - iss_penalty - pullback_penalty + session_modifier)), 2)
+    return {
+        **prediction,
+        "comfort_score_v2": round(comfort_v2, 2),
+        "comfort_score_v3": comfort_v3,
+        "comfort_score": comfort_v3,
+        "intraday_adjustment": {
+            "iss_score": iss_score,
+            "iss_penalty": round(iss_penalty, 2),
+            "pullback_depth_pred": pullback_pred,
+            "pullback_penalty": round(pullback_penalty, 2),
+            "session_type_pred": session_type_pred,
+            "session_modifier": session_modifier,
+        },
+        "method": "chart_comfort_v3",
     }
 
 

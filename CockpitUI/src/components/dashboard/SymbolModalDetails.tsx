@@ -10,6 +10,7 @@ import type { NoteEntry } from '@/hooks/useNotes';
 import { StockListScorePanel } from '@/components/stocklist/StockListScorePanel';
 import { StockListLevels } from '@/components/stocklist/StockListLevels';
 import { StockListNoteSection } from '@/components/stocklist/StockListNoteSection';
+import { IntradayBadge } from './IntradayBadge';
 
 interface DetailsProps {
   symbol:    string;
@@ -48,6 +49,11 @@ export const SymbolModalDetails = memo(({ symbol, row, entries, onAdd, onDelete 
         {row.comfort_interpretation && (
           <span className="text-[11px] text-dim">{row.comfort_interpretation}</span>
         )}
+        <IntradayBadge
+          sessionType={row.session_type_pred}
+          issScore={row.iss_score}
+          pullbackPred={row.pullback_depth_pred}
+        />
       </div>
 
       {/* Key metric strip */}
@@ -58,6 +64,7 @@ export const SymbolModalDetails = memo(({ symbol, row, entries, onAdd, onDelete 
           { label: 'ATR',     value: fmt2(row.atr_14), color: 'rgb(var(--dim))' },
           { label: 'ADV',     value: fmtAdv(row.adv_20_cr), color: 'rgb(var(--dim))' },
           { label: 'S2H%',    value: screenerPctText(row.f52h, true), color: screenerF52hColor(row.f52h) },
+          ...(row.iss_score != null ? [{ label: 'ISS', value: fmt2(row.iss_score), color: row.iss_score >= 60 ? 'rgb(var(--bull))' : row.iss_score >= 40 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
           ...(row.comfort_score != null ? [{ label: 'COMFORT', value: fmt2(row.comfort_score), color: comfortColor(row.comfort_score) }] : []),
           { label: 'PRICE',   value: fmt2(row.display_price ?? row.prev_day_close), color: 'rgb(var(--fg))' },
         ].map(m => (

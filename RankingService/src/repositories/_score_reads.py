@@ -32,8 +32,21 @@ class ScoreReadMixin:
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     ds.bb_squeeze, ds.squeeze_days, ds.nr7,
                     ds.adx_14, ds.rsi_14, ds.weekly_bias,
-                    (mp.predictions->>'comfort_score')::numeric AS comfort_score,
+                    COALESCE(
+                        (mp.predictions->>'comfort_score_v3')::numeric,
+                        (mp.predictions->>'comfort_score')::numeric
+                    ) AS comfort_score,
+                    (mp.predictions->>'comfort_score_v2')::numeric AS comfort_score_v2,
+                    (mp.predictions->>'comfort_score_v3')::numeric AS comfort_score_v3,
                     mp.predictions->>'interpretation' AS comfort_interpretation,
+                    isp.session_type_pred,
+                    isp.trend_up_prob,
+                    isp.chop_prob,
+                    isp.pullback_depth_pred,
+                    sip.iss_score,
+                    sip.choppiness_idx,
+                    sip.stop_hunt_rate,
+                    sip.pullback_depth_on_up_days AS pullback_depth_hist,
                     CASE
                         WHEN ds.is_watchlist
                              AND NOT EXISTS (
@@ -53,6 +66,10 @@ class ScoreReadMixin:
                 LEFT JOIN model_predictions mp ON mp.symbol = ds.symbol
                     AND mp.model_name = 'comfort_scorer'
                     AND mp.prediction_date = ds.score_date
+                LEFT JOIN intraday_session_predictions isp
+                    ON isp.symbol = ds.symbol AND isp.prediction_date = ds.score_date
+                LEFT JOIN symbol_intraday_profile sip
+                    ON sip.symbol = ds.symbol
                 WHERE {date_clause}
                 {watchlist_clause}
                 {fno_clause}
@@ -67,21 +84,25 @@ class ScoreReadMixin:
     async def get_dashboard_stats(self, score_date: date | None = None) -> dict:
         """Summary statistics for the scoring dashboard."""
         async with self._pool.acquire() as conn:
-            date_clause = "score_date = $1" if score_date else "score_date = (SELECT MAX(score_date) FROM daily_scores)"
+            date_clause = "ds.score_date = $1" if score_date else "ds.score_date = (SELECT MAX(score_date) FROM daily_scores)"
             params = [score_date] if score_date else []
 
             row = await conn.fetchrow(f"""
                 SELECT
-                    COUNT(*)                                     AS total_scored,
-                    COUNT(*) FILTER (WHERE is_watchlist)         AS watchlist_count,
-                    ROUND(AVG(total_score), 2)                   AS avg_score,
-                    ROUND(MAX(total_score), 2)                   AS max_score,
-                    ROUND(MIN(total_score), 2)                   AS min_score,
-                    COUNT(*) FILTER (WHERE total_score >= 70)    AS high_conviction,
-                    COUNT(*) FILTER (WHERE total_score >= 50)    AS above_average,
-                    MAX(score_date)                               AS score_date,
-                    MAX(computed_at)                              AS computed_at
-                FROM daily_scores
+                    COUNT(*)                                      AS total_scored,
+                    COUNT(*) FILTER (WHERE ds.is_watchlist)       AS watchlist_count,
+                    ROUND(AVG(ds.total_score), 2)                 AS avg_score,
+                    ROUND(MAX(ds.total_score), 2)                 AS max_score,
+                    ROUND(MIN(ds.total_score), 2)                 AS min_score,
+                    COUNT(*) FILTER (WHERE ds.total_score >= 70)  AS high_conviction,
+                    COUNT(*) FILTER (WHERE ds.total_score >= 50)  AS above_average,
+                    ROUND(AVG(sip.iss_score), 2)                 AS avg_iss_score,
+                    COUNT(*) FILTER (WHERE ds.is_watchlist AND sip.iss_score < 40)
+                                                                  AS low_iss_watchlist_count,
+                    MAX(ds.score_date)                            AS score_date,
+                    MAX(ds.computed_at)                           AS computed_at
+                FROM daily_scores ds
+                LEFT JOIN symbol_intraday_profile sip ON sip.symbol = ds.symbol
                 WHERE {date_clause}
             """, *params)
         return dict(row) if row else {}

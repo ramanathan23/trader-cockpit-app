@@ -2,7 +2,9 @@
 
 import { memo, useState } from 'react';
 import type { Dashboard, TradeRow } from './accountTypes';
+import type { ZerodhaAccountStatus } from '@/components/admin/adminTypes';
 import { statusClass, when } from './accountFmt';
+import { AccountLoginLink, needsLogin } from './AccountLoginLink';
 import { AccountMetric } from './AccountMetric';
 import { BehaviorPanel } from './BehaviorPanel';
 import { CapitalSummary } from './CapitalSummary';
@@ -13,10 +15,17 @@ import { PositionsTable } from './PositionsTable';
 import { TradeBars } from './TradeBars';
 import { TradesTable } from './TradesTable';
 
-export const IndividualDashboard = memo(function IndividualDashboard({ dashboard, trades }: { dashboard: Dashboard | null; trades: TradeRow[] }) {
+export const IndividualDashboard = memo(function IndividualDashboard({
+  dashboard, trades, accountStatuses,
+}: {
+  dashboard: Dashboard | null;
+  trades: TradeRow[];
+  accountStatuses: ZerodhaAccountStatus[];
+}) {
   const accounts = dashboard?.accounts ?? [];
   const [selected, setSelected] = useState(accounts[0]?.account_id ?? '');
   const account = accounts.find(a => a.account_id === selected) ?? accounts[0];
+  const auth = accountStatuses.find(a => a.account_id === account?.account_id);
 
   if (!account) {
     return <div className="rounded-lg border border-border bg-panel p-6 text-ghost">No accounts configured.</div>;
@@ -42,6 +51,7 @@ export const IndividualDashboard = memo(function IndividualDashboard({ dashboard
           {account.latest_sync.status}
         </span>
       </div>
+      {needsLogin(auth) && <AccountLoginLink account={auth} />}
 
       <div className="grid gap-3 md:grid-cols-4">
         <AccountMetric label="Capital" value={account.strategy_capital} />

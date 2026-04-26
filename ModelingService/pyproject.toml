@@ -13,6 +13,8 @@ dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
     "scikit-learn>=1.5",
+    "lightgbm>=4.5",
+    "joblib>=1.4",
     "pydantic-settings>=2.6",
     "redis[asyncio]>=5.0",
 ]
