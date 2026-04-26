@@ -42,14 +42,14 @@ export function ExpandedChart({
 }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="modal-backdrop">
-      <div className="flex h-[92vh] w-[94vw] flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-2xl">
+      <div className="flex h-[92vh] w-[94vw] max-w-none flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div className="text-[13px] font-black text-fg">{title}</div>
           <button type="button" className="icon-btn h-8 w-8" title="Close" onClick={onClose}>
             <X size={14} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
+        <div className="flex min-h-0 flex-1 overflow-hidden p-3">{children}</div>
       </div>
     </div>
   );

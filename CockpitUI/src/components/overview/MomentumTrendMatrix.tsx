@@ -8,7 +8,7 @@ import { useEChartColors } from '@/components/charts/useEChartColors';
 import { fmt2 } from '@/lib/fmt';
 import type { RowsProps, SymbolClickProps } from './overviewTypes';
 
-export function MomentumTrendMatrix({ rows, onSymbol }: RowsProps & SymbolClickProps) {
+export function MomentumTrendMatrix({ rows, onSymbol, className = 'h-64 w-full' }: RowsProps & SymbolClickProps & { className?: string }) {
   const colors = useEChartColors();
   const dataRows = useMemo(
     () => rows.filter(row => row.momentum_score != null && row.trend_score != null).slice(0, 180),
@@ -43,7 +43,7 @@ export function MomentumTrendMatrix({ rows, onSymbol }: RowsProps & SymbolClickP
     }],
   }), [colors, dataRows]);
   return (
-    <EChart option={option} className="h-64 w-full" onClick={params => {
+    <EChart option={option} className={className} onClick={params => {
       const row = (params as { data?: { row?: StockRow } }).data?.row;
       if (row?.symbol) onSymbol(row.symbol);
     }} />

@@ -15,7 +15,7 @@ const BUCKETS = [
   { label: '80+', min: 80, max: Infinity },
 ];
 
-export function ScoreHistogram({ rows }: RowsProps) {
+export function ScoreHistogram({ rows, className = 'h-64 w-full' }: RowsProps & { className?: string }) {
   const colors = useEChartColors();
   const option = useMemo<EChartsOption>(() => ({
     backgroundColor: 'transparent',
@@ -46,7 +46,7 @@ export function ScoreHistogram({ rows }: RowsProps) {
     }],
   }), [colors, rows]);
 
-  return <EChart option={option} className="h-64 w-full" />;
+  return <EChart option={option} className={className} />;
 }
 
 function bucketColor(min: number, colors: ReturnType<typeof useEChartColors>) {
@@ -55,4 +55,3 @@ function bucketColor(min: number, colors: ReturnType<typeof useEChartColors>) {
   if (min >= 50) return colors.amber;
   return colors.rim;
 }
-

@@ -40,7 +40,7 @@ export function OverviewCharts(props: {
       </div>
       {expandedDef && (
         <ExpandedChart title={expandedDef.title} onClose={() => setExpanded(null)}>
-          <div className={expandedDef.expandClassName}>{expandedDef.render()}</div>
+          <div className={expandedDef.expandClassName}>{expandedDef.render('expand')}</div>
         </ExpandedChart>
       )}
     </>
@@ -59,8 +59,7 @@ function ChartPanel({
   return (
     <OverviewChartPanel id={def.id} title={def.title} caption={def.caption}
       className={className ?? def.className} docked={docked} onDock={onDock} onExpand={onExpand}>
-      <div className={docked ? def.dockClassName : def.bodyClassName}>{def.render()}</div>
+      <div className={docked ? def.dockClassName : def.bodyClassName}>{def.render(docked ? 'dock' : 'body')}</div>
     </OverviewChartPanel>
   );
 }
-

@@ -15,6 +15,7 @@ import { SignalFlowChart } from './SignalFlowChart';
 import { TopSetups } from './TopSetups';
 
 export type ChartKey = 'heat' | 'cluster' | 'score' | 'matrix' | 'flow' | 'breadth' | 'setups';
+export type ChartRenderMode = 'body' | 'dock' | 'expand';
 
 interface DefProps {
   rows: StockRow[];
@@ -30,19 +31,19 @@ interface DefProps {
 export function chartDefs(p: DefProps) {
   return [
     def('heat', 'Top Movers', 'Liquid gainers and losers', 'xl:col-span-5',
-      'h-[460px] min-h-0', 'h-[620px] min-h-0', 'h-full min-h-[720px]',
+      'flex h-[460px] min-h-0', 'flex h-[620px] min-h-0', 'flex min-h-0 flex-1',
       () => <HeatMapView entries={p.heatEntries} onCellClick={p.onSymbol} />),
     def('cluster', 'Opportunity Cluster', 'Total score vs comfort', 'xl:col-span-7',
-      'flex h-[460px] min-h-0', 'flex h-[620px] min-h-0', 'flex h-full min-h-[720px]',
+      'flex h-[460px] min-h-0', 'flex h-[620px] min-h-0', 'flex min-h-0 flex-1',
       () => <ClusterChart scores={p.scored} loading={p.loading} />),
     def('score', 'Score Distribution', 'Where the universe is concentrated', 'xl:col-span-4',
-      '', 'h-80', 'h-full min-h-[620px]', () => <ScoreHistogram rows={p.rows} />),
+      '', 'h-80', 'flex min-h-0 flex-1', mode => <ScoreHistogram rows={p.rows} className={chartHeight(mode)} />),
     def('matrix', 'Momentum / Trend Matrix', 'Breakouts, pullbacks, spikes, ignores', 'xl:col-span-4',
-      '', 'h-80', 'h-full min-h-[620px]', () => <MomentumTrendMatrix rows={p.rows} onSymbol={p.onSymbol} />),
+      '', 'h-80', 'flex min-h-0 flex-1', mode => <MomentumTrendMatrix rows={p.rows} onSymbol={p.onSymbol} className={chartHeight(mode)} />),
     def('flow', 'Signal Flow', 'Live tape mix by setup type', 'xl:col-span-4',
-      '', 'h-80', 'h-full min-h-[560px]', () => <SignalFlowChart signals={p.signals} metricsCache={p.metricsCache} />),
+      '', 'h-80', 'flex min-h-0 flex-1', mode => <SignalFlowChart signals={p.signals} metricsCache={p.metricsCache} expanded={mode === 'expand'} />),
     def('breadth', 'Breadth', 'Bias and setup quality', 'xl:col-span-4',
-      '', 'h-80', 'h-full min-h-[560px]', () => <BreadthBars rows={p.rows} />),
+      '', 'h-80', 'flex min-h-0 flex-1', mode => <BreadthBars rows={p.rows} className={chartHeight(mode)} />),
     def('setups', 'Top Setups', 'Highest attention candidates', 'xl:col-span-8',
       '', '', '', () => <TopSetups rows={p.rows.slice(0, 12)} livePrices={p.livePrices} signals={p.signals} onSymbol={p.onSymbol} />),
   ];
@@ -56,8 +57,11 @@ function def(
   bodyClassName: string,
   dockClassName: string,
   expandClassName: string,
-  render: () => React.ReactNode,
+  render: (mode: ChartRenderMode) => React.ReactNode,
 ) {
   return { id, title, caption, className, bodyClassName, dockClassName, expandClassName, render };
 }
 
+function chartHeight(mode: ChartRenderMode): string {
+  return mode === 'expand' ? 'h-full min-h-0 w-full' : 'h-64 w-full';
+}

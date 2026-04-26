@@ -6,7 +6,7 @@ import { EChart } from '@/components/charts/EChart';
 import { useEChartColors } from '@/components/charts/useEChartColors';
 import type { RowsProps } from './overviewTypes';
 
-export function BreadthBars({ rows }: RowsProps) {
+export function BreadthBars({ rows, className = 'h-64 w-full' }: RowsProps & { className?: string }) {
   const colors = useEChartColors();
   const stats = useMemo(() => [
     { label: 'Bullish', value: rows.filter(r => r.weekly_bias === 'BULLISH').length, color: colors.bull },
@@ -29,6 +29,5 @@ export function BreadthBars({ rows }: RowsProps) {
     },
     series: [{ type: 'bar', barMaxWidth: 20, data: stats.map(s => ({ value: s.value, itemStyle: { color: s.color } })) }],
   }), [colors, stats]);
-  return <EChart option={option} className="h-64 w-full" />;
+  return <EChart option={option} className={className} />;
 }
-

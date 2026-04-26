@@ -9,8 +9,8 @@ import { EChart } from '@/components/charts/EChart';
 import { useEChartColors } from '@/components/charts/useEChartColors';
 
 export function SignalFlowChart({
-  signals, metricsCache,
-}: { signals: Signal[]; metricsCache: Record<string, InstrumentMetrics | null> }) {
+  signals, metricsCache, expanded = false,
+}: { signals: Signal[]; metricsCache: Record<string, InstrumentMetrics | null>; expanded?: boolean }) {
   const colors = useEChartColors();
   const entries = useMemo(() => {
     const counts = new Map<SignalType, number>();
@@ -33,12 +33,11 @@ export function SignalFlowChart({
   }), [colors, entries]);
   const fnoSignals = signals.filter(signal => metricsCache[signal.symbol]?.is_fno).length;
   return (
-    <div>
-      <EChart option={option} className="h-52 w-full" />
+    <div className={expanded ? 'flex min-h-0 h-full w-full flex-col' : undefined}>
+      <EChart option={option} className={expanded ? 'min-h-0 flex-1 w-full' : 'h-52 w-full'} />
       <div className="border-t border-border px-3 py-2 text-[10px] text-ghost">
         <span className="num text-accent">{signals.length}</span> live signals, <span className="num text-violet">{fnoSignals}</span> F&O
       </div>
     </div>
   );
 }
-

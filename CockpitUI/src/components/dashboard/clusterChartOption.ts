@@ -1,7 +1,7 @@
 import type { EChartsOption } from 'echarts';
 import type { EChartColors } from '@/components/charts/useEChartColors';
 import type { ScoredSymbol } from '@/domain/dashboard';
-import { dotColor, dotJitter, dotRadius, QUAD_COMFORT, QUAD_TOTAL } from '@/lib/clusterUtils';
+import { dotJitter, dotRadius, QUAD_COMFORT, QUAD_TOTAL } from '@/lib/clusterUtils';
 
 export function clusterChartOption(plotable: ScoredSymbol[], colors: EChartColors): EChartsOption {
   return {
@@ -18,7 +18,7 @@ export function clusterChartOption(plotable: ScoredSymbol[], colors: EChartColor
     ],
     series: [{
       type: 'scatter',
-      data: plotable.map(row => point(row)),
+      data: plotable.map(row => point(row, colors)),
       markLine: {
         symbol: 'none',
         silent: true,
@@ -68,14 +68,21 @@ function axis(name: string, nameGap: number, colors: EChartColors) {
   };
 }
 
-function point(row: ScoredSymbol) {
+function point(row: ScoredSymbol, colors: EChartColors) {
   const jitter = dotJitter(row.symbol);
+  const color = dotColor(row, colors);
   return {
     name: row.symbol,
     value: [row.total_score + jitter.dx / 12, (row.comfort_score ?? 0) + jitter.dy / 12],
     row,
     symbolSize: dotRadius(row.total_score) * 2.4,
-    itemStyle: { color: dotColor(row), opacity: 0.58 },
-    label: { show: row.total_score >= 76, formatter: row.symbol, position: 'right' as const, color: dotColor(row), fontSize: 9, fontWeight: 800, fontFamily: 'JetBrains Mono, Fira Code, monospace' },
+    itemStyle: { color, opacity: 0.72 },
+    label: { show: row.total_score >= 76, formatter: row.symbol, position: 'right' as const, color, fontSize: 9, fontWeight: 800, fontFamily: 'JetBrains Mono, Fira Code, monospace' },
   };
+}
+
+function dotColor(row: ScoredSymbol, colors: EChartColors): string {
+  if (row.weekly_bias === 'BULLISH') return colors.bull;
+  if (row.weekly_bias === 'BEARISH') return colors.bear;
+  return colors.amber;
 }

@@ -23,7 +23,8 @@ ENV DATASYNC_URL=${DATASYNC_URL}
 ENV MODELING_URL=${MODELING_URL}
 ENV NEXT_PUBLIC_LIVE_FEED_URL=${NEXT_PUBLIC_LIVE_FEED_URL}
 
-RUN npm run build && mkdir -p /app/public
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build && mkdir -p /app/public
 
 # Production runtime
 FROM node:22-alpine AS runner
