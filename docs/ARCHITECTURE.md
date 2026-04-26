@@ -20,16 +20,19 @@ flowchart TD
     candles_5min · symbols · sync_state
     symbol_metrics · symbol_indicators
     symbol_patterns · daily_scores
-    model_predictions · service_config")]
+    model_predictions · service_config
+    symbol_intraday_profile
+    intraday_training_sessions
+    intraday_session_predictions")]
 
     IS["IndicatorsService :8005
-    RSI · MACD · ADX · BB · VCP · Rect"]
+    RSI · MACD · ADX · BB · VCP · Rect · ISS"]
 
     RS["RankingService :8002
     Unified scoring · Watchlist selection"]
 
     MS["ModelingService :8004
-    ComfortScorer · ML predictions"]
+    ComfortScorer v2/v3 · SessionClassifier · PullbackRegressor"]
 
     REDIS[("Redis :6379
     signals channel
@@ -49,10 +52,13 @@ flowchart TD
     DB -->|indicators| RS
     RS -->|daily_scores + watchlist| DB
     DB -->|daily_scores| MS
+    DB -->|price_data_1min| IS
+    IS -->|symbol_intraday_profile| DB
     MS -->|model_predictions| DB
-    LFS -->|PUBLISH signals| REDIS
+    MS -->|intraday_session_predictions| DB
+    LFS -->|PUBLISH signals + regime_update| REDIS
     RS -->|watchlist → service_config| DB
-    DB -->|dashboard + screener| UI
+    DB -->|dashboard + screener + ISS + session_pred| UI
     REDIS -->|SSE / WebSocket| UI
 ```
 
@@ -129,12 +135,21 @@ flowchart LR
 | Daily OHLCV sync | Manual (`POST /sync/run`) or `make sync` | DataSyncService |
 | 1-min Dhan sync | Manual (`POST /sync/run-1min`) or `make sync-1min` | DataSyncService |
 | Indicators compute | Manual (`POST /compute`) — after daily sync | IndicatorsService |
+| **ISS compute** | Manual (`POST /compute-intraday-profile`) — after 1-min sync | IndicatorsService |
 | Unified scoring | Manual (`POST /scores/compute`) — after indicators | RankingService |
-| ML predictions | Manual (`POST /models/comfort_scorer/score-all`) | ModelingService |
+| Comfort score (v2) | Manual (`POST /models/comfort_scorer/score-all`) | ModelingService |
+| **Session predictions** | Manual (`POST /models/session_classifier/score-all`) — after scoring | ModelingService |
+| **Comfort score v3** | Auto-triggered after session predictions (same call) | ModelingService |
 | Real-time ticks | Continuous on startup | LiveFeedService |
+| **Regime detection** | Continuous — every 5-min candle per symbol | LiveFeedService |
 | Watchlist update | After scoring run — stored in `service_config` | RankingService → LiveFeedService |
 
-Full daily pipeline: `make sync` → `make scores-compute` (indicators + scoring) → `make comfort-score`
+Full daily pipeline: `make sync` → `make scores-compute` → `make comfort-score` → `POST /models/session_classifier/score-all`
+
+**One-time operations (first run or weekly):**
+- `POST /models/session_classifier/build-training-data` — rebuild 5yr labeled sessions
+- `POST /models/session_classifier/train` — retrain LightGBM models
+- `POST /compute-intraday-profile` — ISS runs nightly after 1-min sync
 
 ---
 

@@ -80,12 +80,12 @@ async def run_zerodha_sync_sse(svc: ZerodhaServiceDep):
 
 
 @router.post("/sync/run-1min",
-             summary="1-min sync: fetch Dhan 1-min OHLCV for all F&O stocks (background)")
+             summary="1-min sync: fetch Dhan 1-min OHLCV for configured stock universe (background)")
 async def run_1min_sync(background_tasks: BackgroundTasks, svc: SyncServiceDep):
     background_tasks.add_task(svc.run_1min_sync)
     return {
         "status": "started",
-        "message": "1-min F&O sync running in background. Monitor at GET /api/v1/sync/status",
+        "message": "1-min stock sync running in background. Monitor at GET /api/v1/sync/status",
     }
 
 

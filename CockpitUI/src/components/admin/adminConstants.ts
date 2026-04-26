@@ -19,7 +19,7 @@ export const PIPELINE_STEPS = [
   { key: 'intraday',    label: 'Compute ISS',         endpoint: '/indicators/compute-intraday-profile-sse', method: 'POST' },
   { key: 'scores',      label: 'Compute Rankings',   endpoint: '/scorer/scores/compute-sse',   method: 'POST' },
   { key: 'models',      label: 'Comfort Models',      endpoint: '/modeling/models',              method: 'GET'  },
-  { key: 'session',     label: 'Session Model',       endpoint: '/modeling/models/session_classifier/pipeline-sse', method: 'POST' },
+  { key: 'session',     label: 'Session Model',       endpoint: '/modeling/models/session_classifier/pipeline-sse?force_retrain=true&evaluate=true', method: 'POST' },
 ] as const;
 
 export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {

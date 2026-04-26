@@ -18,9 +18,11 @@ class Settings(BaseServiceSettings):
     )
     dhan_master_timeout_s: float = Field(default=30.0)
 
-    # ── 1-minute sync (Dhan historical API, F&O stocks only) ──────────────────
+    # ── 1-minute sync (Dhan historical API) ───────────────────────────────────
     dhan_historical_url:   str = Field(default="https://api.dhan.co/v2/charts/intraday")
-    dhan_1min_rate_per_sec: int = Field(default=3)   # max concurrent reqs/sec
+    dhan_1min_universe:    str = Field(default="all")  # all | fno
+    dhan_1min_rate_per_sec: int = Field(default=2)   # max concurrent reqs/sec
+    dhan_1min_persist_chunk_size: int = Field(default=60)
     dhan_daily_budget:      int = Field(default=10_000)  # Dhan API calls/day cap
     dhan_budget_safety:     int = Field(default=100)     # reserve buffer before stopping
 

@@ -40,6 +40,18 @@ async def train_session_classifier(
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@router.post("/models/session_classifier/evaluate")
+async def evaluate_session_classifier(
+    service: SessionClassifierService = Depends(get_session_classifier_service),
+):
+    try:
+        return await service.evaluate()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
 @router.post("/models/session_classifier/score-all")
 async def score_all_sessions(
     score_date: date | None = None,
@@ -55,6 +67,8 @@ async def score_all_sessions(
 async def session_classifier_pipeline_sse(
     score_date: date | None = None,
     lookback_years: int = 5,
+    force_retrain: bool = False,
+    evaluate: bool = False,
     training_service: TrainingDataService = Depends(get_training_data_service),
     session_service: SessionClassifierService = Depends(get_session_classifier_service),
 ):
@@ -79,6 +93,8 @@ async def session_classifier_pipeline_sse(
         try:
             yield await emit("running", "Scoring session classifier")
             try:
+                if force_retrain:
+                    raise RuntimeError("Session classifier retrain requested")
                 score_result = None
                 async for event in run_with_progress(
                     "Scoring session classifier",
@@ -89,7 +105,8 @@ async def session_classifier_pipeline_sse(
                     else:
                         score_result = event
             except RuntimeError as exc:
-                if "not trained" not in str(exc).lower():
+                message = str(exc).lower()
+                if "not trained" not in message and "retrain requested" not in message:
                     raise
 
                 yield await emit("running", "Building session training data")
@@ -124,12 +141,28 @@ async def session_classifier_pipeline_sse(
                         score_result = event
 
             score_result = score_result or {}
+            if evaluate:
+                yield await emit("running", "Evaluating session model")
+                evaluation = None
+                async for event in run_with_progress(
+                    "Evaluating session model",
+                    session_service.evaluate(),
+                ):
+                    if isinstance(event, str):
+                        yield event
+                    else:
+                        evaluation = event
+                if evaluation is not None:
+                    score_result["evaluation"] = evaluation
+
             scored = score_result.get("symbols_scored", 0)
             comfort = score_result.get("comfort_v3_updated", 0)
+            accuracy = score_result.get("evaluation", {}).get("accuracy")
+            suffix = f", accuracy {accuracy:.1%}" if accuracy is not None else ""
             score_result["duration_s"] = round(time.perf_counter() - started, 2)
             yield await emit(
                 "ok",
-                f"{scored} session predictions, {comfort} comfort v3 updates",
+                f"{scored} session predictions, {comfort} comfort v3 updates{suffix}",
                 score_result,
             )
         except Exception as exc:

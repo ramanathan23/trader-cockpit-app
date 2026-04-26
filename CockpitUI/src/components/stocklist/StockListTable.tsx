@@ -33,10 +33,14 @@ export const StockListTable = memo((props: StockListTableProps) => {
           onSort, onToggle, onOpenModal, onAddNote, onDeleteNote,
           loading, hasMore, onLoadMore } = props;
   const parentRef = useRef<HTMLDivElement>(null);
+  const estimateSize = useCallback(
+    (index: number) => rows[index]?.symbol === expandedSymbol ? 240 : 38,
+    [rows, expandedSymbol],
+  );
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: index => rows[index]?.symbol === expandedSymbol ? 240 : 38,
+    estimateSize,
     overscan: 18,
   });
   const items = virtualizer.getVirtualItems();
@@ -63,8 +67,8 @@ export const StockListTable = memo((props: StockListTableProps) => {
                 livePrice={livePrices[row.symbol]}
                 isExpanded={expandedSymbol === row.symbol}
                 noteCount={(noteEntries[row.symbol] ?? []).length}
-                onToggle={() => onToggle(row.symbol)}
-                onOpenModal={tab => onOpenModal(row.symbol, tab)}
+                onToggle={onToggle}
+                onOpenModal={onOpenModal}
               />
               {expandedSymbol === row.symbol && (
                 <StockListExpandedRow

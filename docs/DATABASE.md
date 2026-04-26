@@ -25,9 +25,11 @@ flowchart LR
     DSS -->|writes| index_futures
 
     IS -->|reads| price_data_daily
+    IS -->|reads| price_data_1min
     IS -->|writes| symbol_metrics
     IS -->|writes| symbol_indicators
     IS -->|writes| symbol_patterns
+    IS -->|writes| symbol_intraday_profile
 
     RS -->|reads| symbol_metrics
     RS -->|reads| symbol_indicators
@@ -42,7 +44,10 @@ flowchart LR
     LFS -->|writes| index_future_candles_5min
 
     MS -->|reads| daily_scores
+    MS -->|reads| symbol_intraday_profile
     MS -->|writes| model_predictions
+    MS -->|writes| intraday_training_sessions
+    MS -->|writes| intraday_session_predictions
 
     ALL -->|reads/writes| service_config
 

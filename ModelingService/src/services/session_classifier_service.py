@@ -13,7 +13,11 @@ import pandas as pd
 from ..models.comfort_scorer._model_predict import apply_comfort_v3
 from ..config import settings
 from ..models.session_classifier._predict import predict_session
-from ..models.session_classifier._train import train_pullback_regressor, train_session_classifier
+from ..models.session_classifier._train import (
+    evaluate_session_models,
+    train_pullback_regressor,
+    train_session_classifier,
+)
 
 logger = logging.getLogger(__name__)
 _IST = ZoneInfo("Asia/Kolkata")
@@ -57,6 +61,20 @@ class SessionClassifierService:
             "pullback_mae": pb_metrics["mae"],
         }
 
+    async def evaluate(self) -> dict:
+        sessions = await self._load_training_sessions()
+        if sessions.empty:
+            raise ValueError("No intraday_training_sessions rows found")
+        self._ensure_loaded()
+        result = await asyncio.to_thread(
+            evaluate_session_models,
+            self._classifier,
+            self._pullback,
+            sessions,
+        )
+        result["model_version"] = _MODEL_VERSION
+        return result
+
     async def score_all(self, score_date: date | None = None) -> dict:
         score_date = score_date or datetime.now(tz=_IST).date()
         self._ensure_loaded()
@@ -93,7 +111,10 @@ class SessionClassifierService:
 
     async def _load_training_sessions(self) -> pd.DataFrame:
         async with self._pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM intraday_training_sessions ORDER BY session_date ASC")
+            rows = await conn.fetch(
+                "SELECT * FROM intraday_training_sessions ORDER BY session_date ASC",
+                timeout=600,
+            )
         return pd.DataFrame([dict(r) for r in rows])
 
     def _ensure_loaded(self) -> None:

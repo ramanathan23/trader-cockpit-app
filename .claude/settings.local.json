@@ -11,7 +11,9 @@
       "Bash(python3 -c \"import sys; sys.path.insert\\(0, 'LiveFeedService'\\); from src.infrastructure.redis._cluster_filter import _EXEMPT\")",
       "Bash(python3)",
       "Bash(python -c \"from src.infrastructure.redis._cluster_filter import cluster_check_signal; from src.domain.signal import Signal; print\\('imports OK'\\)\")",
-      "Bash(make up *)"
+      "Bash(make up *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ],
     "defaultMode": "bypassPermissions"
   }

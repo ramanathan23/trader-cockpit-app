@@ -234,27 +234,27 @@ def _training_record(symbol: str, idx, row: pd.Series) -> tuple:
     return (
         symbol,
         idx.date() if hasattr(idx, "date") else idx,
-        _num(row.get("prev_rsi_14")),
-        _num(row.get("prev_adx_14")),
-        _num(row.get("prev_di_spread")),
-        _num(row.get("prev_atr_ratio")),
-        _num(row.get("prev_roc_5")),
-        _num(row.get("prev_roc_20")),
-        _num(row.get("prev_vol_ratio_20")),
+        _num(row.get("prev_rsi_14"), max_abs=9999.9999),
+        _num(row.get("prev_adx_14"), max_abs=9999.9999),
+        _num(row.get("prev_di_spread"), max_abs=9999.9999),
+        _num(row.get("prev_atr_ratio"), max_abs=9999.9999),
+        _num(row.get("prev_roc_5"), max_abs=9999.9999),
+        _num(row.get("prev_roc_20"), max_abs=9999.9999),
+        _num(row.get("prev_vol_ratio_20"), max_abs=9999.9999),
         _bool(row.get("prev_bb_squeeze")),
         _int(row.get("prev_squeeze_days")),
-        _num(row.get("prev_rs_vs_nifty")),
+        _num(row.get("prev_rs_vs_nifty"), max_abs=9999.9999),
         _int(row.get("stage_encoded")) or 0,
         _int(row.get("day_of_week")),
-        _num(row.get("nifty_gap_pct")),
-        _num(row.get("iss_score")),
-        _num(row.get("choppiness_idx")),
-        _num(row.get("stop_hunt_rate")),
-        _num(row.get("orb_followthrough_rate")),
-        _num(row.get("pullback_depth_hist")),
-        _num(row.get("high_close_ratio")),
-        _num(row.get("range_vs_atr")),
-        _num(row.get("pullback_depth")),
+        _num(row.get("nifty_gap_pct"), max_abs=9999.9999),
+        _num(row.get("iss_score"), min_value=0.0, max_value=100.0),
+        _num(row.get("choppiness_idx"), min_value=0.0, max_value=100.0),
+        _num(row.get("stop_hunt_rate"), min_value=0.0, max_value=1.0),
+        _num(row.get("orb_followthrough_rate"), min_value=0.0, max_value=1.0),
+        _num(row.get("pullback_depth_hist"), min_value=0.0, max_value=1.0),
+        _num(row.get("high_close_ratio"), min_value=0.0, max_value=1.0),
+        _num(row.get("range_vs_atr"), min_value=0.0, max_value=99.9999),
+        _num(row.get("pullback_depth"), min_value=0.0, max_value=1.0),
         str(row.get("session_type") or "NEUTRAL"),
         _bool(row.get("trend_up")) or False,
         _bool(row.get("trend_down")) or False,
@@ -263,11 +263,25 @@ def _training_record(symbol: str, idx, row: pd.Series) -> tuple:
     )
 
 
-def _num(value) -> float | None:
+def _num(
+    value,
+    *,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    max_abs: float | None = None,
+) -> float | None:
     if value is None or pd.isna(value):
         return None
     out = float(value)
-    return out if isfinite(out) else None
+    if not isfinite(out):
+        return None
+    if max_abs is not None:
+        out = max(-max_abs, min(max_abs, out))
+    if min_value is not None:
+        out = max(min_value, out)
+    if max_value is not None:
+        out = min(max_value, out)
+    return out
 
 
 def _int(value) -> int | None:

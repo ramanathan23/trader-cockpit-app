@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from sklearn.metrics import accuracy_score, classification_report, mean_absolute_error
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error
 from sklearn.model_selection import GroupShuffleSplit
 
 from ._features import CATEGORICAL, FEATURES, SESSION_CLASSES
@@ -80,6 +80,61 @@ def train_pullback_regressor(sessions_df: pd.DataFrame):
     )
     mae = mean_absolute_error(y.iloc[test_idx], model.predict(X.iloc[test_idx]))
     return model, {"mae": round(float(mae), 4)}
+
+
+def evaluate_session_models(classifier, pullback_regressor, sessions_df: pd.DataFrame) -> dict:
+    clean = sessions_df.dropna(subset=["session_type", "session_date"]).copy()
+    clean = clean[clean["session_type"].isin(SESSION_CLASSES)]
+    if len(clean) < 100:
+        raise ValueError("Need at least 100 training sessions for session classifier evaluation")
+
+    X = _feature_frame(clean)
+    y = clean["session_type"].map(CLASS_TO_ID)
+    _, test_idx = _split(X, y, clean["session_date"])
+    y_test = y.iloc[test_idx]
+    pred = classifier.predict(X.iloc[test_idx])
+
+    labels = list(range(len(SESSION_CLASSES)))
+    matrix = confusion_matrix(y_test, pred, labels=labels)
+    distribution = clean["session_type"].value_counts().reindex(SESSION_CLASSES, fill_value=0)
+    predicted_distribution = pd.Series(pred).value_counts().reindex(labels, fill_value=0)
+
+    result = {
+        "samples": int(len(clean)),
+        "test_samples": int(len(test_idx)),
+        "accuracy": round(float(accuracy_score(y_test, pred)), 4),
+        "label_distribution": {label: int(distribution[label]) for label in SESSION_CLASSES},
+        "predicted_distribution": {
+            SESSION_CLASSES[idx]: int(predicted_distribution[idx])
+            for idx in labels
+        },
+        "confusion_matrix": {
+            "labels": SESSION_CLASSES,
+            "matrix": matrix.astype(int).tolist(),
+        },
+        "class_report": classification_report(
+            y_test,
+            pred,
+            target_names=SESSION_CLASSES,
+            output_dict=True,
+            zero_division=0,
+        ),
+    }
+
+    if pullback_regressor is not None:
+        up_days = sessions_df.dropna(subset=["pullback_depth", "session_date"]).copy()
+        if len(up_days) >= 50:
+            X_pb = _feature_frame(up_days)
+            y_pb = up_days["pullback_depth"].astype(float)
+            _, pb_test_idx = _split(X_pb, y_pb, up_days["session_date"])
+            pb_pred = pullback_regressor.predict(X_pb.iloc[pb_test_idx])
+            result["pullback"] = {
+                "samples": int(len(up_days)),
+                "test_samples": int(len(pb_test_idx)),
+                "mae": round(float(mean_absolute_error(y_pb.iloc[pb_test_idx], pb_pred)), 4),
+            }
+
+    return result
 
 
 def _feature_frame(df: pd.DataFrame) -> pd.DataFrame:

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/Badge';
@@ -19,8 +19,8 @@ interface StockListRowProps {
   livePrice?:  LivePriceData;
   isExpanded:  boolean;
   noteCount:   number;
-  onToggle:    () => void;
-  onOpenModal: (tab: SymbolModalTab) => void;
+  onToggle:    (symbol: string) => void;
+  onOpenModal: (symbol: string, tab: SymbolModalTab) => void;
 }
 
 export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onToggle, onOpenModal }: StockListRowProps) => {
@@ -28,6 +28,8 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
   const prev   = livePrice?.prevClose ?? row.prev_day_close;
   const chgPct = prev && price ? (price - prev) / prev * 100 : null;
   const tier   = setupTier(row);
+  const handleToggle     = useCallback(() => onToggle(row.symbol), [onToggle, row.symbol]);
+  const handleOpenModal  = useCallback((tab: SymbolModalTab) => onOpenModal(row.symbol, tab), [onOpenModal, row.symbol]);
 
   return (
     <tr
@@ -36,7 +38,7 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
         tier && TIER_BG_CLASS[tier],
         tier && TIER_BORDER_CLASS[tier],
       )}
-      onClick={onToggle}
+      onClick={handleToggle}
     >
       <td className="w-7 px-1 py-2 text-center text-ghost">
         <ChevronRight size={11} className={cn('transition-transform duration-150', isExpanded && 'rotate-90')} />
@@ -89,7 +91,7 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
         {row.f52h != null ? screenerPctText(row.f52h, true) : '—'}
       </td>
       <td className="py-2 px-2" onClick={e => e.stopPropagation()}>
-        <StockListRowActions noteCount={noteCount} onOpenModal={onOpenModal} />
+        <StockListRowActions noteCount={noteCount} onOpenModal={handleOpenModal} />
       </td>
     </tr>
   );
