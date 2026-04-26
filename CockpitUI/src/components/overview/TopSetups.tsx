@@ -15,7 +15,7 @@ export function TopSetups({
   onSymbol: (symbol: string) => void;
 }) {
   return (
-    <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-2 p-3 md:grid-cols-2 xl:grid-cols-4">
       {rows.map(row => (
         <SetupCard
           key={row.symbol}
@@ -66,4 +66,3 @@ function SmallStat({ label, value, tone = 'text-dim' }: { label: string; value: 
     </span>
   );
 }
-

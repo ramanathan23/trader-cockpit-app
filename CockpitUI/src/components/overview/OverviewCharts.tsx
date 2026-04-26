@@ -20,7 +20,7 @@ export function OverviewCharts(props: {
   livePrices: Record<string, LivePriceData>;
   onSymbol: (symbol: string) => void;
 }) {
-  const [docked, setDocked] = useState<ChartKey | null>('cluster');
+  const [docked, setDocked] = useState<ChartKey | null>(null);
   const [expanded, setExpanded] = useState<ChartKey | null>(null);
   const defs = useMemo(() => chartDefs(props), [props]);
   const dockedDef = docked ? defs.find(def => def.id === docked) : null;
