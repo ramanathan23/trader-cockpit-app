@@ -1,10 +1,12 @@
 'use client';
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { hierarchy, treemap, treemapSquarify } from 'd3-hierarchy';
+import { memo, useMemo } from 'react';
+import type { EChartsOption } from 'echarts';
+import { EChart } from '@/components/charts/EChart';
+import { useEChartColors } from '@/components/charts/useEChartColors';
 import { HEAT_LEGEND, HEATMAP_MIN_ADV_CR, HEATMAP_TOP_PER_SIDE, heatStats, heatWeight, topLiquidMovers } from '@/lib/heatmap';
 import type { HeatMapEntry } from '@/lib/heatmap';
-import { HeatMapCell } from './HeatMapCell';
+import { fmt2 } from '@/lib/fmt';
 
 interface HeatMapViewProps {
   entries:     HeatMapEntry[];
@@ -18,50 +20,73 @@ HeatMapView.displayName = 'HeatMapView';
 
 function HeatMapFrame({ entries, onCellClick }: HeatMapViewProps) {
   const visibleEntries = useMemo(() => topLiquidMovers(entries), [entries]);
+  const colors = useEChartColors();
   const stats = heatStats(visibleEntries);
   const avg = stats.avgMove;
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
 
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const rect = entry.contentRect;
-      setSize({
-        width:  Math.floor(rect.width),
-        height: Math.floor(rect.height),
-      });
-    });
-    observer.observe(mapRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  const nodes = useMemo(() => {
-    if (size.width <= 0 || size.height <= 0 || visibleEntries.length === 0) return [];
-    const root = hierarchy<{ children: HeatMapEntry[] } | HeatMapEntry>({ children: visibleEntries })
-      .sum(node => {
-        if (!('symbol' in node)) return 0;
-        return heatWeight(node.chgPct);
-      })
-      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-
-    const laidOut = treemap<typeof root.data>()
-      .size([size.width, size.height])
-      .paddingInner(3)
-      .paddingOuter(0)
-      .tile(treemapSquarify.ratio(1.2))
-      .round(true)(root);
-
-    return laidOut.leaves()
-      .filter(node => 'symbol' in node.data)
-      .map(node => ({
-        entry: node.data as HeatMapEntry,
-        x: node.x0,
-        y: node.y0,
-        w: Math.max(0, node.x1 - node.x0),
-        h: Math.max(0, node.y1 - node.y0),
-      }));
-  }, [visibleEntries, size]);
+  const option = useMemo<EChartsOption>(() => ({
+    backgroundColor: 'transparent',
+    animationDuration: 260,
+    tooltip: {
+      trigger: 'item',
+      borderColor: colors.border,
+      backgroundColor: colors.panel,
+      textStyle: { color: colors.fg, fontFamily: 'JetBrains Mono, Fira Code, monospace', fontSize: 11 },
+      formatter: params => {
+        const item = Array.isArray(params) ? params[0] : params;
+        const data = (item as { data?: HeatMapEntry & { value: number } }).data;
+        if (!data) return '';
+        const move = data.chgPct == null ? '-' : `${data.chgPct > 0 ? '+' : ''}${data.chgPct.toFixed(2)}%`;
+        const price = data.price == null ? '-' : fmt2(data.price);
+        const score = data.score == null ? '-' : data.score.toFixed(0);
+        return `<b>${data.symbol}</b><br/>Move: ${move}<br/>Price: ${price}<br/>Score: ${score}<br/>ADV: ${fmt2(data.adv)}Cr`;
+      },
+    },
+    series: [{
+      type: 'treemap',
+      roam: false,
+      nodeClick: false,
+      breadcrumb: { show: false },
+      left: 12,
+      top: 12,
+      right: 12,
+      bottom: 12,
+      squareRatio: 1.2,
+      itemStyle: {
+        borderColor: 'rgba(0,0,0,0.18)',
+        borderWidth: 1,
+        gapWidth: 3,
+      },
+      label: {
+        show: true,
+        color: '#fff',
+        lineHeight: 14,
+        fontFamily: 'JetBrains Mono, Fira Code, monospace',
+        formatter: params => {
+          const data = params.data as HeatMapEntry | undefined;
+          if (!data) return '';
+          const move = data.chgPct == null ? '-' : `${data.chgPct > 0 ? '+' : ''}${data.chgPct.toFixed(2)}%`;
+          const price = data.price == null ? '' : `\n${fmt2(data.price)}`;
+          return `{sym|${data.symbol}}\n{move|${move}}${price}`;
+        },
+        rich: {
+          sym: { fontSize: 11, fontWeight: 900 },
+          move: { fontSize: 11, fontWeight: 900 },
+        },
+      },
+      upperLabel: { show: false },
+      emphasis: {
+        focus: 'self',
+        itemStyle: { borderColor: 'rgba(255,255,255,0.55)', borderWidth: 1 },
+      },
+      data: visibleEntries.map(entry => ({
+        ...entry,
+        name: entry.symbol,
+        value: heatWeight(entry.chgPct),
+        itemStyle: { color: heatColor(entry.chgPct) },
+      })),
+    }],
+  }), [colors, visibleEntries]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-base">
@@ -89,35 +114,34 @@ function HeatMapFrame({ entries, onCellClick }: HeatMapViewProps) {
       </div>
 
       <div className="relative min-h-[360px] flex-1 overflow-hidden">
-        <div ref={mapRef} className="absolute inset-3">
-          {visibleEntries.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-[12px] text-ghost">No liquid movers</div>
-          ) : nodes.length === 0 ? (
-            <div className="flex h-32 items-center justify-center text-[12px] text-ghost">Sizing heatmap</div>
-          ) : (
-            nodes.map(node => (
-              <div
-                key={node.entry.symbol}
-                className="absolute"
-                style={{
-                  transform: `translate(${node.x}px, ${node.y}px)`,
-                  width:     node.w,
-                  height:    node.h,
-                }}
-              >
-                <HeatMapCell
-                  entry={node.entry}
-                  onClick={onCellClick}
-                  width={node.w}
-                  height={node.h}
-                />
-              </div>
-            ))
-          )}
-        </div>
+        {visibleEntries.length === 0 ? (
+          <div className="flex h-32 items-center justify-center text-[12px] text-ghost">No liquid movers</div>
+        ) : (
+          <EChart
+            option={option}
+            className="absolute inset-0"
+            onClick={params => {
+              const data = (params as { data?: HeatMapEntry }).data;
+              if (data?.symbol) onCellClick(data.symbol);
+            }}
+          />
+        )}
       </div>
     </div>
   );
+}
+
+function heatColor(pct: number | null): string {
+  if (pct == null) return '#1f252a';
+  if (pct > 5) return '#00a972';
+  if (pct > 3) return '#078d67';
+  if (pct > 1.5) return '#16775f';
+  if (pct > 0.5) return '#2f665a';
+  if (pct > -0.5) return '#879295';
+  if (pct > -1.5) return '#8b5d66';
+  if (pct > -3) return '#a84d5d';
+  if (pct > -5) return '#bf4055';
+  return '#d73751';
 }
 
 function Metric({ label, value, tone }: { label: string; value: number | string; tone: string }) {
