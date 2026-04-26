@@ -16,8 +16,10 @@ export const PIPELINE_STEPS = [
   { key: 'sync-daily',  label: 'Sync Daily Data',   endpoint: '/datasync/sync/run-sse',       method: 'POST' },
   { key: 'sync-1min',   label: 'Sync 1-Min Data',   endpoint: '/datasync/sync/run-1min-sse',  method: 'POST' },
   { key: 'indicators',  label: 'Compute Indicators', endpoint: '/indicators/compute-sse',      method: 'POST' },
+  { key: 'intraday',    label: 'Compute ISS',         endpoint: '/indicators/compute-intraday-profile-sse', method: 'POST' },
   { key: 'scores',      label: 'Compute Rankings',   endpoint: '/scorer/scores/compute-sse',   method: 'POST' },
-  { key: 'models',      label: 'Run Models',          endpoint: '/modeling/models',              method: 'GET'  },
+  { key: 'models',      label: 'Comfort Models',      endpoint: '/modeling/models',              method: 'GET'  },
+  { key: 'session',     label: 'Session Model',       endpoint: '/modeling/models/session_classifier/pipeline-sse', method: 'POST' },
 ] as const;
 
 export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {

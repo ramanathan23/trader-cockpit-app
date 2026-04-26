@@ -291,6 +291,42 @@
     animation: pulse-new 1100ms ease-out;
   }
 
+  @keyframes price-flash-up {
+    0% {
+      color: #ffffff;
+      background-color: rgb(var(--bull) / 0.72);
+      box-shadow: 0 0 0 1px rgb(var(--bull) / 0.62), 0 0 14px rgb(var(--bull) / 0.34);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 0 rgb(var(--bull) / 0);
+    }
+  }
+
+  @keyframes price-flash-down {
+    0% {
+      color: #ffffff;
+      background-color: rgb(var(--bear) / 0.72);
+      box-shadow: 0 0 0 1px rgb(var(--bear) / 0.62), 0 0 14px rgb(var(--bear) / 0.34);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: 0 0 0 0 rgb(var(--bear) / 0);
+    }
+  }
+
+  .price-flash {
+    will-change: background-color, box-shadow, color;
+  }
+
+  .price-flash-up {
+    animation: price-flash-up 620ms ease-out;
+  }
+
+  .price-flash-down {
+    animation: price-flash-down 620ms ease-out;
+  }
+
   /* Badge chip size variants — always combined with color utility (text-X) */
   .badge-sm {
     @apply chip h-4 min-h-0 px-1;

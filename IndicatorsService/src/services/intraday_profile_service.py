@@ -22,9 +22,16 @@ class IntradayProfileService:
         self._sem = asyncio.Semaphore(settings.concurrency)
 
     async def compute_all(self) -> dict:
-        symbols = await self._prices.fetch_synced_symbols()
+        symbols = await self._prices.fetch_1min_symbols(days=90)
+        synced_symbols = await self._prices.fetch_synced_symbols()
         if not symbols:
-            return {"symbols": 0, "symbols_computed": 0}
+            cleared = await self._repo.delete_intraday_profiles(synced_symbols)
+            return {
+                "symbols": 0,
+                "symbols_computed": 0,
+                "symbols_skipped_no_1min": len(synced_symbols),
+                "stale_profiles_cleared": cleared,
+            }
 
         results = await asyncio.gather(
             *[self.compute_symbol(symbol) for symbol in symbols],
@@ -41,11 +48,13 @@ class IntradayProfileService:
             else:
                 skipped_symbols.append(symbol)
         written = await self._repo.upsert_intraday_profiles_batch(snapshots)
-        cleared = await self._repo.delete_intraday_profiles(skipped_symbols)
+        no_1min_symbols = sorted(set(synced_symbols) - set(symbols))
+        cleared = await self._repo.delete_intraday_profiles([*skipped_symbols, *no_1min_symbols])
         return {
             "symbols": len(symbols),
             "symbols_computed": written,
-            "symbols_skipped_no_1min": len(skipped_symbols),
+            "symbols_skipped_no_1min": len(no_1min_symbols),
+            "symbols_skipped_incomplete_1min": len(skipped_symbols),
             "stale_profiles_cleared": cleared,
         }
 

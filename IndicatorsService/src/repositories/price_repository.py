@@ -13,6 +13,16 @@ class PriceRepository:
             )
         return [r["symbol"] for r in rows]
 
+    async def fetch_1min_symbols(self, days: int = 90) -> list[str]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT DISTINCT symbol
+                FROM price_data_1min
+                WHERE time >= NOW() - ($1::int * INTERVAL '1 day')
+                ORDER BY symbol
+            """, days)
+        return [r["symbol"] for r in rows]
+
     async def fetch_ohlcv_batch(
         self,
         symbols: list[str],

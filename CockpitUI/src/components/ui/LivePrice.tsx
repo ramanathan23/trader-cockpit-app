@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/cn';
 import { fmt2 } from '@/lib/fmt';
 
 export interface LivePriceData {
@@ -14,7 +16,10 @@ interface LivePriceProps {
   className?: string;
 }
 
-function priceDir(ltp?: number | null, prevClose?: number | null): 'bull' | 'bear' | 'neutral' {
+type PriceTone = 'bull' | 'bear' | 'neutral';
+type TickFlash = 'up' | 'down' | null;
+
+export function priceDir(ltp?: number | null, prevClose?: number | null): PriceTone {
   if (ltp == null || prevClose == null || prevClose === 0) return 'neutral';
   const chg = (ltp - prevClose) / prevClose;
   if (chg > 0.0001) return 'bull';
@@ -34,27 +39,87 @@ const DIR_BG = {
   neutral: 'rgba(109,124,132,0.06)',
 } as const;
 
+export function FlashPrice({
+  price,
+  prevClose,
+  className,
+  showBackground = false,
+  title,
+}: {
+  price?: number | null;
+  prevClose?: number | null;
+  className?: string;
+  showBackground?: boolean;
+  title?: string;
+}) {
+  const lastPriceRef = useRef<number | null>(price ?? null);
+  const flashSeqRef = useRef(0);
+  const [flash, setFlash] = useState<{ dir: TickFlash; seq: number }>({ dir: null, seq: 0 });
+
+  useEffect(() => {
+    if (price == null) {
+      lastPriceRef.current = null;
+      return;
+    }
+
+    const previous = lastPriceRef.current;
+    lastPriceRef.current = price;
+    if (previous == null || previous === price) return;
+
+    const nextSeq = flashSeqRef.current + 1;
+    flashSeqRef.current = nextSeq;
+    setFlash({ dir: price > previous ? 'up' : 'down', seq: nextSeq });
+    const timer = window.setTimeout(() => {
+      setFlash(current => (current.seq === nextSeq ? { dir: null, seq: current.seq } : current));
+    }, 620);
+    return () => window.clearTimeout(timer);
+  }, [price]);
+
+  if (price == null) return <span className="text-ghost">-</span>;
+
+  const tone = priceDir(price, prevClose);
+  const flashClass = flash.dir === 'up'
+    ? 'price-flash price-flash-up'
+    : flash.dir === 'down'
+      ? 'price-flash price-flash-down'
+      : '';
+
+  return (
+    <span
+      key={flash.seq}
+      className={cn(
+        'num inline-block rounded px-1 py-0.5 font-black tabular-nums',
+        flashClass,
+        className,
+      )}
+      style={{
+        color:      DIR_COLOR[tone],
+        background: showBackground ? DIR_BG[tone] : undefined,
+        lineHeight: '1.2',
+      }}
+      title={title}
+    >
+      {fmt2(price)}
+    </span>
+  );
+}
+
 export function LivePrice({ ltp, prevClose, marketOpen, className }: LivePriceProps) {
   const price = ltp ?? prevClose;
   if (price == null) return null;
 
-  const dir = priceDir(ltp, prevClose);
   const live = marketOpen && ltp != null;
   const tip = live
     ? `Live price${prevClose != null ? ` · prev close ${fmt2(prevClose)}` : ''}`
     : `Last price${prevClose != null ? ` · prev close ${fmt2(prevClose)}` : ''}`;
 
   return (
-    <span
-      className={`num inline-block rounded px-1 py-0.5 text-[12px] font-black tabular-nums ${live ? 'animate-price-blink' : ''} ${className ?? ''}`}
-      style={{
-        color:      DIR_COLOR[dir],
-        background: live ? DIR_BG[dir] : 'transparent',
-        lineHeight: '1.2',
-      }}
+    <FlashPrice
+      price={price}
+      prevClose={prevClose}
+      className={cn('text-[12px]', className)}
+      showBackground={live}
       title={tip}
-    >
-      {fmt2(price)}
-    </span>
+    />
   );
 }

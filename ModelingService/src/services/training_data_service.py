@@ -120,8 +120,8 @@ class TrainingDataService:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT DISTINCT symbol
-                FROM sync_state
-                WHERE status = 'synced'
+                FROM symbol_intraday_profile
+                WHERE sessions_analyzed > 0
                 ORDER BY symbol
             """)
         return [row["symbol"] for row in rows]

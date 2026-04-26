@@ -87,7 +87,7 @@ async def screener(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=200, ge=1, le=2000),
 ):
-    await request.app.state.metrics.precompute_daily()
+    await request.app.state.metrics.precompute_daily(force=True)
     rows, total = request.app.state.metrics.all_daily(offset, limit)
     live = svc.screener_live_metrics()
     merged = [{**row, **live.get(row["symbol"], {})} for row in rows]

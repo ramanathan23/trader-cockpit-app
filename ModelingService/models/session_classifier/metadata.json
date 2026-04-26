@@ -1,0 +1,6 @@
+{
+  "model_version": "session_v1",
+  "trained_at": "2026-04-26T22:31:12.159883+05:30",
+  "accuracy": 0.3444,
+  "pullback_mae": 0.1302
+}

@@ -9,7 +9,7 @@ import { rsiColor } from '@/lib/scoreColors';
 import { screenerF52hColor, screenerPctColor, screenerPctText, screenerStageColor, screenerStageLabel } from '@/lib/screenerDisplay';
 import type { StockRow } from '@/domain/stocklist';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
-import type { LivePriceData } from '@/components/ui/LivePrice';
+import { FlashPrice, type LivePriceData } from '@/components/ui/LivePrice';
 import { setupTier, TIER_BG_CLASS, TIER_BORDER_CLASS } from '@/lib/setupTier';
 import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
 import { StockListRowActions } from './StockListRowActions';
@@ -73,7 +73,9 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
           compact
         />
       </td>
-      <td className="num py-2 px-2 text-right text-[12px] text-fg">{price != null ? fmt2(price) : '—'}</td>
+      <td className="py-2 px-2 text-right">
+        <FlashPrice price={price} prevClose={prev} className="text-[12px]" />
+      </td>
       <td className="num py-2 px-2 text-right text-[11px]" style={{ color: screenerPctColor(chgPct) }}>
         {chgPct != null ? screenerPctText(chgPct, true) : '—'}
       </td>

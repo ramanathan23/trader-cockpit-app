@@ -3,13 +3,12 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/cn';
-import { fmt2 } from '@/lib/fmt';
 import { rsiColor } from '@/lib/scoreColors';
 import { screenerF52hColor, screenerPctText, screenerStageColor, screenerStageLabel } from '@/lib/screenerDisplay';
 import { setupTier, TIER_TEXT_CLASS, TIER_LABEL } from '@/lib/setupTier';
 import { DailyChart } from '@/components/dashboard/DailyChart';
 import type { StockRow } from '@/domain/stocklist';
-import type { LivePriceData } from '@/components/ui/LivePrice';
+import { FlashPrice, type LivePriceData } from '@/components/ui/LivePrice';
 
 interface ChartRowProps {
   row:      StockRow;
@@ -21,6 +20,7 @@ interface ChartRowProps {
 const ChartRow = memo(({ row, selected, livePrice, onSelect }: ChartRowProps) => {
   const tier  = setupTier(row);
   const price = livePrice?.ltp ?? row.display_price;
+  const prev  = livePrice?.prevClose ?? row.prev_day_close;
   return (
     <div
       className={cn('flex cursor-pointer items-center gap-2 border-b border-border/40 px-3 py-2 transition-colors hover:bg-lift/40',
@@ -45,7 +45,7 @@ const ChartRow = memo(({ row, selected, livePrice, onSelect }: ChartRowProps) =>
         {row.total_score != null && (
           <div className="num text-[14px] font-black text-fg">{row.total_score.toFixed(0)}</div>
         )}
-        {price != null && <div className="num text-[10px] text-ghost">{fmt2(price)}</div>}
+        <FlashPrice price={price} prevClose={prev} className="text-[10px]" />
       </div>
     </div>
   );

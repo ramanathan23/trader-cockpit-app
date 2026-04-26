@@ -9,7 +9,7 @@ import { screenerF52hColor, screenerPctColor, screenerPctText, screenerStageColo
 import { setupTier, TIER_LABEL, TIER_TEXT_CLASS } from '@/lib/setupTier';
 import type { StockRow } from '@/domain/stocklist';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
-import type { LivePriceData } from '@/components/ui/LivePrice';
+import { FlashPrice, type LivePriceData } from '@/components/ui/LivePrice';
 import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
 import { StockListRowActions } from './StockListRowActions';
 
@@ -71,7 +71,7 @@ export const StockListCard = memo(({ row, livePrice, noteCount, onOpenModal }: S
         {/* Price + Score */}
         <div className="flex items-end justify-between">
           <div>
-            <div className="num text-[17px] font-black text-fg">{price != null ? fmt2(price) : '—'}</div>
+            <FlashPrice price={price} prevClose={prev} className="text-[17px]" />
             {chgPct != null && (
               <div className="num text-[11px]" style={{ color: screenerPctColor(chgPct) }}>
                 {screenerPctText(chgPct, true)}

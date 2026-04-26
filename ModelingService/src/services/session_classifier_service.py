@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import asyncio
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -30,8 +31,8 @@ class SessionClassifierService:
         sessions = await self._load_training_sessions()
         if sessions.empty:
             raise ValueError("No intraday_training_sessions rows found")
-        classifier, cls_metrics = train_session_classifier(sessions)
-        pullback, pb_metrics = train_pullback_regressor(sessions)
+        classifier, cls_metrics = await asyncio.to_thread(train_session_classifier, sessions)
+        pullback, pb_metrics = await asyncio.to_thread(train_pullback_regressor, sessions)
 
         self._model_dir.mkdir(parents=True, exist_ok=True)
         import joblib
@@ -110,7 +111,7 @@ class SessionClassifierService:
     async def _fetch_symbols_for_scoring(self, score_date: date) -> list[str]:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT DISTINCT symbol
+                SELECT DISTINCT ds.symbol
                 FROM daily_scores ds
                 JOIN symbol_intraday_profile sip
                   ON sip.symbol = ds.symbol AND sip.sessions_analyzed > 0
@@ -231,7 +232,12 @@ class SessionClassifierService:
             """, prediction_date)
             updated = 0
             for row in rows:
-                prediction = dict(row["predictions"])
+                raw_prediction = row["predictions"]
+                prediction = (
+                    json.loads(raw_prediction)
+                    if isinstance(raw_prediction, str)
+                    else dict(raw_prediction)
+                )
                 next_prediction = apply_comfort_v3(
                     prediction,
                     float(row["iss_score"]) if row["iss_score"] is not None else None,
