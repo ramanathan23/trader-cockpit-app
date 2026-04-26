@@ -166,7 +166,6 @@ ScoreBar builds `rgb(var(--${color}))` internally — pass token string, not CSS
 | `fmt.ts`              | `fmt2`, `fmtAdv`, `spct`, `timeStr`, `screenerPctText`        |
 | `scoreColors.ts`      | `comfortColor`, `rsiColor` — dynamic color functions          |
 | `screenerDisplay.ts`  | `screenerPctColor`, `screenerStageColor`, `screenerStageLabel`, `screenerF52hColor`, `screenerF52lColor` |
-| `stageUtils.ts`       | `stageColor`, stage label helpers                             |
 | `chainAssessment.ts`  | `assessChain`, `AssessResult`, `fmtOI`, `fmtIV`, `fmtGreek`  |
 | `clusterUtils.ts`     | `W`, `H`, `PAD`, `PW`, `PH`, `QUAD_TOTAL`, `QUAD_COMFORT`, `dotColor`, `dotRadius`, `axisTicks`, `mkToX`, `mkToY`, `ViewBounds` |
 | `chartUtils.ts`       | Lightweight-charts helpers                                    |
@@ -186,7 +185,6 @@ ScoreBar builds `rgb(var(--${color}))` internally — pass token string, not CSS
 | `screener.ts`          | `ScreenerRow`, `ScreenerPreset`, `ScreenerRangeFilter`, `isRangeActive` |
 | `option_chain.ts`      | `OptionChainResponse`, `ExpiryListResponse`, `Strike`       |
 | `market.ts`            | `MarketPhase`                                               |
-| `chart.ts`             | Chart domain types                                          |
 
 ---
 
@@ -198,7 +196,6 @@ ScoreBar builds `rgb(var(--${color}))` internally — pass token string, not CSS
 | `useSignals.ts`     | `{ signals, connState, metricsCache, … }`                 |
 | `useHistory.ts`     | `{ historySignals, histDates, loadHistory, … }`           |
 | `useNotes.ts`       | `{ notes, saveNote }`                                     |
-| `useScreener.ts`    | `{ rows, loading, loadScreener }`                         |
 | `useLivePrices.ts`  | `Record<string, LivePriceData>` from SSE                  |
 | `useMarketStatus.ts`| `{ phase, marketOpen }`                                   |
 | `useTokenStatus.ts` | `{ status, label }`                                       |

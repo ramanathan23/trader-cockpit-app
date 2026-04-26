@@ -16,7 +16,7 @@ from ._yf_client import fetch_batch, fetch_since
 
 
 class YFinanceFetcher:
-    """yfinance OHLCV fetcher. Satisfies the DataFetcher protocol for the '1d' interval."""
+    """yfinance OHLCV fetcher for daily bars."""
 
     async def fetch_batch(
         self,
@@ -35,4 +35,3 @@ class YFinanceFetcher:
         since: datetime,
     ) -> pd.DataFrame:
         return await fetch_since(symbol, interval, since)
-

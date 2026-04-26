@@ -6,7 +6,12 @@
       "Bash(xargs grep *)",
       "Bash(python -m pytest tests/ -x -q --tb=short)",
       "Bash(python -m pytest tests/ -x -q --tb=short --ignore=tests/test_signal_publisher.py --ignore=tests/test_signal_websocket.py --ignore=tests/test_metrics_loader.py)",
-      "Bash(python -m pytest tests/ -q --tb=short --ignore=tests/test_signal_publisher.py --ignore=tests/test_signal_websocket.py --ignore=tests/test_metrics_loader.py)"
+      "Bash(python -m pytest tests/ -q --tb=short --ignore=tests/test_signal_publisher.py --ignore=tests/test_signal_websocket.py --ignore=tests/test_metrics_loader.py)",
+      "Bash(python3 -c \"import sys; sys.path.insert\\(0, 'LiveFeedService'\\); from src.domain.signal_type import SignalType; print\\([x.name for x in SignalType]\\)\")",
+      "Bash(python3 -c \"import sys; sys.path.insert\\(0, 'LiveFeedService'\\); from src.infrastructure.redis._cluster_filter import _EXEMPT\")",
+      "Bash(python3)",
+      "Bash(python -c \"from src.infrastructure.redis._cluster_filter import cluster_check_signal; from src.domain.signal import Signal; print\\('imports OK'\\)\")",
+      "Bash(make up *)"
     ],
     "defaultMode": "bypassPermissions"
   }

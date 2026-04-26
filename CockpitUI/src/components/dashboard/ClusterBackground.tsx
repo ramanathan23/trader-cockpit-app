@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { PAD, PW, PH, W, H, QUAD_TOTAL, QUAD_COMFORT } from '@/lib/clusterUtils';
+import { PAD, PW, PH, H, QUAD_TOTAL, QUAD_COMFORT } from '@/lib/clusterUtils';
 import type { ViewBounds } from '@/lib/clusterUtils';
 
 interface ClusterBackgroundProps {

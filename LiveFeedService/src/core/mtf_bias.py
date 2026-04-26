@@ -25,7 +25,7 @@ Confluence rules applied in engine.py
   1-hr   NEUTRAL   → no change
 
 Exempt signal types (no confluence check):
-  TRAIL_UPDATE, EXIT, DRIVE_FAILED, ABSORPTION, FADE_ALERT
+  CAM_H3_REVERSAL, CAM_H4_BREAKOUT, CAM_L3_REVERSAL, CAM_L4_BREAKDOWN
 """
 from __future__ import annotations
 

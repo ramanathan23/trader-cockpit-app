@@ -95,17 +95,7 @@ All components: `memo()` + `.displayName`. 100-line limit per file. Hooks (useXx
 
 | File                    | What it does                                                |
 |-------------------------|-------------------------------------------------------------|
-| `ScreenerTableHead.tsx` | `<thead>` with sort col headers, exports `COLS`            |
-| `ScreenerTableRow.tsx`  | Single screener `<tr>` with all metrics                    |
-| `ScreenerStatsBar.tsx`  | Stage distribution bar                                     |
-| `ScreenerPresetGroups.tsx`| Preset filter button groups (ungrouped/cam/stage/pattern/wl)|
-| `ScreenerRangePanel.tsx`| Expanded range filter panel                                |
-| `RangeInput.tsx`        | Min/max numeric range input atom                           |
-| `ScreenerFilters.tsx`   | Full filter toolbar: search, ADV tiers, F&O, presets       |
-| `ScreenerTable.tsx`     | Virtualized screener table                                 |
-| `ScreenerCards.tsx`     | Card grid view for screener                                |
-| `ScreenerCard.tsx`      | Single screener card                                       |
-| `ScreenerPanel.tsx`     | Root screener panel: filters + stats + table/card toggle   |
+| `ScreenerPresetGroups.tsx`| Preset filter button groups used by stock list filters     |
 
 ---
 

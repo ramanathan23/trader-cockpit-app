@@ -10,7 +10,6 @@ def test_imports():
     from src.core.model_registry import ModelRegistry
     from src.models.comfort_scorer.model import ComfortScorerModel
     from src.models.comfort_scorer.features import FeatureExtractor
-    from src.models.comfort_scorer.trainer import ComfortScorerTrainer
     
     assert BaseModel is not None
     assert ModelRegistry is not None

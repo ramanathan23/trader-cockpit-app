@@ -32,7 +32,6 @@ DataSyncService/src/
 ├── domain/models.py                # Price, Symbol value objects
 ├── infrastructure/
 │   └── fetchers/
-│       ├── protocol.py             # DataFetcher Protocol (interface)
 │       ├── yfinance/
 │       │   └── fetcher.py          # YFinanceFetcher — daily bars
 │       └── dhan/
@@ -47,19 +46,8 @@ DataSyncService/src/
 
 ## Fetcher architecture
 
-```
-DataFetcher (Protocol)
-    ├── fetch_batch(symbols, days) → dict[symbol, DataFrame]
-    └── fetch_since(symbol, since) → DataFrame
-
-    Implementations:
-    YFinanceFetcher          DhanFetcher
-    ─────────────────        ─────────────────────────────────
-    yfinance.download()      dhanhq.intraday_minute_data()
-    Batches all symbols      Per-symbol, concurrent (semaphore)
-    Single HTTP call         30-day chunk loop per symbol
-    NSE suffix: .NS          Dhan security_id lookup required
-```
+Daily bars are fetched through `infrastructure/fetchers/yfinance/`.
+Intraday bars are fetched through `infrastructure/dhan/`.
 
 `DhanSecurityMaster` downloads the Dhan security master CSV on first use and caches it for 24 hours in the system temp directory.
 

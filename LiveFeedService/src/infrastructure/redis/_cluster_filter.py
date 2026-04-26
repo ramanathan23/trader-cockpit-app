@@ -4,8 +4,6 @@ from ...domain.signal import Signal
 from ...domain.signal_type import SignalType as _ST
 
 _EXEMPT = {
-    _ST.OPEN_DRIVE_ENTRY, _ST.DRIVE_FAILED, _ST.TRAIL_UPDATE,
-    _ST.EXIT, _ST.EXHAUSTION_REVERSAL,
     _ST.CAM_H3_REVERSAL, _ST.CAM_H4_BREAKOUT,
     _ST.CAM_L3_REVERSAL, _ST.CAM_L4_BREAKDOWN,
 }
