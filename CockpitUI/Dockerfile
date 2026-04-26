@@ -1,5 +1,6 @@
-# ── Build stage ──────────────────────────────────────────────────────────────
 # syntax=docker/dockerfile:1.7
+
+# Build stage
 FROM node:22-alpine AS builder
 WORKDIR /app
 
@@ -24,7 +25,7 @@ ENV NEXT_PUBLIC_LIVE_FEED_URL=${NEXT_PUBLIC_LIVE_FEED_URL}
 
 RUN npm run build && mkdir -p /app/public
 
-# ── Production runtime ────────────────────────────────────────────────────────
+# Production runtime
 FROM node:22-alpine AS runner
 WORKDIR /app
 
