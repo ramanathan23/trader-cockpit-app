@@ -194,6 +194,9 @@ erDiagram
     symbols ||--o{ model_predictions : "predicted"
     symbols ||--o{ candles_5min : "intraday"
     symbols ||--o{ sync_state : "tracked"
+    symbols ||--|| symbol_intraday_profile : "has"
+    symbols ||--o{ intraday_training_sessions : "trained"
+    symbols ||--o{ intraday_session_predictions : "predicted"
 ```
 
 ---
@@ -432,6 +435,113 @@ UNIQUE (model_name, symbol, prediction_date)
 
 ---
 
+## Intraday ML Tables
+
+### `symbol_intraday_profile`
+Owner: IndicatorsService | Updated: nightly after 1-min sync | Source: `price_data_1min` (90-day rolling)
+
+```sql
+symbol                          VARCHAR(30)   PRIMARY KEY
+computed_at                     TIMESTAMPTZ   NOT NULL
+sessions_analyzed               INTEGER       -- number of sessions used
+choppiness_idx                  NUMERIC(8,4)  -- avg Choppiness Index (38=trending, 61.8=chop)
+stop_hunt_rate                  NUMERIC(6,4)  -- fraction sessions both sides tagged ≥0.4%
+orb_followthrough_rate          NUMERIC(6,4)  -- fraction ORB extended ≥0.5R within 60 bars
+opening_drive_rate              NUMERIC(6,4)  -- fraction first-30min direction = EOD direction
+pullback_depth_on_up_days       NUMERIC(6,4)  -- avg (intraday_high−close)/(intraday_high−open)
+volatility_compression_ratio    NUMERIC(8,4)  -- avg 1min session range / daily ATR
+trend_autocorr                  NUMERIC(8,4)  -- avg lag-1 autocorr of 1min returns
+iss_score                       NUMERIC(6,2)  -- composite ISS 0-100
+```
+
+**ISS Composite:**
+```
+iss = 0.25 × chop_score           (low choppiness = better)
+    + 0.20 × (1 − stop_hunt_rate)  (less stop hunting = better)
+    + 0.20 × orb_followthrough     (breakout follow = better)
+    + 0.15 × opening_drive_rate    (drive alignment = better)
+    + 0.15 × (1 − pullback_depth)  (shallow pullbacks = better)
+    + 0.05 × vol_comp_score        (1.0 ratio = ideal)
+```
+
+---
+
+### `intraday_training_sessions`
+Owner: ModelingService | Built once + refreshed weekly | Source: `price_data_daily` (5yr) + `symbol_intraday_profile`
+
+```sql
+symbol              VARCHAR(30)   NOT NULL
+session_date        DATE          NOT NULL
+
+-- Features (from prev day's daily_scores)
+prev_rsi            NUMERIC(8,4)
+prev_adx            NUMERIC(8,4)
+prev_di_spread      NUMERIC(8,4)   -- plus_di − minus_di
+prev_atr_ratio      NUMERIC(8,4)
+prev_roc_5          NUMERIC(8,4)
+prev_roc_20         NUMERIC(8,4)
+prev_vol_ratio      NUMERIC(8,4)
+prev_bb_squeeze     BOOLEAN
+prev_squeeze_days   INTEGER
+prev_rs_vs_nifty    NUMERIC(8,4)
+stage_encoded       SMALLINT       -- 0=UNKNOWN,1=STAGE_1..4=STAGE_4
+day_of_week         SMALLINT       -- 0=Mon,4=Fri
+nifty_gap_pct       NUMERIC(8,4)
+
+-- ISS features (NULL for sessions older than 90d 1-min window)
+iss_score               NUMERIC(6,2)
+choppiness_idx          NUMERIC(8,4)
+stop_hunt_rate          NUMERIC(6,4)
+orb_followthrough_rate  NUMERIC(6,4)
+pullback_depth_hist     NUMERIC(6,4)
+
+-- Labels (derived from that session's daily OHLCV)
+high_close_ratio    NUMERIC(6,4)   -- (close−low)/(high−low)
+range_vs_atr        NUMERIC(6,4)   -- (high−low)/atr_14
+pullback_depth      NUMERIC(6,4)   -- (high−close)/(high−low) on up days, NULL otherwise
+session_type        VARCHAR(15)    -- TREND_UP|TREND_DOWN|CHOP|VOLATILE|GAP_FADE|NEUTRAL
+trend_up            BOOLEAN
+trend_down          BOOLEAN
+chop_day            BOOLEAN
+volatile_day        BOOLEAN
+
+computed_at         TIMESTAMPTZ
+PRIMARY KEY (symbol, session_date)
+```
+
+**Session type label rules:**
+
+| Label | Condition |
+|---|---|
+| `TREND_UP` | `high_close_ratio > 0.65` AND `range_vs_atr > 0.8` AND close > open |
+| `TREND_DOWN` | `low_close_ratio > 0.65` AND `range_vs_atr > 0.8` AND close < open |
+| `VOLATILE` | `range_vs_atr > 1.6` |
+| `GAP_FADE` | gap > 0.5% AND price closed against gap direction |
+| `CHOP` | `range_vs_atr < 0.7` OR mid-range close |
+| `NEUTRAL` | everything else |
+
+---
+
+### `intraday_session_predictions`
+Owner: ModelingService | Updated: nightly after scoring | Source: trained LightGBM models
+
+```sql
+symbol                  VARCHAR(30)   NOT NULL
+prediction_date         DATE          NOT NULL
+session_type_pred       VARCHAR(15)   -- predicted session type for tomorrow
+trend_up_prob           NUMERIC(6,4)  -- probability 0-1
+trend_down_prob         NUMERIC(6,4)
+chop_prob               NUMERIC(6,4)
+volatile_prob           NUMERIC(6,4)
+pullback_depth_pred     NUMERIC(6,4)  -- predicted pullback depth 0-1 (NULL if down day expected)
+model_version           VARCHAR(20)   DEFAULT 'session_v1'
+computed_at             TIMESTAMPTZ
+
+PRIMARY KEY (symbol, prediction_date)
+```
+
+---
+
 ## Shared / Config Tables
 
 ### `service_config`
@@ -467,6 +577,9 @@ LiveFeedService reads it to determine Dhan WebSocket subscriptions.
 | `candles_5min` | LiveFeedService | LiveFeedService (warm-start) |
 | `index_future_candles_5min` | LiveFeedService | LiveFeedService (bias tracking) |
 | `model_predictions` | ModelingService | CockpitUI (via RankingService dashboard) |
+| `symbol_intraday_profile` | IndicatorsService | ModelingService, RankingService, CockpitUI |
+| `intraday_training_sessions` | ModelingService | ModelingService (training only) |
+| `intraday_session_predictions` | ModelingService | RankingService, LiveFeedService, CockpitUI |
 | `service_config` | All services | All services |
 
 ---

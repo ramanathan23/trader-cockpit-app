@@ -73,12 +73,16 @@ flowchart TD
 |---|---|---|
 | POST | `/api/v1/compute` | Compute all indicators + patterns (background) |
 | POST | `/api/v1/compute-sse` | Compute with SSE progress stream |
+| POST | `/api/v1/compute-intraday-profile` | Compute ISS for all symbols from 90d 1-min data |
+| POST | `/api/v1/compute-intraday-profile-sse` | ISS computation with SSE progress |
+| GET | `/api/v1/intraday-profile/{symbol}` | Fetch cached ISS profile for symbol |
 
 ### Computation Modules
 
 **`services/indicators_service.py`** — Orchestrator (concurrent per-symbol)  
 **`services/_calculator.py`** — Structural metrics + technical indicators  
 **`services/_pattern_detector.py`** — VCP + Rectangle Breakout detection  
+**`services/intraday_profile_service.py`** — ISS computation from `price_data_1min`  
 
 ### Computation Flow
 
@@ -361,6 +365,12 @@ EXPIRE  signals:daily:{YYYY-MM-DD} 86400  ← TTL: 24 hours
 | POST | `/api/v1/models/{model_name}/retrain` | Trigger model retraining (stub) |
 | GET | `/api/v1/models/status` | Model registry status |
 | GET | `/api/v1/config` | Service configuration |
+| POST | `/api/v1/models/session_classifier/build-training-data` | Build labeled sessions from 5yr daily (one-time / weekly) |
+| POST | `/api/v1/models/session_classifier/train` | Train LightGBM classifier + pullback regressor |
+| POST | `/api/v1/models/session_classifier/evaluate` | Evaluate model accuracy on held-out test set |
+| POST | `/api/v1/models/session_classifier/score-all` | Predict session types for all watchlist symbols |
+| POST | `/api/v1/models/session_classifier/pipeline-sse` | Full pipeline SSE: build → train → score |
+| GET | `/api/v1/models/session_classifier/predict/{symbol}` | Single-symbol session prediction |
 
 ### Model Registry Architecture
 
@@ -403,6 +413,20 @@ flowchart LR
   "stored_count": 2
 }
 ```
+
+### Model Registry
+
+| Model | Type | Artifact | Purpose |
+|---|---|---|---|
+| `comfort_scorer` | Rule-based | n/a (no pkl) | Chart readability score v2 (0-100) |
+| `session_classifier` | LightGBM multiclass | `lgbm_session_classifier.pkl` | Predict session type: TREND_UP/DOWN/CHOP/VOLATILE/GAP_FADE/NEUTRAL |
+| `pullback_regressor` | LightGBM regression | `lgbm_pullback_regressor.pkl` | Predict pullback depth on up days (0-1) |
+
+**ComfortScore v3** = f(comfort_v2, ISS penalty, pullback prediction, session modifier). Computed in-line after session_classifier runs. Stored in `model_predictions.predictions.comfort_score_v3`.
+
+**Session classifier features (18):** `prev_rsi`, `prev_adx`, `prev_di_spread`, `prev_atr_ratio`, `prev_roc_5`, `prev_roc_20`, `prev_vol_ratio`, `prev_bb_squeeze`, `prev_squeeze_days`, `prev_rs_vs_nifty`, `stage_encoded`, `day_of_week`, `nifty_gap_pct`, `iss_score`, `choppiness_idx`, `stop_hunt_rate`, `orb_followthrough_rate`, `pullback_depth_hist`
+
+**Training data:** 5yr × ~500 symbols = ~625,000 labeled sessions. GroupShuffleSplit by date (80/20). Models saved to `MODEL_BASE_PATH/session_classifier/`.
 
 ### Auto-Retrain Config
 

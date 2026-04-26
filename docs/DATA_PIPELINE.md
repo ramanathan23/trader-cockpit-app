@@ -25,12 +25,15 @@ flowchart TD
         ds["daily_scores"]
         mp["model_predictions"]
         sc["service_config watchlist"]
+        sip["symbol_intraday_profile"]
+        isp["intraday_session_predictions"]
     end
 
     subgraph IS["IndicatorsService :8005"]
         struct_metrics["Structural Metrics"]
         tech_ind["Technical Indicators"]
         patterns["Pattern Detection"]
+        iss["ISS Computation"]
     end
 
     subgraph RS["RankingService :8002"]
@@ -42,11 +45,14 @@ flowchart TD
         tick_router["TickRouter"]
         candle_builder["CandleBuilder"]
         signal_engine["SignalEngine"]
+        regime["RegimeDetector"]
         publisher["SignalPublisher"]
     end
 
     subgraph MS["ModelingService :8004"]
-        model["ComfortScorer"]
+        model["ComfortScorer v2/v3"]
+        session_clf["SessionClassifier"]
+        pullback_reg["PullbackRegressor"]
     end
 
     REDIS[("Redis")]
@@ -57,10 +63,12 @@ flowchart TD
     zerodha --> z_sync
     dhan_ws --> tick_router --> candle_builder --> c5m
     candle_builder --> signal_engine
+    candle_builder --> regime
 
     pdd --> struct_metrics --> sm
     pdd --> tech_ind --> si
     pdd --> patterns --> sp
+    pd1 --> iss --> sip
 
     sm --> scorer
     si --> scorer
@@ -69,16 +77,24 @@ flowchart TD
     scorer --> watchlist --> sc
 
     ds --> model --> mp
+    ds --> session_clf
+    sip --> session_clf --> isp
+    isp --> pullback_reg
+    model --> mp
+    isp --> mp
 
     sc -->|watchlist symbols| signal_engine
     sm -->|prev day OHLC + ATR| signal_engine
     si -->|weekly_bias| signal_engine
+    regime -->|regime_update SSE| publisher
 
     signal_engine --> publisher --> REDIS --> UI
     ds --> UI
     sm --> UI
     si --> UI
     sp --> UI
+    sip --> UI
+    isp --> UI
 ```
 
 ---
@@ -242,19 +258,69 @@ pie title Unified Score Components
 
 ---
 
+## Stage 2b: ISS Computation (IndicatorsService)
+
+Runs after 1-min sync. Reads `price_data_1min` (90-day rolling window per symbol).
+
+```mermaid
+flowchart TD
+    trigger["POST /api/v1/compute-intraday-profile"]
+    symbols["All symbols with 1-min data"]
+
+    subgraph per_session["Per session (trading day)"]
+        chop["Choppiness Index\nATR×N / (high−low)"]
+        stop_hunt["Stop Hunt Rate\nboth sides ≥0.4% tagged"]
+        orb["ORB Follow-Through\n15-min ORB → extended 0.5R?"]
+        drive["Opening Drive\nfirst-30min dir = EOD dir?"]
+        pullback["Pullback Depth\n(high−close)/(high−open) on up days"]
+        autocorr["Trend Autocorr\nlag-1 autocorr of 1-min returns"]
+    end
+
+    composite["ISS composite\n0.25×chop + 0.20×stophunt + 0.20×orb\n+ 0.15×drive + 0.15×pullback + 0.05×volcomp"]
+    store["Upsert → symbol_intraday_profile"]
+
+    trigger --> symbols --> per_session --> composite --> store
+```
+
+---
+
 ## Stage 4: ML Predictions (ModelingService)
+
+### 4a — Comfort Score v2 (rule-based)
 
 ```mermaid
 flowchart LR
     trigger["POST /models/comfort_scorer/score-all\n?score_date=YYYY-MM-DD"]
     fetch["Fetch all symbols from\ndaily_scores for score_date"]
-    features["Extract feature vector\nfrom score row + price_data_daily"]
-    load["Load versioned model\n/models/comfort_scorer/vN.pkl"]
-    infer["sklearn inference"]
-    out["predictions JSONB\n+ confidence REAL"]
+    features["Extract 28-dim feature vector\nfrom score row + price_data_daily"]
+    compute["Rule-based formula\n0.32×momentum + 0.30×trend\n+ 0.23×risk + 0.15×structure − penalty"]
+    out["predictions JSONB: comfort_score_v2\n+ components + interpretation"]
     store["Upsert → model_predictions"]
 
-    trigger --> fetch --> features --> load --> infer --> out --> store
+    trigger --> fetch --> features --> compute --> out --> store
+```
+
+### 4b — Session Classifier + Pullback Regressor + Comfort v3
+
+```mermaid
+flowchart LR
+    trigger["POST /models/session_classifier/score-all\n?score_date=YYYY-MM-DD"]
+    fetch["Fetch watchlist symbols\nfrom daily_scores + symbol_intraday_profile"]
+    feat18["Build 18-dim feature vector\nprev_rsi, prev_adx, prev_di_spread,\niss_score, choppiness_idx, etc."]
+
+    subgraph models["Trained LightGBM Models"]
+        clf["session_classifier\n→ TREND_UP prob, CHOP prob, etc."]
+        reg["pullback_regressor\n→ pullback_depth_pred (0-1)"]
+    end
+
+    v3["Comfort v3\n= v2 − ISS_penalty − pullback_penalty\n+ session_modifier"]
+    store1["Upsert → intraday_session_predictions"]
+    store2["Update model_predictions\nwith comfort_score_v3"]
+
+    trigger --> fetch --> feat18 --> clf & reg
+    clf --> store1
+    reg --> store1
+    clf & reg --> v3 --> store2
 ```
 
 ---
@@ -346,12 +412,27 @@ flowchart LR
     close["Market close\n~15:30 IST"]
     sync["make sync\nPOST /datasync/sync/run\n+ /sync/run-1min"]
     ind["POST /indicators/compute\nAll symbols concurrent"]
+    iss["POST /indicators/compute-intraday-profile\nISS from 90d 1-min"]
     score["POST /scorer/scores/compute\nRank + select watchlist"]
-    ml["make comfort-score\nPOST /models/comfort_scorer/score-all"]
+    comfort2["POST /models/comfort_scorer/score-all\nComfort v2"]
+    session["POST /models/session_classifier/score-all\nSession type + pullback + comfort v3"]
     refresh["LiveFeedService\nreads new watchlist\nfrom service_config"]
 
-    close --> sync --> ind --> score --> ml --> refresh
+    close --> sync --> ind --> iss --> score --> comfort2 --> session --> refresh
 ```
+
+**Approximate timing (all symbols ~500):**
+
+| Step | Duration |
+|---|---|
+| Daily sync | 5-10 min |
+| 1-min sync | 10-20 min |
+| Indicators compute | 2-3 min |
+| ISS compute | 5-10 min |
+| Unified scoring | 1-2 min |
+| Comfort v2 | 1-2 min |
+| Session classifier | 1-2 min |
+| **Total** | **~25-50 min post-market** |
 
 ---
 
@@ -366,5 +447,8 @@ flowchart LR
 | `symbol_indicators` | IndicatorsService | Daily (after sync) |
 | `symbol_patterns` | IndicatorsService | Daily (after sync) |
 | `daily_scores` | RankingService | Daily (after indicators) |
-| `model_predictions` | ModelingService | Daily (after scoring) |
+| `model_predictions` | ModelingService | Daily (after scoring) — stores comfort_v2 + comfort_v3 |
+| `symbol_intraday_profile` | IndicatorsService | Daily (after 1-min sync) — ISS from 90d rolling |
+| `intraday_training_sessions` | ModelingService | One-time + weekly refresh — 5yr session labels |
+| `intraday_session_predictions` | ModelingService | Daily (after scoring) — next-session type + pullback |
 | `service_config` (watchlist) | RankingService | After each scoring run |
