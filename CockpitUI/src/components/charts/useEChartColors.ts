@@ -16,6 +16,7 @@ export interface EChartColors {
   bull: string;
   bear: string;
   amber: string;
+  violet: string;
   sky: string;
 }
 
@@ -33,6 +34,7 @@ const FALLBACK: EChartColors = {
   bull: '#0db176',
   bear: '#e5495d',
   amber: '#de9748',
+  violet: '#8e73d2',
   sky: '#4399d8',
 };
 
@@ -57,6 +59,7 @@ function readColors(): EChartColors {
     bull: cssColor('bull'),
     bear: cssColor('bear'),
     amber: cssColor('amber'),
+    violet: cssColor('violet'),
     sky: cssColor('sky'),
   };
 }
@@ -73,4 +76,3 @@ export function useEChartColors(): EChartColors {
 
   return colors;
 }
-

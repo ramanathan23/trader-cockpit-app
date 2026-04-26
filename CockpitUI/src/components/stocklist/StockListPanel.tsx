@@ -9,8 +9,6 @@ import { StockListFilters } from './StockListFilters';
 import { StockListTable } from './StockListTable';
 import { StockListCardView } from './StockListCardView';
 import { StockListChartView } from './StockListChartView';
-import { StockListClusterView } from './StockListClusterView';
-import { StockListHeatMapView } from './StockListHeatMapView';
 import { useStockListState } from './useStockListState';
 
 interface StockListPanelProps {
@@ -76,14 +74,6 @@ export const StockListPanel = memo(({
       {state.viewMode === 'chart' && (
         <StockListChartView rows={list.filteredRows} livePrices={livePrices}
           loading={list.loading} hasMore={list.hasMore} onLoadMore={list.loadMore} />
-      )}
-
-      {state.viewMode === 'cluster' && (
-        <StockListClusterView rows={list.filteredRows} loading={list.loading} />
-      )}
-
-      {state.viewMode === 'heatmap' && (
-        <StockListHeatMapView rows={list.filteredRows} livePrices={livePrices} />
       )}
 
       {state.modalSymbol && (

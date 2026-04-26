@@ -44,10 +44,24 @@ export const EChart = memo(function EChart({ option, className, style, onClick }
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(option, true);
+    chartRef.current?.setOption(withoutHoverFade(option), true);
   }, [option]);
 
   return <div ref={hostRef} className={className} style={style} />;
 });
 EChart.displayName = 'EChart';
 
+function withoutHoverFade(option: EChartsOption): EChartsOption {
+  const next = { ...option } as EChartsOption & { series?: unknown };
+  if (!next.series) return next;
+  const series = Array.isArray(next.series) ? next.series : [next.series];
+  next.series = series.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    return {
+      ...(item as Record<string, unknown>),
+      emphasis: { disabled: true },
+      blur: { itemStyle: { opacity: 1 }, label: { opacity: 1 } },
+    };
+  });
+  return next;
+}

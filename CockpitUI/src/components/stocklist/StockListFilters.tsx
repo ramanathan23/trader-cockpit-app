@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { RefreshCw, AlignJustify, LayoutGrid, BarChart2, ScatterChart, Map } from 'lucide-react';
+import { RefreshCw, AlignJustify, LayoutGrid, BarChart2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { ScreenerPresetGroups } from '@/components/screener/ScreenerPresetGroups';
 import type { ScreenerPreset } from '@/domain/screener';
@@ -29,8 +29,6 @@ const VIEW_BTNS: { mode: StockViewMode; icon: React.ReactNode; title: string }[]
   { mode: 'table',   icon: <AlignJustify size={12} />, title: 'Table' },
   { mode: 'card',    icon: <LayoutGrid   size={12} />, title: 'Cards' },
   { mode: 'chart',   icon: <BarChart2    size={12} />, title: 'Chart view' },
-  { mode: 'cluster', icon: <ScatterChart size={12} />, title: 'Cluster' },
-  { mode: 'heatmap', icon: <Map          size={12} />, title: 'Heatmap' },
 ];
 
 export const StockListFilters = memo((props: StockListFiltersProps) => {

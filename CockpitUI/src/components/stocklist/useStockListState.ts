@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
 
-export type StockViewMode = 'table' | 'card' | 'chart' | 'cluster' | 'heatmap';
+export type StockViewMode = 'table' | 'card' | 'chart';
 
 export function useStockListState() {
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);

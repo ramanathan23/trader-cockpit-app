@@ -16,10 +16,8 @@ import { StockListLevels } from './StockListLevels';
 import { StockListNoteSection } from './StockListNoteSection';
 
 interface ExpandedRowProps {
-  row:         StockRow;
-  entries:     NoteEntry[];
-  onAdd:       (s: string, t: string) => void;
-  onDelete:    (s: string, id: string) => void;
+  row: StockRow; entries: NoteEntry[];
+  onAdd: (s: string, t: string) => void; onDelete: (s: string, id: string) => void;
   onOpenModal: (tab: SymbolModalTab) => void;
 }
 

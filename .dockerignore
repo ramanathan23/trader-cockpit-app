@@ -1,11 +1,16 @@
 .git
 .github
+.venv
 __pycache__
 *.pyc
 *.tsbuildinfo
 node_modules
 .next
 coverage.xml
+.coverage
+.pytest_cache
+.ruff_cache
+.mypy_cache
 notebooks
 *.ipynb
 .env

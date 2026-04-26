@@ -53,7 +53,7 @@ export function CockpitApp({ initialConfigs }: { initialConfigs?: InitialConfigs
       <div className="flex h-full flex-col">
         <Header phase={marketStatus.phase} bias={marketStatus.bias} clock={clock} theme={theme} tokenStatus={tokenStatus}
           onToggleTheme={() => setTheme(m => m === 'dark' ? 'light' : 'dark')}
-          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view !== 'admin' && view !== 'stocks' && view !== 'accounts'}
+          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view !== 'admin' && view !== 'stocks' && view !== 'accounts' && view !== 'overview'}
           showHelp={showHelp} onToggleHelp={() => setShowHelp(v => !v)} />
         <div className="flex min-h-0 flex-1">
           <AppRail view={view} onView={setView} signalCount={currentSignals.length} filteredCount={filteredCount} />

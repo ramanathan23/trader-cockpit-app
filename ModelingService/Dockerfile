@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -13,7 +14,8 @@ COPY shared/pyproject.toml shared/pyproject.toml
 COPY shared/shared/ shared/shared/
 
 COPY ModelingService/pyproject.toml .
-RUN uv pip install --system --no-cache ./shared .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system ./shared .
 
 COPY ModelingService/src/ ./src/
 
