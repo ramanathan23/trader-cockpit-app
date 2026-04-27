@@ -16,9 +16,6 @@ class _FeedInitMixin:
     async def run(self) -> None:
         """Main loop — runs until cancelled."""
         await self._initialise()
-        flush_task  = asyncio.create_task(
-            self._writer.run_periodic_flush(), name="candle-flush"
-        )
         status_task = asyncio.create_task(
             self._status_broadcast_loop(), name="status-broadcast"
         )
@@ -27,10 +24,8 @@ class _FeedInitMixin:
         except asyncio.CancelledError:
             pass
         finally:
-            flush_task.cancel()
             status_task.cancel()
-            await asyncio.gather(flush_task, status_task, return_exceptions=True)
-            await self._writer.flush()
+            await asyncio.gather(status_task, return_exceptions=True)
             if self._sub_mgr:
                 await self._sub_mgr.stop()
 

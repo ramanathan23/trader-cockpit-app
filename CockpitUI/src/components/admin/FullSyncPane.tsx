@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/cn';
 import { PIPELINE_STEPS } from './adminConstants';
-import { WorkflowNode, MergeConnector, VLine } from './WorkflowGraph';
+import { WorkflowNode, MergeConnector } from './WorkflowGraph';
 import { useFullSync } from './useFullSync';
 
 /** Section header shared between admin panes. */
@@ -15,10 +15,6 @@ export function SectionHeader({ title, caption }: { title: string; caption: stri
   );
 }
 
-/**
- * Renders the full pipeline runner: parallel sync → sequential
- * indicators/setup behavior/scores, with a live workflow graph.
- */
 export function FullSyncPane() {
   const { states, tick, anyRunning, allDone, anyError, runPipeline } = useFullSync();
 
@@ -35,7 +31,7 @@ export function FullSyncPane() {
     <div>
       <SectionHeader
         title="Full Pipeline"
-        caption="Sync runs in parallel. Indicators, setup behavior, rankings, and models run sequentially after."
+        caption="Zerodha syncs first, then daily and 1-min data run in parallel."
       />
       <div className="mb-10 flex items-center gap-4">
         <button
@@ -59,7 +55,7 @@ export function FullSyncPane() {
 
       <div className="flex flex-col items-center">
         {node('zerodha', 0)}
-        <VLine />
+        <MergeConnector />
         <div className="relative flex gap-8">
           <div className="absolute -top-5 left-0 right-0 flex justify-center">
             <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[8px] font-black tracking-widest text-ghost">PARALLEL</span>
@@ -67,14 +63,7 @@ export function FullSyncPane() {
           {node('sync-daily', 1)}
           {node('sync-1min',  2)}
         </div>
-        <MergeConnector />
-        {node('indicators', 3)}
-        <VLine />
-        {node('behavior', 4)}
-        <VLine />
-        {node('scores', 5)}
       </div>
     </div>
   );
 }
-

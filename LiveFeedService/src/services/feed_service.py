@@ -10,7 +10,7 @@ from ..core.session_manager import SessionManager
 from ..domain.index_bias import IndexBias
 from ..infrastructure.redis.publisher import SignalPublisher
 from ..infrastructure.redis.token_store import TokenStore
-from ..repositories.candle_repository import BufferedCandleWriter, CandleRepository
+from ..repositories.candle_repository import CandleRepository
 from ..repositories.symbol_repository import SymbolRepository
 from ..signals.engine import SignalEngine
 from .instrument_loader import InstrumentLoader
@@ -44,11 +44,6 @@ class FeedService(_FeedInitMixin, _FeedStatusMixin, _FeedSignalMixin):
             symbol_repo, candle_repo,
             warm_limit=max(settings.drive_candles, settings.confluence_1h_candles),
             candle_min=settings.candle_minutes,
-        )
-        self._writer = BufferedCandleWriter(
-            candle_repo,
-            batch_size  = settings.candle_write_batch_size,
-            flush_every = settings.candle_write_flush_s,
         )
         self._sub_mgr:    SubscriptionManager | None = None
         self._tick_router: TickRouter | None         = None

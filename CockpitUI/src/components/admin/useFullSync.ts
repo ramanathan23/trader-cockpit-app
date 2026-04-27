@@ -19,7 +19,6 @@ export function useFullSync() {
   const allDone    = Object.values(states).every(s => s.status !== 'idle' && s.status !== 'running');
   const anyError   = Object.values(states).some(s => s.status === 'error');
 
-  // Drive a 1 s tick while the pipeline is active — forces elapsed time to re-render
   useEffect(() => {
     if (!anyRunning) return;
     const id = setInterval(() => setTick(t => t + 1), 1000);
@@ -48,7 +47,6 @@ export function useFullSync() {
       return;
     }
 
-    // sync-daily + sync-1min run in parallel (independent data sources)
     const syncDaily = PIPELINE_STEPS.find(s => s.key === 'sync-daily')!;
     const sync1min  = PIPELINE_STEPS.find(s => s.key === 'sync-1min')!;
     const syncStart = Date.now();
@@ -67,25 +65,6 @@ export function useFullSync() {
     setStep('sync-1min', minResult.status === 'fulfilled' ? 'ok' : 'error',
       minResult.status === 'fulfilled' ? minResult.value : (minResult.reason?.message ?? 'failed'),
       syncStart, syncElapsed);
-
-    if (dailyResult.status === 'rejected' || minResult.status === 'rejected') {
-      running.current = false;
-      return;
-    }
-
-    // indicators -> setup behavior -> scores run sequentially via SSE
-    for (const step of PIPELINE_STEPS.filter(s => s.key === 'indicators' || s.key === 'behavior' || s.key === 'scores')) {
-      const startedAt = Date.now();
-      setStep(step.key, 'running', null, startedAt);
-      try {
-        const msg = await readSSE(step.endpoint, step.method, m => setStep(step.key, 'running', m, startedAt));
-        setStep(step.key, 'ok', msg, startedAt, Date.now() - startedAt);
-      } catch (err) {
-        setStep(step.key, 'error', err instanceof Error ? err.message : 'failed', startedAt, Date.now() - startedAt);
-        running.current = false;
-        return;
-      }
-    }
 
     running.current = false;
   }

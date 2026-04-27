@@ -66,56 +66,6 @@ services:
       - trader-bridge
     restart: unless-stopped
 
-  indicators:
-    build:
-      context: .
-      dockerfile: IndicatorsService/Dockerfile
-    container_name: trader_indicators
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      INDICATORS_CONCURRENCY: ${INDICATORS_CONCURRENCY:-20}
-      MIN_BARS: ${MIN_BARS:-60}
-    ports:
-      - "8005:8000"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./IndicatorsService/src:/app/src:ro
-      - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
-    networks:
-      - trader-bridge
-    restart: unless-stopped
-
-  ranking:
-    build:
-      context: .
-      dockerfile: RankingService/Dockerfile
-    container_name: trader_ranking
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      SCORE_CONCURRENCY: ${SCORE_CONCURRENCY:-20}
-      MIN_ADV_CRORES: ${MIN_ADV_CRORES:-1.0}
-    ports:
-      - "8002:8000"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./RankingService/src:/app/src:ro
-      - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
-    networks:
-      - trader-bridge
-    restart: unless-stopped
-
   live-feed:
     build:
       context: .
@@ -129,8 +79,6 @@ services:
       DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
       DHAN_WS_BATCH_SIZE: ${DHAN_WS_BATCH_SIZE:-500}
       DHAN_RECONNECT_DELAY_S: ${DHAN_RECONNECT_DELAY_S:-5.0}
-      CANDLE_WRITE_BATCH_SIZE: ${CANDLE_WRITE_BATCH_SIZE:-100}
-      CANDLE_WRITE_FLUSH_S: ${CANDLE_WRITE_FLUSH_S:-5.0}
     ports:
       - "8003:8000"
     depends_on:
@@ -163,14 +111,10 @@ services:
       dockerfile: Dockerfile
       args:
         LIVE_FEED_URL: http://live-feed:8000
-        SCORER_URL: http://ranking:8000
-        INDICATORS_URL: http://indicators:8000
         DATASYNC_URL: http://data-sync:8000
         NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     environment:
       LIVE_FEED_URL: http://live-feed:8000
-      SCORER_URL: http://ranking:8000
-      INDICATORS_URL: http://indicators:8000
       DATASYNC_URL: http://data-sync:8000
       NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     container_name: trader_cockpit_ui
@@ -180,8 +124,6 @@ services:
       live-feed:
         condition: service_healthy
       data-sync:
-        condition: service_started
-      ranking:
         condition: service_started
     networks:
       - trader-bridge

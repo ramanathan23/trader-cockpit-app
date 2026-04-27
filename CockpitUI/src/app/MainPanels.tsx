@@ -5,7 +5,6 @@ import type { Signal } from '@/domain/signal';
 import type { NoteEntry } from '@/hooks/useNotes';
 import { AccountsPanel } from '@/components/accounts/AccountsPanel';
 import { AdminPanel } from '@/components/admin/AdminPanel';
-import { OverviewDashboard } from '@/components/overview/OverviewDashboard';
 import { StockListPanel } from '@/components/stocklist/StockListPanel';
 import type { AppView, InitialConfigs } from './appTypes';
 
@@ -25,10 +24,6 @@ export function MainPanels({
 }: MainPanelsProps) {
   return (
     <>
-      <div className={view !== 'overview' ? 'hidden' : 'contents'}>
-        <OverviewDashboard active={view === 'overview'} signals={signals}
-          metricsCache={metricsCache} marketOpen={marketOpen} noteEntries={noteEntries} />
-      </div>
       <div className={view !== 'stocks' ? 'hidden' : 'contents'}>
         <StockListPanel active={view === 'stocks'} noteEntries={noteEntries}
           onAddNote={onAddNote} onDeleteNote={onDeleteNote} />
@@ -42,4 +37,3 @@ export function MainPanels({
     </>
   );
 }
-

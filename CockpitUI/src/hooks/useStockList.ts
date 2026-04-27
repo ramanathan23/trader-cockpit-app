@@ -5,19 +5,9 @@ import {
   applyFilters, DEFAULT_RANGE, decorateRows,
   type ScreenerPreset, type ScreenerRangeFilter,
 } from '@/domain/screener';
-import type { ScoredSymbol } from '@/domain/dashboard';
-import { mergeStockRows, sortStockRows, type StockRow } from '@/domain/stocklist';
+import { sortStockRows, type StockRow } from '@/domain/stocklist';
 
 const PAGE_SIZE = 500;
-const SCORE_LIMIT = 2000;
-
-function mergeBySymbol(existingRows: StockRow[], nextRows: StockRow[]): StockRow[] {
-  const bySymbol = new Map(existingRows.map(row => [row.symbol, row]));
-  for (const row of nextRows) {
-    bySymbol.set(row.symbol, { ...(bySymbol.get(row.symbol) ?? {}), ...row });
-  }
-  return Array.from(bySymbol.values());
-}
 
 export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
   const [rows,    setRows]    = useState<StockRow[]>([]);
@@ -28,30 +18,25 @@ export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
   const [range,   setRange]   = useState<ScreenerRangeFilter>(DEFAULT_RANGE);
   const [presets, setPresets] = useState<Set<ScreenerPreset>>(new Set());
   const [fnoOnly, setFnoOnly] = useState(false);
-  const [sortCol, setSortCol] = useState('rank');
+  const [sortCol, setSortCol] = useState('symbol');
   const [sortAsc, setSortAsc] = useState(true);
   const fetched = useRef(false);
   const offsetRef = useRef(0);
-  const scoreRowsRef = useRef<ScoredSymbol[]>([]);
   const deferredQuery = useDeferredValue(query);
 
   const load = useCallback(async () => {
     setLoading(true);
     offsetRef.current = 0;
     try {
-      const [sr, dr] = await Promise.allSettled([
-        fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`).then(r => r.ok ? r.json() : { symbols: [] }),
-        fetch(`/scorer/dashboard?limit=${SCORE_LIMIT}&_ts=${Date.now()}`).then(r => r.ok ? r.json() : { scores: [] }),
-      ]);
-      const screenerData = sr.status === 'fulfilled' ? sr.value : { symbols: [] };
-      const dashData     = dr.status === 'fulfilled' ? dr.value : { scores: [] };
-      const decorated    = decorateRows(screenerData.symbols ?? []);
-      scoreRowsRef.current = dashData.scores ?? [];
-      const merged = mergeStockRows(decorated, scoreRowsRef.current);
-      setRows(merged);
-      setHasMore(screenerData.has_more ?? false);
-      setTotalFromApi(Math.max(screenerData.total ?? 0, dashData.stats?.total_scored ?? 0, merged.length));
-      offsetRef.current = decorated.length;
+      const r = await fetch(`/api/v1/screener?offset=0&limit=${PAGE_SIZE}`);
+      if (r.ok) {
+        const d = await r.json();
+        const decorated = decorateRows(d.symbols ?? []) as StockRow[];
+        setRows(decorated);
+        setHasMore(d.has_more ?? false);
+        setTotalFromApi(d.total ?? decorated.length);
+        offsetRef.current = decorated.length;
+      }
     } catch { /* ignore */ }
     setLoading(false);
     fetched.current = true;
@@ -64,9 +49,12 @@ export function useStockList(noteEntries?: Record<string, { text: string }[]>) {
       const r = await fetch(`/api/v1/screener?offset=${offsetRef.current}&limit=${PAGE_SIZE}`);
       if (r.ok) {
         const d = await r.json();
-        const decorated = decorateRows(d.symbols ?? []);
-        const merged = mergeStockRows(decorated, scoreRowsRef.current, false);
-        setRows(prev => mergeBySymbol(prev, merged));
+        const decorated = decorateRows(d.symbols ?? []) as StockRow[];
+        setRows(prev => {
+          const bySymbol = new Map(prev.map(row => [row.symbol, row]));
+          for (const row of decorated) bySymbol.set(row.symbol, row);
+          return Array.from(bySymbol.values());
+        });
         setHasMore(d.has_more ?? false);
         setTotalFromApi(d.total ?? offsetRef.current + decorated.length);
         offsetRef.current += decorated.length;

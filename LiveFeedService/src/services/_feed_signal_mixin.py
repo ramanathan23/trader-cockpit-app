@@ -40,7 +40,6 @@ class _FeedSignalMixin:
 
     async def _on_candle(self, meta: InstrumentMeta, candle: Candle) -> None:
         self._candles_completed += 1
-        await self._writer.add(candle)
         if meta.is_index_future and meta.underlying:
             self._update_index_bias(meta.underlying, candle)
         if not meta.is_index_future:

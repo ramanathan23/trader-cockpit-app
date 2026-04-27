@@ -6,9 +6,8 @@ import { cn } from '@/lib/cn';
 import { DailyChart } from './DailyChart';
 import { OptionChainPanel } from './OptionChainPanel';
 import { SymbolModalDetails } from './SymbolModalDetails';
-import type { ScoredSymbol } from '@/domain/dashboard';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
-import { scoreToStockRow, type StockRow } from '@/domain/stocklist';
+import type { StockRow } from '@/domain/stocklist';
 import type { NoteEntry } from '@/hooks/useNotes';
 
 export type SymbolModalTab = 'details' | 'chart' | 'oc';
@@ -71,29 +70,20 @@ export const SymbolModal = memo(({
     }
 
     let active = true;
-    const load = async () => {
-      try {
-        const [dashRes, metricsRes] = await Promise.allSettled([
-          fetch(`/scorer/dashboard?limit=2000&_ts=${Date.now()}`).then(r => r.ok ? r.json() : null),
-          fetch('/api/v1/instruments/metrics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbols: [symbol] }),
-          }).then(r => r.ok ? r.json() : null),
-        ]);
+    fetch('/api/v1/instruments/metrics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: [symbol] }),
+    })
+      .then(r => r.ok ? r.json() as Promise<Record<string, InstrumentMetrics>> : null)
+      .then(metricMap => {
         if (!active) return;
-
-        const dash = dashRes.status === 'fulfilled' ? dashRes.value : null;
-        const metricMap = metricsRes.status === 'fulfilled' ? metricsRes.value as Record<string, InstrumentMetrics> | null : null;
-        const score = (dash?.scores ?? []).find((item: ScoredSymbol) => item.symbol === symbol) as ScoredSymbol | undefined;
-        const base = score ? scoreToStockRow(score) : ({ symbol } as StockRow);
-        setFetchedRow(mergeMetricRow(base, metricMap?.[symbol]));
-      } catch {
+        setFetchedRow(mergeMetricRow({ symbol } as StockRow, metricMap?.[symbol]));
+      })
+      .catch(() => {
         if (active) setFetchedRow({ symbol } as StockRow);
-      }
-    };
+      });
 
-    load();
     return () => { active = false; };
   }, [row, symbol]);
 
@@ -108,7 +98,6 @@ export const SymbolModal = memo(({
         style={expanded ? { width: '100vw', height: '100vh' } : { width: '82vw', height: '82vh' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
           <div className="flex items-center gap-4">
             <span className="text-[15px] font-black text-fg">{symbol}</span>
@@ -137,7 +126,6 @@ export const SymbolModal = memo(({
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className={cn('flex-1 overflow-y-auto p-5', tab !== 'details' && 'hidden')}>
             <SymbolModalDetails

@@ -3,9 +3,7 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/cn';
-import { rsiColor } from '@/lib/scoreColors';
 import { screenerF52hColor, screenerPctText, screenerStageColor, screenerStageLabel } from '@/lib/screenerDisplay';
-import { setupTier, TIER_TEXT_CLASS, TIER_LABEL } from '@/lib/setupTier';
 import { DailyChart } from '@/components/dashboard/DailyChart';
 import type { StockRow } from '@/domain/stocklist';
 import { FlashPrice, type LivePriceData } from '@/components/ui/LivePrice';
@@ -18,33 +16,23 @@ interface ChartRowProps {
 }
 
 const ChartRow = memo(({ row, selected, livePrice, onSelect }: ChartRowProps) => {
-  const tier  = setupTier(row);
   const price = livePrice?.ltp ?? row.display_price;
   const prev  = livePrice?.prevClose ?? row.prev_day_close;
   return (
     <div
       className={cn('flex cursor-pointer items-center gap-2 border-b border-border/40 px-3 py-2 transition-colors hover:bg-lift/40',
         selected && 'bg-accent/10 border-l-2 border-accent',
-        !selected && tier && TIER_TEXT_CLASS[tier] && 'border-l-[2px]',
       )}
-      style={!selected && tier ? { borderLeftColor: `var(--${tier === 'STRONG' ? 'bull' : tier === 'BUILDING' ? 'accent' : 'amber'})` } : undefined}
       onClick={onSelect}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px] font-black text-fg">{row.symbol}</span>
-          {tier && <span className={cn('text-[9px] font-black', TIER_TEXT_CLASS[tier])}>{TIER_LABEL[tier]}</span>}
-        </div>
+        <span className="text-[13px] font-black text-fg">{row.symbol}</span>
         <div className="flex items-center gap-2 text-[10px] text-ghost">
           <span style={{ color: screenerStageColor(row.stage) }}>{screenerStageLabel(row.stage)}</span>
-          {row.rsi_14 != null && <span style={{ color: rsiColor(row.rsi_14) }}>RSI {row.rsi_14.toFixed(0)}</span>}
-          {row.f52h   != null && <span style={{ color: screenerF52hColor(row.f52h) }}>{screenerPctText(row.f52h, true)}</span>}
+          {row.f52h != null && <span style={{ color: screenerF52hColor(row.f52h) }}>{screenerPctText(row.f52h, true)}</span>}
         </div>
       </div>
       <div className="shrink-0 text-right">
-        {row.total_score != null && (
-          <div className="num text-[14px] font-black text-fg">{row.total_score.toFixed(0)}</div>
-        )}
         <FlashPrice price={price} prevClose={prev} className="text-[10px]" />
       </div>
     </div>

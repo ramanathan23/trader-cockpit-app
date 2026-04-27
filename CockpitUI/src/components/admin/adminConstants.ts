@@ -5,28 +5,17 @@ export const NAV: NavItem[] = [
   { key: 'full-sync',       label: 'Full Sync',  caption: 'Run full pipeline' },
   { key: 'zerodha',         label: 'Zerodha',    caption: 'Account login' },
   { key: 'token',           label: 'Token',      caption: 'Update Dhan token' },
-  { key: 'config-scorer',   label: 'Ranking',    caption: 'Scoring params',    group: 'Config' },
   { key: 'config-datasync', label: 'Data Sync',  caption: 'Sync params',       group: 'Config' },
   { key: 'config-livefeed', label: 'Live Feed',  caption: 'Signal thresholds', group: 'Config' },
 ];
 
 export const PIPELINE_STEPS = [
-  { key: 'zerodha',    label: 'Sync Zerodha',      endpoint: '/datasync/sync/run-zerodha-sse', method: 'POST' },
-  { key: 'sync-daily',  label: 'Sync Daily Data',   endpoint: '/datasync/sync/run-sse',       method: 'POST' },
-  { key: 'sync-1min',   label: 'Sync 1-Min Data',   endpoint: '/datasync/sync/run-1min-sse',  method: 'POST' },
-  { key: 'indicators',  label: 'Compute Indicators', endpoint: '/indicators/compute-sse',      method: 'POST' },
-  { key: 'behavior',    label: 'Setup Behavior',      endpoint: '/indicators/compute-setup-behavior-sse', method: 'POST' },
-  { key: 'scores',      label: 'Compute Rankings',   endpoint: '/scorer/scores/compute-sse',   method: 'POST' },
+  { key: 'zerodha',    label: 'Sync Zerodha',    endpoint: '/datasync/sync/run-zerodha-sse', method: 'POST' },
+  { key: 'sync-daily', label: 'Sync Daily Data', endpoint: '/datasync/sync/run-sse',         method: 'POST' },
+  { key: 'sync-1min',  label: 'Sync 1-Min Data', endpoint: '/datasync/sync/run-1min-sse',    method: 'POST' },
 ] as const;
 
 export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
-  'config-scorer': {
-    id: 'scorer', name: 'Ranking', endpoint: ADMIN_CONFIG.SCORER,
-    fields: [
-      { key: 'score_concurrency', label: 'Parallel scoring workers', type: 'int',   min: 1, max: 50 },
-      { key: 'min_adv_crores',    label: 'Min ADV (₹Cr)',            type: 'float', min: 0, max: 100, step: 0.5 },
-    ],
-  },
   'config-datasync': {
     id: 'datasync', name: 'Data Sync', endpoint: ADMIN_CONFIG.DATASYNC,
     fields: [
@@ -55,8 +44,6 @@ export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
       { key: 'candle_minutes',             label: 'Candle size (min)',           type: 'int',   min: 1,  max: 60,   group: 'Feed' },
       { key: 'dhan_ws_batch_size',         label: 'WS subscription batch',      type: 'int',   min: 50, max: 1000, group: 'Feed' },
       { key: 'dhan_reconnect_delay_s',     label: 'WS reconnect delay (s)',     type: 'float', min: 1,  max: 60,   group: 'Feed',     step: 0.5 },
-      { key: 'candle_write_batch_size',    label: 'Candle write batch',         type: 'int',   min: 10, max: 1000, group: 'Feed' },
-      { key: 'candle_write_flush_s',       label: 'Candle flush interval (s)',  type: 'float', min: 1,  max: 30,   group: 'Feed',     step: 0.5 },
     ],
   },
 };

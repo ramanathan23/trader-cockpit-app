@@ -1,54 +1,40 @@
 'use client';
 
 import { memo } from 'react';
-import { ScoreBar } from '@/components/dashboard/ScoreBar';
+import { fmt2, fmtAdv } from '@/lib/fmt';
+import { screenerF52hColor, screenerPctText, screenerStageColor, screenerStageLabel } from '@/lib/screenerDisplay';
 import type { StockRow } from '@/domain/stocklist';
 
 interface ScorePanelProps { row: StockRow; }
 
-function scoreTone(value: number) {
-  if (value >= 80) return 'text-bull';
-  if (value >= 65) return 'text-accent';
-  if (value >= 50) return 'text-amber';
-  return 'text-bear';
-}
-
 export const StockListScorePanel = memo(({ row }: ScorePanelProps) => {
-  if (row.total_score == null) {
-    return (
-      <div className="rounded-lg border border-border/50 bg-card/70 p-3 text-[11px] text-ghost">
-        Not scored - run pipeline.
-      </div>
-    );
-  }
-
-  const total = row.total_score;
-
+  const price = row.display_price ?? row.prev_day_close;
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border/50 bg-card/70 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="label-sm">Score</div>
-          <div className="mt-1 text-[11px] text-ghost">Momentum setup quality</div>
+    <div className="flex h-full flex-col gap-2 rounded-lg border border-border/50 bg-card/70 p-3">
+      <div className="label-sm">Overview</div>
+      <div className="flex flex-col gap-1.5 text-[11px]">
+        <div className="flex justify-between">
+          <span className="text-ghost">Stage</span>
+          <span className="font-black" style={{ color: screenerStageColor(row.stage) }}>{screenerStageLabel(row.stage)}</span>
         </div>
-        <div className="text-right">
-          <span className={`num text-[30px] font-black leading-none ${scoreTone(total)}`}>{total.toFixed(0)}</span>
-          <span className="ml-1 text-[11px] text-ghost">/100</span>
+        <div className="flex justify-between">
+          <span className="text-ghost">Price</span>
+          <span className="num font-black text-fg">{price != null ? fmt2(price) : '—'}</span>
         </div>
-      </div>
-
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border/50">
-        <div
-          className="h-full rounded-full bg-accent"
-          style={{ width: `${Math.min(100, Math.max(0, total))}%` }}
-        />
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2">
-        <ScoreBar value={row.momentum_score ?? 0} color="accent" label="MOM" />
-        <ScoreBar value={row.trend_score ?? 0} color="bull" label="TRD" />
-        <ScoreBar value={row.volatility_score ?? 0} color="amber" label="VOL" />
-        <ScoreBar value={row.structure_score ?? 0} color="sky" label="STR" />
+        <div className="flex justify-between">
+          <span className="text-ghost">ATR</span>
+          <span className="num text-dim">{row.atr_14 != null ? fmt2(row.atr_14) : '—'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-ghost">ADV</span>
+          <span className="num text-dim">{fmtAdv(row.adv_20_cr)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-ghost">52H%</span>
+          <span className="num font-black" style={{ color: screenerF52hColor(row.f52h) }}>
+            {row.f52h != null ? screenerPctText(row.f52h, true) : '—'}
+          </span>
+        </div>
       </div>
     </div>
   );

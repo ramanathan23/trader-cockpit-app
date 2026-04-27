@@ -3,10 +3,8 @@
  *
  * All service paths are relative — Next.js rewrites (next.config.ts) proxy
  * them to the correct backend service:
- *   /api/*          → LiveFeedService
- *   /scorer/*       → RankingService
- *   /indicators/*   → IndicatorsService
- *   /datasync/*     → DataSyncService
+ *   /api/*       → LiveFeedService
+ *   /datasync/*  → DataSyncService
  */
 
 // ── LiveFeedService endpoints ────────────────────────────────────────────────
@@ -23,25 +21,9 @@ export const LIVE_FEED = {
   OPTION_CHAIN:         '/api/v1/optionchain',
 } as const;
 
-// ── RankingService endpoints ──────────────────────────────────────────────────
-
-export const SCORER = {
-  DASHBOARD:      '/scorer/dashboard',
-  SCORES_COMPUTE: '/scorer/scores/compute',
-  CONFIG:         '/scorer/config',
-} as const;
-
-// ── IndicatorsService endpoints ───────────────────────────────────────────────
-
-export const INDICATORS = {
-  COMPUTE:     '/indicators/compute',
-  COMPUTE_SSE: '/indicators/compute-sse',
-} as const;
-
 // ── Admin config endpoints ────────────────────────────────────────────────────
 
 export const ADMIN_CONFIG = {
-  SCORER:   '/scorer/config',
   DATASYNC: '/datasync/config',
   LIVEFEED: '/api/v1/config',
 } as const;

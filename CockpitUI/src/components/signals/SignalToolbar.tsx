@@ -29,7 +29,7 @@ interface SignalToolbarProps {
 }
 
 export const SignalToolbar = memo(({ category, onCategory, subType, onSubType, fnoOnly, onFnoOnly, minAdvCr, onMinAdv, signals, metricsCache, paused, pendingCount, onTogglePause, onClear, activeView, onViewChange }: SignalToolbarProps) => {
-  const signalWorkspace = activeView === 'live' || activeView === 'history';
+  const signalWorkspace = activeView === 'live';
   const filtered = filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly);
 
   return (

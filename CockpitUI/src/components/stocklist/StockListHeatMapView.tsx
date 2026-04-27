@@ -29,7 +29,7 @@ export const StockListHeatMapView = memo(({ rows, livePrices }: StockListHeatMap
         adv:    row.adv_20_cr || 1,
         chgPct: computeChgPct(livePrices[row.symbol], row),
         price:  livePrices[row.symbol]?.ltp ?? row.display_price ?? null,
-        score:  row.total_score ?? undefined,
+        score:  undefined,
         stage:  row.stage ?? undefined,
       }))
       .sort(heatMoveSort),

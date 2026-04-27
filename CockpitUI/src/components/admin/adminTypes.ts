@@ -6,7 +6,6 @@ export type AdminSection =
   | 'full-sync'
   | 'zerodha'
   | 'token'
-  | 'config-scorer'
   | 'config-datasync'
   | 'config-livefeed';
 
@@ -60,7 +59,6 @@ export type PipelineState = Record<string, {
 
 /** Pre-fetched service configs passed from server to avoid a round-trip on load. */
 export type InitialConfigs = {
-  scorer:   Record<string, unknown> | null;
   datasync: Record<string, unknown> | null;
   livefeed: Record<string, unknown> | null;
 };

@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { filterSignals } from '@/domain/signal';
-import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import { useClock } from '@/hooks/useMarketStatus';
 import { useSignals } from '@/hooks/useSignals';
-import { useHistory } from '@/hooks/useHistory';
 import { useNotes } from '@/hooks/useNotes';
 import { useTokenStatus } from '@/hooks/useTokenStatus';
 import { Header } from '@/components/Header';
@@ -19,33 +17,15 @@ import type { InitialConfigs } from './appTypes';
 export function CockpitApp({ initialConfigs }: { initialConfigs?: InitialConfigs | null }) {
   const clock       = useClock();
   const tokenStatus = useTokenStatus();
-  const { signals, paused, pendingCount, connState, metricsCache, marketStatus, mergeMetrics, togglePause, clearSignals } = useSignals();
+  const { signals, paused, pendingCount, connState, metricsCache, marketStatus, togglePause, clearSignals } = useSignals();
   const { notes, noteEntries, addNote, deleteNote, saveNote } = useNotes();
-  const history = useHistory();
 
   const { view, setView, category, setCategory, minAdvCr, setMinAdvCr, viewMode, setViewMode, showHelp, setShowHelp, theme, setTheme, subType, setSubType, fnoOnly, setFnoOnly } = useCockpitState();
 
-  useEffect(() => {
-    if (view === 'history' && history.signals.length === 0 && !history.loading) {
-      history.loadHistory(history.date);
-    }
-  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (history.signals.length === 0) return;
-    const syms = [...new Set(history.signals.map(s => s.symbol))].filter(sym => !(sym in metricsCache));
-    if (syms.length === 0) return;
-    fetch('/api/v1/instruments/metrics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: syms }) })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: Record<string, InstrumentMetrics> | null) => mergeMetrics(data))
-      .catch(() => {});
-  }, [history.signals, metricsCache, mergeMetrics]);
-
-  const marketOpen     = OPEN_PHASES.has(marketStatus.phase) && connState === 'connected';
-  const currentSignals = view === 'history' ? history.signals : signals;
-  const filteredCount  = useMemo(
-    () => filterSignals(currentSignals, category, minAdvCr, metricsCache, subType, fnoOnly).length,
-    [currentSignals, category, minAdvCr, metricsCache, subType, fnoOnly],
+  const marketOpen    = OPEN_PHASES.has(marketStatus.phase) && connState === 'connected';
+  const filteredCount = useMemo(
+    () => filterSignals(signals, category, minAdvCr, metricsCache, subType, fnoOnly).length,
+    [signals, category, minAdvCr, metricsCache, subType, fnoOnly],
   );
 
   return (
@@ -53,11 +33,11 @@ export function CockpitApp({ initialConfigs }: { initialConfigs?: InitialConfigs
       <div className="flex h-full flex-col">
         <Header phase={marketStatus.phase} bias={marketStatus.bias} clock={clock} theme={theme} tokenStatus={tokenStatus}
           onToggleTheme={() => setTheme(m => m === 'dark' ? 'light' : 'dark')}
-          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view !== 'admin' && view !== 'stocks' && view !== 'accounts' && view !== 'overview'}
+          viewMode={viewMode} onViewMode={setViewMode} showViewToggle={view === 'live'}
           showHelp={showHelp} onToggleHelp={() => setShowHelp(v => !v)} />
         <div className="flex min-h-0 flex-1">
-          <AppRail view={view} onView={setView} signalCount={currentSignals.length} filteredCount={filteredCount} />
-          <CockpitMain view={view} setView={setView} history={history} currentSignals={currentSignals}
+          <AppRail view={view} onView={setView} signalCount={signals.length} filteredCount={filteredCount} />
+          <CockpitMain view={view} setView={setView} signals={signals}
             metricsCache={metricsCache} marketOpen={marketOpen} notes={notes} saveNote={saveNote}
             noteEntries={noteEntries} onAddNote={addNote} onDeleteNote={deleteNote}
             filteredCount={filteredCount} paused={paused} pendingCount={pendingCount}

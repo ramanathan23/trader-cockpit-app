@@ -12,9 +12,7 @@
 |---|---|---|---|
 | CockpitUI | 3000 | Next.js 15, React 19, TS, Tailwind | Dashboard UI |
 | DataSyncService | 8001 | Python 3.12, FastAPI, yfinance, dhanhq | OHLCV fetch + persist |
-| RankingService | 8002 | Python 3.12, FastAPI, pandas | Rankings, scoring, watchlist, dashboard |
 | LiveFeedService | 8003 | Python 3.12, FastAPI, dhanhq WS | Real-time tick feed + SSE + intraday signals |
-| IndicatorsService | 8005 | Python 3.12, FastAPI, pandas-ta | All metrics, indicators, pattern detection |
 
 ### Shared Infra
 - **DB**: External TimescaleDB/PostgreSQL via `POSTGRES_HOST:POSTGRES_PORT`
@@ -31,35 +29,27 @@ yfinance / Dhan API
       ↓
 DataSyncService (8001) → TimescaleDB (price_data_daily, price_data_1min)
       ↓
-IndicatorsService (8005) — reads price_data_daily → writes symbol_metrics, symbol_indicators, symbol_patterns
-                         — reads price_data_1min (90d) → writes symbol_intraday_profile (ISS)
+LiveFeedService (8003) — WS ticks → 5-min candles (in-memory only)
+                       — signal engine + regime detector → SSE to UI
+                       — screener/metrics computed from price_data_daily + symbols
       ↓
-RankingService (8002) — reads symbol_indicators → writes daily_scores
-LiveFeedService (8003) — WS ticks → 5-min candles → signal engine + regime detector → SSE to UI
-      ↓
-CockpitUI (3000) — dashboard shows: daily scores + execution/setup behavior profile
-                 — signal tape shows: live signals + regime badge (TRENDING_UP/CHOPPY/SQUEEZE)
+CockpitUI (3000) — stocks view: screener from LiveFeedService (basic daily metrics)
+                 — live view: signal tape + regime badge (TRENDING_UP/CHOPPY/SQUEEZE)
+                 — accounts view: Zerodha trades + performance
+                 — admin view: pipeline jobs + config
 ```
 
 ---
 
 ## DB SCHEMA (key tables)
 - `symbols` — NSE registry
-- `price_data_1min` — Hypertable, 1-min OHLCV
-- `price_data_daily` — Hypertable, daily OHLCV
-- `symbol_metrics` — structural metrics: week52, ATR, ADV, EMAs, OHLC periods (owned by IndicatorsService)
-- `symbol_indicators` — technical indicators: RSI, MACD, ADX, stage, BB, ATR ratio, RS vs Nifty (owned by IndicatorsService)
-- `symbol_patterns` — VCP + rectangle breakout detection (owned by IndicatorsService)
-- `symbol_intraday_profile` — ISS + intraday features from 90d 1-min: choppiness, stop_hunt_rate, orb_followthrough, pullback_depth, volatility_compression, iss_score (owned by IndicatorsService)
-- `daily_scores` — composite scores + rank + watchlist flag (owned by RankingService)
+- `price_data_1min` — Hypertable, 1-min OHLCV (owned by DataSyncService)
+- `price_data_daily` — Hypertable, daily OHLCV (owned by DataSyncService)
 - `sync_state` — per-symbol last sync + status (owned by DataSyncService)
+- `index_futures` — index future instruments (owned by DataSyncService)
+- `service_config` — runtime config per service (shared)
 
 ---
-
-## SCORING LOGIC
-- RankingService reads pre-computed symbol_indicators (no raw OHLCV)
-- Component weights (equal 25%): Momentum, Trend, Volatility, Structure
-- Watchlist: top 25 per segment (FNO/equity) per stage (STAGE_2/STAGE_4)
 
 ## REGIME DETECTOR
 - Rule-based, runs in LiveFeedService on 20-bar rolling window of live 5-min candles
@@ -73,7 +63,7 @@ CockpitUI (3000) — dashboard shows: daily scores + execution/setup behavior pr
 shared/db.py               # asyncpg pool factory
 shared/_migrations.py      # migration runner
 shared/base_config.py      # pydantic Settings base
-infra/db/init.sql          # full schema (~450 lines)
+infra/db/init.sql          # full schema
 infra/db/setup.sh          # DB bootstrap
 docker-compose.yml         # all services
 Makefile                   # dev commands
@@ -109,10 +99,8 @@ DOCKER_DATA_PATH          # volume root (Windows: d:/docker-data)
 ```
 make up                   # compose up --build
 make down                 # compose down
-make sync                 # trigger DataSync
+make sync                 # trigger DataSync daily
 make sync-1min            # 1-min fetch
-make scores-compute       # score all symbols
-make scores-dashboard     # top ranked
 make test-python          # all pytest
 make coverage-python      # combined coverage
 make ui                   # open dashboard (Windows)

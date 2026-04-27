@@ -7,17 +7,14 @@ import { HelpLegend } from '@/components/HelpLegend';
 import { SignalToolbar } from '@/components/signals/SignalToolbar';
 import { SignalFeed } from '@/components/signals/SignalFeed';
 import { LiveHeatMapView } from '@/components/heatmap/LiveHeatMapView';
-import { HistoryBar } from './HistoryBar';
 import { MainPanels } from './MainPanels';
 import type { AppView, InitialConfigs } from './appTypes';
-import type { useHistory } from '@/hooks/useHistory';
 
-type History = ReturnType<typeof useHistory>;
 type SignalViewMode = 'card' | 'table' | 'heatmap';
 
 interface CockpitMainProps {
-  view: AppView; setView: (v: AppView) => void; history: History;
-  currentSignals: Signal[]; metricsCache: Record<string, InstrumentMetrics | null>;
+  view: AppView; setView: (v: AppView) => void;
+  signals: Signal[]; metricsCache: Record<string, InstrumentMetrics | null>;
   marketOpen: boolean; notes: Record<string, string>; saveNote: (id: string, text: string) => void;
   noteEntries: Record<string, NoteEntry[]>; onAddNote: (symbol: string, text: string) => void;
   onDeleteNote: (symbol: string, id: string) => void; filteredCount: number;
@@ -30,18 +27,17 @@ interface CockpitMainProps {
 }
 
 export function CockpitMain(props: CockpitMainProps) {
-  const { view, history, currentSignals, metricsCache, marketOpen, noteEntries, onAddNote, onDeleteNote, initialConfigs } = props;
-  const isSignalView = view === 'live' || view === 'history';
+  const { view, signals, metricsCache, marketOpen, noteEntries, onAddNote, onDeleteNote, initialConfigs } = props;
+  const isLive = view === 'live';
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      {isSignalView && <Toolbar {...props} />}
+      {isLive && <Toolbar {...props} />}
       {props.showHelp && <HelpLegend />}
-      {view === 'history' && <HistoryBar date={history.date} dates={history.availableDates} loading={history.loading} onDate={history.loadHistory} />}
-      <MainPanels view={view} signals={currentSignals} metricsCache={metricsCache}
+      <MainPanels view={view} signals={signals} metricsCache={metricsCache}
         marketOpen={marketOpen} noteEntries={noteEntries} onAddNote={onAddNote}
         onDeleteNote={onDeleteNote} initialConfigs={initialConfigs} />
-      {isSignalView && <SignalBody {...props} />}
-      {isSignalView && <SignalFooter filteredCount={props.filteredCount} total={currentSignals.length} />}
+      {isLive && <SignalBody {...props} />}
+      {isLive && <SignalFooter filteredCount={props.filteredCount} total={signals.length} />}
     </main>
   );
 }
@@ -50,22 +46,21 @@ function Toolbar(p: CockpitMainProps) {
   return (
     <SignalToolbar category={p.category} onCategory={p.setCategory} subType={p.subType} onSubType={p.setSubType}
       fnoOnly={p.fnoOnly} onFnoOnly={p.setFnoOnly} minAdvCr={p.minAdvCr} onMinAdv={p.setMinAdvCr}
-      signals={p.currentSignals} metricsCache={p.metricsCache} paused={p.paused} pendingCount={p.pendingCount}
+      signals={p.signals} metricsCache={p.metricsCache} paused={p.paused} pendingCount={p.pendingCount}
       onTogglePause={p.togglePause} onClear={p.clearSignals} activeView={p.view} onViewChange={p.setView} />
   );
 }
 
 function SignalBody(p: CockpitMainProps) {
   if (p.viewMode === 'heatmap') {
-    return <LiveHeatMapView metricsCache={p.metricsCache} signals={p.currentSignals}
+    return <LiveHeatMapView metricsCache={p.metricsCache} signals={p.signals}
       category={p.category} subType={p.subType} fnoOnly={p.fnoOnly} minAdvCr={p.minAdvCr} />;
   }
-  return <SignalFeed signals={p.currentSignals} metricsCache={p.metricsCache} marketOpen={p.marketOpen}
+  return <SignalFeed signals={p.signals} metricsCache={p.metricsCache} marketOpen={p.marketOpen}
     notes={p.notes} onSaveNote={p.saveNote} category={p.category} subType={p.subType}
     fnoOnly={p.fnoOnly} minAdvCr={p.minAdvCr} viewMode={p.viewMode}
-    emptyLabel={p.view === 'live' ? 'Waiting for live signals' : `No signals for ${p.history.date}`}
-    hasMore={p.view === 'history' ? p.history.hasMore : false}
-    onLoadMore={p.view === 'history' ? p.history.loadMore : undefined} />;
+    emptyLabel="Waiting for live signals"
+    hasMore={false} />;
 }
 
 function SignalFooter({ filteredCount, total }: { filteredCount: number; total: number }) {
@@ -78,4 +73,3 @@ function SignalFooter({ filteredCount, total }: { filteredCount: number; total: 
     </div>
   );
 }
-

@@ -17,13 +17,11 @@ export function AdminPanel({ initialConfigs }: AdminPanelProps) {
   const [section, setSection] = useState<AdminSection>('full-sync');
 
   const isConfig = (
-    section === 'config-scorer'   ||
     section === 'config-datasync' ||
     section === 'config-livefeed'
   );
 
   const configData =
-    section === 'config-scorer'   ? initialConfigs?.scorer   :
     section === 'config-datasync' ? initialConfigs?.datasync :
     section === 'config-livefeed' ? initialConfigs?.livefeed : null;
 

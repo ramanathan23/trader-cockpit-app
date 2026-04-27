@@ -3,12 +3,12 @@ import type { SignalCategory, SignalType } from '@/domain/signal';
 import type { AppView, ThemeMode } from './appTypes';
 
 const STATE_KEY = 'trader-cockpit-ui-state';
-const VIEWS = new Set<AppView>(['overview', 'stocks', 'accounts', 'live', 'history', 'admin']);
+const VIEWS = new Set<AppView>(['stocks', 'accounts', 'live', 'admin']);
 const CATEGORIES = new Set<SignalCategory>(['ALL', 'BREAK', 'CAM']);
 const VIEW_MODES = new Set(['card', 'table', 'heatmap']);
 
 export function useCockpitState() {
-  const [view,     setView]     = useState<AppView>('overview');
+  const [view,     setView]     = useState<AppView>('live');
   const [category, setCategory] = useState<SignalCategory>('ALL');
   const [minAdvCr, setMinAdvCr] = useState(0);
   const [viewMode, setViewMode] = useState<'card' | 'table' | 'heatmap'>('table');
