@@ -37,7 +37,6 @@ export function useSignals() {
   // Tracks which symbols are already fetching/fetched — prevents duplicate requests.
   const fetchingRef = useRef<Set<string>>(new Set());
   const regimeBySymbolRef = useRef<Record<string, Signal['regime']>>({});
-  const issBySymbolRef = useRef<Record<string, number>>({});
 
   // Keep ref in sync with state
   pausedRef.current = paused;
@@ -97,7 +96,6 @@ export function useSignals() {
     s = {
       ...s,
       regime: s.regime ?? regimeBySymbolRef.current[s.symbol],
-      iss_score: s.iss_score ?? issBySymbolRef.current[s.symbol],
     };
     const isCatchup = Boolean(s._catchup);
 
@@ -196,12 +194,6 @@ export function useSignals() {
           if (parsed.type === 'regime_update') {
             regimeBySymbolRef.current[parsed.symbol] = parsed.regime;
             setSignals(prev => prev.map(s => s.symbol === parsed.symbol ? { ...s, regime: parsed.regime } : s));
-            return;
-          }
-
-          if (parsed.type === 'session_prediction') {
-            if (parsed.iss_score != null) issBySymbolRef.current[parsed.symbol] = Number(parsed.iss_score);
-            setSignals(prev => prev.map(s => s.symbol === parsed.symbol ? { ...s, iss_score: parsed.iss_score } : s));
             return;
           }
 

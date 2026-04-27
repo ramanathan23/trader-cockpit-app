@@ -1,7 +1,6 @@
 'use client';
 
 import { memo, useEffect, useMemo, useState } from 'react';
-import type { ScoredSymbol } from '@/domain/dashboard';
 import { useLivePrices } from '@/hooks/useLivePrices';
 import { useStockList } from '@/hooks/useStockList';
 import { SymbolModal } from '@/components/dashboard/SymbolModal';
@@ -28,10 +27,6 @@ export const OverviewDashboard = memo(function OverviewDashboard({
   const symbols = useMemo(() => rankedRows.slice(0, 120).map(row => row.symbol), [rankedRows]);
   const livePrices = useLivePrices(symbols, active);
   const heatEntries = useMemo(() => buildHeatEntries(rankedRows, livePrices, signals), [rankedRows, livePrices, signals]);
-  const scored = useMemo(
-    () => rankedRows.filter(row => row.total_score != null && row.comfort_score != null) as unknown as ScoredSymbol[],
-    [rankedRows],
-  );
   const highConviction = rankedRows.filter(row => (row.total_score ?? 0) >= 75).length;
   const fnoCount = rankedRows.filter(row => row.is_fno).length;
   const bullish = rankedRows.filter(row => row.weekly_bias === 'BULLISH').length;
@@ -42,7 +37,7 @@ export const OverviewDashboard = memo(function OverviewDashboard({
       <OverviewHeader loading={list.loading} count={rankedRows.length} marketOpen={marketOpen}
         signalCount={signals.length} highConviction={highConviction} fnoCount={fnoCount}
         bullish={bullish} bearish={bearish} />
-      <OverviewCharts rows={rankedRows} heatEntries={heatEntries} scored={scored} loading={list.loading}
+      <OverviewCharts rows={rankedRows} heatEntries={heatEntries} loading={list.loading}
         signals={signals} metricsCache={metricsCache} livePrices={livePrices} onSymbol={setModalSymbol} />
       {modalSymbol && <SymbolModal symbol={modalSymbol} row={modalRow} initialTab="chart" onClose={() => setModalSymbol(null)} />}
     </div>

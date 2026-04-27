@@ -21,6 +21,19 @@ logger = logging.getLogger(__name__)
 _POOL_CONNECT_TIMEOUT = 30
 
 
+def _log_feed_task_done(task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is None:
+        logger.warning("FeedService background task stopped without an exception")
+        return
+    logger.error(
+        "FeedService background task stopped unexpectedly",
+        exc_info=(type(exc), exc, exc.__traceback__),
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -69,6 +82,7 @@ async def lifespan(app: FastAPI):
     )
 
     feed_task = asyncio.create_task(feed_service.run(), name="feed-service")
+    feed_task.add_done_callback(_log_feed_task_done)
     logger.info("LiveFeedService ready")
 
     yield

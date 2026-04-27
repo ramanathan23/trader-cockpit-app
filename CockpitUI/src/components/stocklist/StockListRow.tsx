@@ -11,7 +11,7 @@ import type { StockRow } from '@/domain/stocklist';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
 import { FlashPrice, type LivePriceData } from '@/components/ui/LivePrice';
 import { setupTier, TIER_BG_CLASS, TIER_BORDER_CLASS } from '@/lib/setupTier';
-import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
+import { SetupBehaviorBadge } from '@/components/dashboard/SetupBehaviorBadge';
 import { StockListRowActions } from './StockListRowActions';
 
 interface StockListRowProps {
@@ -68,10 +68,11 @@ export const StockListRow = memo(({ row, livePrice, isExpanded, noteCount, onTog
           : <span className="text-ghost">—</span>}
       </td>
       <td className="py-2 px-2">
-        <IntradayBadge
-          sessionType={row.session_type_pred}
-          issScore={row.iss_score}
-          pullbackPred={row.pullback_depth_pred}
+        <SetupBehaviorBadge
+          executionScore={row.execution_score}
+          executionGrade={row.execution_grade}
+          fakeoutRate={row.fakeout_rate}
+          liquidityScore={row.liquidity_score}
           compact
         />
       </td>

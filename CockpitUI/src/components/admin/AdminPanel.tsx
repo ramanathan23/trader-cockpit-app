@@ -19,15 +19,13 @@ export function AdminPanel({ initialConfigs }: AdminPanelProps) {
   const isConfig = (
     section === 'config-scorer'   ||
     section === 'config-datasync' ||
-    section === 'config-livefeed' ||
-    section === 'config-modeling'
+    section === 'config-livefeed'
   );
 
   const configData =
     section === 'config-scorer'   ? initialConfigs?.scorer   :
     section === 'config-datasync' ? initialConfigs?.datasync :
-    section === 'config-livefeed' ? initialConfigs?.livefeed :
-    section === 'config-modeling' ? initialConfigs?.modeling : null;
+    section === 'config-livefeed' ? initialConfigs?.livefeed : null;
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">

@@ -20,7 +20,6 @@ interface SignalCardProps {
 
 export const SignalCard = memo(({ signal: s, metrics: m, marketOpen, note, onSave, onChart, onOptionChain }: SignalCardProps) => {
   const color = signalColor(s.signal_type);
-  const lowIss = s.iss_score != null && s.iss_score < 40;
   return (
     <article
       className={`surface-card group relative overflow-hidden transition-colors hover:bg-lift ${s._fromCatchup ? '' : 'animate-enter pulse-new'}`}
@@ -29,19 +28,11 @@ export const SignalCard = memo(({ signal: s, metrics: m, marketOpen, note, onSav
     >
       <div className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
       <SignalCardHeader signal={s} metrics={m} marketOpen={marketOpen} />
-      {(s.regime || s.iss_score != null) && (
+      {s.regime && (
         <div className="flex items-center gap-2 px-3 pb-2">
-          {s.regime && (
-            <span className="rounded border border-border bg-base/60 px-1.5 py-0.5 text-[10px] font-black text-dim">
-              {s.regime}
-            </span>
-          )}
-          {s.iss_score != null && (
-            <span className={`num text-[10px] font-black ${lowIss ? 'text-bear' : s.iss_score >= 60 ? 'text-bull' : 'text-amber'}`}>
-              ISS {s.iss_score.toFixed(0)}
-            </span>
-          )}
-          {lowIss && <span className="text-[10px] font-black text-bear">LOW ISS</span>}
+          <span className="rounded border border-border bg-base/60 px-1.5 py-0.5 text-[10px] font-black text-dim">
+            {s.regime}
+          </span>
         </div>
       )}
       <LevelRow entry={s.entry_low} stop={s.stop} target={s.target_1} />

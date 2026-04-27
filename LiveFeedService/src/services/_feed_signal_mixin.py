@@ -62,8 +62,6 @@ class _FeedSignalMixin:
                     signal = dataclasses.replace(signal, watchlist_conflict=True)
                 if regime:
                     signal = dataclasses.replace(signal, regime=regime.regime.value)
-                if metrics.get("iss_score") is not None:
-                    signal = dataclasses.replace(signal, iss_score=float(metrics["iss_score"]))
                 self._signals_emitted += 1
                 await self._publisher.publish(signal)
                 logger.info("[SIGNAL] %s %s %s score=%.2f%s",

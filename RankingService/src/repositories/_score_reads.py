@@ -32,21 +32,18 @@ class ScoreReadMixin:
                     sm.week52_high, sm.week52_low, sm.ema_50, sm.ema_200,
                     ds.bb_squeeze, ds.squeeze_days, ds.nr7,
                     ds.adx_14, ds.rsi_14, ds.weekly_bias,
-                    COALESCE(
-                        (mp.predictions->>'comfort_score_v3')::numeric,
-                        (mp.predictions->>'comfort_score')::numeric
-                    ) AS comfort_score,
-                    (mp.predictions->>'comfort_score_v2')::numeric AS comfort_score_v2,
-                    (mp.predictions->>'comfort_score_v3')::numeric AS comfort_score_v3,
-                    mp.predictions->>'interpretation' AS comfort_interpretation,
-                    isp.session_type_pred,
-                    isp.trend_up_prob,
-                    isp.chop_prob,
-                    isp.pullback_depth_pred,
-                    sip.iss_score,
-                    sip.choppiness_idx,
-                    sip.stop_hunt_rate,
-                    sip.pullback_depth_on_up_days AS pullback_depth_hist,
+                    sbp.execution_score,
+                    sbp.execution_grade,
+                    sbp.breakout_quality_score,
+                    sbp.breakdown_quality_score,
+                    sbp.reversal_quality_score,
+                    sbp.fakeout_rate,
+                    sbp.deep_pullback_rate,
+                    sbp.avg_adverse_excursion_r,
+                    sbp.avg_pullback_depth_r,
+                    sbp.liquidity_score,
+                    sbp.avg_session_turnover_cr,
+                    sbp.setups_analyzed,
                     CASE
                         WHEN ds.is_watchlist
                              AND NOT EXISTS (
@@ -63,13 +60,8 @@ class ScoreReadMixin:
                 FROM daily_scores ds
                 JOIN symbols s ON s.symbol = ds.symbol
                 LEFT JOIN symbol_metrics sm ON sm.symbol = ds.symbol
-                LEFT JOIN model_predictions mp ON mp.symbol = ds.symbol
-                    AND mp.model_name = 'comfort_scorer'
-                    AND mp.prediction_date = ds.score_date
-                LEFT JOIN intraday_session_predictions isp
-                    ON isp.symbol = ds.symbol AND isp.prediction_date = ds.score_date
-                LEFT JOIN symbol_intraday_profile sip
-                    ON sip.symbol = ds.symbol
+                LEFT JOIN symbol_setup_behavior_profile sbp
+                    ON sbp.symbol = ds.symbol
                 WHERE {date_clause}
                 {watchlist_clause}
                 {fno_clause}
@@ -96,13 +88,15 @@ class ScoreReadMixin:
                     ROUND(MIN(ds.total_score), 2)                 AS min_score,
                     COUNT(*) FILTER (WHERE ds.total_score >= 70)  AS high_conviction,
                     COUNT(*) FILTER (WHERE ds.total_score >= 50)  AS above_average,
-                    ROUND(AVG(sip.iss_score), 2)                 AS avg_iss_score,
-                    COUNT(*) FILTER (WHERE ds.is_watchlist AND sip.iss_score < 40)
-                                                                  AS low_iss_watchlist_count,
+                    ROUND(AVG(sbp.execution_score), 2)           AS avg_execution_score,
+                    COUNT(*) FILTER (
+                        WHERE ds.is_watchlist
+                          AND COALESCE(sbp.execution_score, 0) < 45
+                    )                                             AS low_execution_watchlist_count,
                     MAX(ds.score_date)                            AS score_date,
                     MAX(ds.computed_at)                           AS computed_at
                 FROM daily_scores ds
-                LEFT JOIN symbol_intraday_profile sip ON sip.symbol = ds.symbol
+                LEFT JOIN symbol_setup_behavior_profile sbp ON sbp.symbol = ds.symbol
                 WHERE {date_clause}
             """, *params)
         return dict(row) if row else {}

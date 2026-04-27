@@ -8,8 +8,7 @@ export type AdminSection =
   | 'token'
   | 'config-scorer'
   | 'config-datasync'
-  | 'config-livefeed'
-  | 'config-modeling';
+  | 'config-livefeed';
 
 export interface NavItem {
   key: AdminSection;
@@ -64,5 +63,4 @@ export type InitialConfigs = {
   scorer:   Record<string, unknown> | null;
   datasync: Record<string, unknown> | null;
   livefeed: Record<string, unknown> | null;
-  modeling: Record<string, unknown> | null;
 };

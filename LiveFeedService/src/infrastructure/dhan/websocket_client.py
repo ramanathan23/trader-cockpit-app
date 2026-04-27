@@ -9,7 +9,7 @@ _QUEUE_MAXSIZE = 100_000
 
 
 class DhanWebSocketClient:
-    """Wraps dhanhq.marketfeed.DhanFeed for a single WebSocket connection."""
+    """Wraps dhanhq.MarketFeed for a single WebSocket connection."""
 
     def __init__(
         self,

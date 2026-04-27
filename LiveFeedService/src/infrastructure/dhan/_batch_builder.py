@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable
 
-from dhanhq import marketfeed as mf
+from dhanhq import MarketFeed
 
 from ...domain.instrument_meta import InstrumentMeta
 from .websocket_client import DhanWebSocketClient
@@ -11,20 +11,27 @@ from .websocket_client import DhanWebSocketClient
 logger = logging.getLogger(__name__)
 
 
-def _to_dhan_instrument(meta: InstrumentMeta) -> tuple[str, str, int]:
-    return (_normalise_exchange_segment(meta), str(meta.dhan_security_id), mf.Quote)
+def _to_dhan_instrument(meta: InstrumentMeta) -> tuple[int | str, str, int]:
+    return (_normalise_exchange_segment(meta), str(meta.dhan_security_id), MarketFeed.Quote)
 
 
-def _normalise_exchange_segment(meta: InstrumentMeta) -> str:
+def _normalise_exchange_segment(meta: InstrumentMeta) -> int | str:
     segment = meta.exchange_segment.strip().upper()
-    if segment in {"NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO", "IDX_I"}:
-        return segment
+    known_segments = {
+        "NSE_EQ": MarketFeed.NSE,
+        "NSE_FNO": MarketFeed.NSE_FNO,
+        "BSE_EQ": MarketFeed.BSE,
+        "BSE_FNO": MarketFeed.BSE_FNO,
+        "IDX_I": MarketFeed.IDX,
+    }
+    if segment in known_segments:
+        return known_segments[segment]
     if segment == "E":
-        return "NSE_EQ"
+        return MarketFeed.NSE
     if segment == "D":
         if meta.is_index_future and meta.underlying == "SENSEX":
-            return "BSE_FNO"
-        return "NSE_FNO"
+            return MarketFeed.BSE_FNO
+        return MarketFeed.NSE_FNO
     logger.warning(
         "Unknown exchange segment '%s' for %s; passing through unchanged",
         meta.exchange_segment, meta.symbol,

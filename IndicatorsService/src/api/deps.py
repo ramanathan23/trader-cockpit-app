@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from ..services.indicators_service import IndicatorsService
-from ..services.intraday_profile_service import IntradayProfileService
+from ..services.setup_behavior_service import SetupBehaviorService
 
 
 def _get_service(request: Request) -> IndicatorsService:
@@ -13,8 +13,8 @@ def _get_service(request: Request) -> IndicatorsService:
 IndicatorsServiceDep = Annotated[IndicatorsService, Depends(_get_service)]
 
 
-def _get_intraday_service(request: Request) -> IntradayProfileService:
-    return request.app.state.intraday_profile_service
+def _get_setup_behavior_service(request: Request) -> SetupBehaviorService:
+    return request.app.state.setup_behavior_service
 
 
-IntradayProfileServiceDep = Annotated[IntradayProfileService, Depends(_get_intraday_service)]
+SetupBehaviorServiceDep = Annotated[SetupBehaviorService, Depends(_get_setup_behavior_service)]

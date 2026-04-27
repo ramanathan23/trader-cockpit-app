@@ -10,7 +10,7 @@ export const STOCK_COLS: ColDef[] = [
   { key: 'symbol',         label: 'Symbol',align: 'left'  },
   { key: 'stage',          label: 'Stage', align: 'left'  },
   { key: 'total_score',    label: 'Score', title: 'Composite score 0–100', align: 'right' },
-  { key: 'iss_score',      label: 'Intraday', title: 'Session prediction and Intraday Suitability Score', align: 'left' },
+  { key: 'execution_score',label: 'Execution', title: 'Historical setup obedience and liquidity quality', align: 'left' },
   { key: 'display_price',  label: 'Price', align: 'right' },
   { key: 'week_return_pct',label: 'Wk%',  title: 'Week return %', align: 'right' },
   { key: 'rsi_14',         label: 'RSI',  title: 'RSI(14)', align: 'right' },

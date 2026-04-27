@@ -7,7 +7,6 @@ export type InitialConfigs = {
   scorer:   Record<string, unknown> | null;
   datasync: Record<string, unknown> | null;
   livefeed: Record<string, unknown> | null;
-  modeling: Record<string, unknown> | null;
 };
 
 export const OPEN_PHASES = new Set<MarketPhase>(['DRIVE_WINDOW', 'EXECUTION', 'CLOSE_MOMENTUM']);

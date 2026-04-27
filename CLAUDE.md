@@ -14,9 +14,7 @@
 | DataSyncService | 8001 | Python 3.12, FastAPI, yfinance, dhanhq | OHLCV fetch + persist |
 | RankingService | 8002 | Python 3.12, FastAPI, pandas | Rankings, scoring, watchlist, dashboard |
 | LiveFeedService | 8003 | Python 3.12, FastAPI, dhanhq WS | Real-time tick feed + SSE + intraday signals |
-| ModelingService | 8004 | Python 3.12, FastAPI, sklearn | ML model registry |
 | IndicatorsService | 8005 | Python 3.12, FastAPI, pandas-ta | All metrics, indicators, pattern detection |
-| notebooks | 8888 | Jupyter + Python 3.12 | Research/backtesting |
 
 ### Shared Infra
 - **DB**: External TimescaleDB/PostgreSQL via `POSTGRES_HOST:POSTGRES_PORT`
@@ -38,11 +36,8 @@ IndicatorsService (8005) — reads price_data_daily → writes symbol_metrics, s
       ↓
 RankingService (8002) — reads symbol_indicators → writes daily_scores
 LiveFeedService (8003) — WS ticks → 5-min candles → signal engine + regime detector → SSE to UI
-ModelingService (8004) — reads daily_scores → ComfortScorer v2 → model_predictions
-                       — reads daily_scores + symbol_intraday_profile → SessionClassifier + PullbackRegressor
-                         → intraday_session_predictions + comfort_v3 in model_predictions
       ↓
-CockpitUI (3000) — dashboard shows: daily scores + ISS + session_type_pred + comfort_v3
+CockpitUI (3000) — dashboard shows: daily scores + execution/setup behavior profile
                  — signal tape shows: live signals + regime badge (TRENDING_UP/CHOPPY/SQUEEZE)
 ```
 
@@ -57,9 +52,6 @@ CockpitUI (3000) — dashboard shows: daily scores + ISS + session_type_pred + c
 - `symbol_patterns` — VCP + rectangle breakout detection (owned by IndicatorsService)
 - `symbol_intraday_profile` — ISS + intraday features from 90d 1-min: choppiness, stop_hunt_rate, orb_followthrough, pullback_depth, volatility_compression, iss_score (owned by IndicatorsService)
 - `daily_scores` — composite scores + rank + watchlist flag (owned by RankingService)
-- `intraday_training_sessions` — labeled sessions from 5yr daily for ML training (owned by ModelingService)
-- `intraday_session_predictions` — next-session type predictions + pullback depth pred (owned by ModelingService)
-- `model_predictions` — comfort_v2 + comfort_v3 + session predictions JSON (owned by ModelingService)
 - `sync_state` — per-symbol last sync + status (owned by DataSyncService)
 
 ---
@@ -69,19 +61,10 @@ CockpitUI (3000) — dashboard shows: daily scores + ISS + session_type_pred + c
 - Component weights (equal 25%): Momentum, Trend, Volatility, Structure
 - Watchlist: top 25 per segment (FNO/equity) per stage (STAGE_2/STAGE_4)
 
-## INTRADAY ML SYSTEM
-- ISS (Intraday Suitability Score) — computed by IndicatorsService from price_data_1min (90d rolling)
-  - Features: choppiness_idx, stop_hunt_rate, orb_followthrough_rate, opening_drive_rate, pullback_depth_on_up_days, volatility_compression_ratio, trend_autocorr
-  - Range: 0-100 (higher = better intraday vehicle)
-- SessionClassifier — LightGBM multiclass, 18 features, trained on 5yr daily data (~625k sessions)
-  - Predicts: TREND_UP / TREND_DOWN / CHOP / VOLATILE / GAP_FADE / NEUTRAL for next session
-  - Model artifact: ModelingService/models/session_classifier/lgbm_session_classifier.pkl
-- PullbackRegressor — LightGBM regression, same features, predicts pullback depth (0-1) on up days
-  - Model artifact: ModelingService/models/session_classifier/lgbm_pullback_regressor.pkl
-- ComfortScore v3 — comfort_v2 adjusted by ISS penalty + pullback penalty + session modifier
-- RegimeDetector — rule-based, runs in LiveFeedService on 20-bar rolling window of live 5-min candles
-  - States: TRENDING_UP / TRENDING_DOWN / CHOPPY / SQUEEZE / NEUTRAL
-  - Pushed via SSE as `regime_update` events every 5 min
+## REGIME DETECTOR
+- Rule-based, runs in LiveFeedService on 20-bar rolling window of live 5-min candles
+- States: TRENDING_UP / TRENDING_DOWN / CHOPPY / SQUEEZE / NEUTRAL
+- Pushed via SSE as `regime_update` events every 5 min
 
 ---
 
@@ -130,7 +113,6 @@ make sync                 # trigger DataSync
 make sync-1min            # 1-min fetch
 make scores-compute       # score all symbols
 make scores-dashboard     # top ranked
-make comfort-score        # ComfortScorer predict
 make test-python          # all pytest
 make coverage-python      # combined coverage
 make ui                   # open dashboard (Windows)
@@ -154,7 +136,6 @@ make ui                   # open dashboard (Windows)
 - Each service independently deployable
 - New features: add endpoint to relevant service, reuse shared lib
 - Schema changes: update `infra/db/init.sql` + run migration
-- Model changes: go through ModelingService registry, not direct DB writes
 - UI data: fetched from service APIs (no direct DB from UI)
 
 ---

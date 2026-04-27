@@ -7,7 +7,7 @@ from .config import settings
 from .db.connection import create_pool, run_migrations
 from .api.routes import router
 from .services.indicators_service import IndicatorsService
-from .services.intraday_profile_service import IntradayProfileService
+from .services.setup_behavior_service import SetupBehaviorService
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     await run_migrations(pool)
     app.state.pool = pool
     app.state.indicators_service = IndicatorsService(pool)
-    app.state.intraday_profile_service = IntradayProfileService(pool)
+    app.state.setup_behavior_service = SetupBehaviorService(pool)
     logger.info("IndicatorsService ready")
     yield
     await pool.close()

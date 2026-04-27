@@ -42,7 +42,6 @@ class Signal:
     message:             str = ""
     watchlist_conflict:  bool = False
     regime:              Optional[str] = None
-    iss_score:           Optional[float] = None
 
     def to_dict(self) -> dict:
         return {
@@ -68,5 +67,4 @@ class Signal:
             "message":             self.message,
             "watchlist_conflict":  self.watchlist_conflict,
             "regime":              self.regime,
-            "iss_score":           round(self.iss_score, 2) if self.iss_score is not None else None,
         }

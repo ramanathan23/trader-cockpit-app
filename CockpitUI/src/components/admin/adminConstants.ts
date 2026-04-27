@@ -8,7 +8,6 @@ export const NAV: NavItem[] = [
   { key: 'config-scorer',   label: 'Ranking',    caption: 'Scoring params',    group: 'Config' },
   { key: 'config-datasync', label: 'Data Sync',  caption: 'Sync params',       group: 'Config' },
   { key: 'config-livefeed', label: 'Live Feed',  caption: 'Signal thresholds', group: 'Config' },
-  { key: 'config-modeling', label: 'Modeling',   caption: 'Model params',       group: 'Config' },
 ];
 
 export const PIPELINE_STEPS = [
@@ -16,19 +15,16 @@ export const PIPELINE_STEPS = [
   { key: 'sync-daily',  label: 'Sync Daily Data',   endpoint: '/datasync/sync/run-sse',       method: 'POST' },
   { key: 'sync-1min',   label: 'Sync 1-Min Data',   endpoint: '/datasync/sync/run-1min-sse',  method: 'POST' },
   { key: 'indicators',  label: 'Compute Indicators', endpoint: '/indicators/compute-sse',      method: 'POST' },
-  { key: 'intraday',    label: 'Compute ISS',         endpoint: '/indicators/compute-intraday-profile-sse', method: 'POST' },
+  { key: 'behavior',    label: 'Setup Behavior',      endpoint: '/indicators/compute-setup-behavior-sse', method: 'POST' },
   { key: 'scores',      label: 'Compute Rankings',   endpoint: '/scorer/scores/compute-sse',   method: 'POST' },
-  { key: 'models',      label: 'Comfort Models',      endpoint: '/modeling/models',              method: 'GET'  },
-  { key: 'session',     label: 'Session Model',       endpoint: '/modeling/models/session_classifier/pipeline-sse?force_retrain=true&evaluate=true', method: 'POST' },
 ] as const;
 
 export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
   'config-scorer': {
     id: 'scorer', name: 'Ranking', endpoint: ADMIN_CONFIG.SCORER,
     fields: [
-      { key: 'score_concurrency',      label: 'Parallel scoring workers',  type: 'int',   min: 1, max: 50 },
-      { key: 'min_adv_crores',         label: 'Min ADV (₹Cr)',             type: 'float', min: 0, max: 100, step: 0.5 },
-      { key: 'enable_comfort_scoring', label: 'Enable ML comfort scoring', type: 'bool' },
+      { key: 'score_concurrency', label: 'Parallel scoring workers', type: 'int',   min: 1, max: 50 },
+      { key: 'min_adv_crores',    label: 'Min ADV (₹Cr)',            type: 'float', min: 0, max: 100, step: 0.5 },
     ],
   },
   'config-datasync': {
@@ -61,20 +57,6 @@ export const SERVICE_CONFIGS: Record<string, ServiceConfigDef> = {
       { key: 'dhan_reconnect_delay_s',     label: 'WS reconnect delay (s)',     type: 'float', min: 1,  max: 60,   group: 'Feed',     step: 0.5 },
       { key: 'candle_write_batch_size',    label: 'Candle write batch',         type: 'int',   min: 10, max: 1000, group: 'Feed' },
       { key: 'candle_write_flush_s',       label: 'Candle flush interval (s)',  type: 'float', min: 1,  max: 30,   group: 'Feed',     step: 0.5 },
-    ],
-  },
-  'config-modeling': {
-    id: 'modeling', name: 'Modeling', endpoint: ADMIN_CONFIG.MODELING,
-    fields: [
-      { key: 'auto_retrain_enabled',                   label: 'Auto-retrain enabled',     type: 'bool' },
-      { key: 'max_model_age_days',                     label: 'Max model age (days)',      type: 'int',   min: 1,   max: 365 },
-      { key: 'training_concurrency',                   label: 'Training concurrency',     type: 'int',   min: 1,   max: 8 },
-      { key: 'score_concurrency',                      label: 'Scoring concurrency',      type: 'int',   min: 1,   max: 100 },
-      { key: 'comfort_scorer_retrain_threshold_rmse',  label: 'RMSE retrain threshold',   type: 'float', min: 0,   max: 50,     group: 'Comfort Scorer', step: 0.5 },
-      { key: 'comfort_scorer_shadow_days',             label: 'Shadow transition days',   type: 'int',   min: 1,   max: 30,     group: 'Comfort Scorer' },
-      { key: 'comfort_scorer_min_train_samples',       label: 'Min training samples',     type: 'int',   min: 100, max: 500000, group: 'Comfort Scorer' },
-      { key: 'regime_classifier_cache_ttl',            label: 'Regime cache TTL (s)',     type: 'int',   min: 30,  max: 3600,   group: 'Regime Classifier' },
-      { key: 'pattern_detector_confidence_threshold',  label: 'Pattern confidence',       type: 'float', min: 0,   max: 1,      group: 'Pattern Detector', step: 0.05 },
     ],
   },
 };

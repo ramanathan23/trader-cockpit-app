@@ -4,13 +4,13 @@ import { memo } from 'react';
 import { BarChart2, Link2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { fmt2, fmtAdv } from '@/lib/fmt';
-import { rsiColor, comfortColor } from '@/lib/scoreColors';
+import { rsiColor } from '@/lib/scoreColors';
 import { screenerF52hColor, screenerPctText } from '@/lib/screenerDisplay';
 import { setupTier, TIER_LABEL, TIER_TEXT_CLASS } from '@/lib/setupTier';
 import type { StockRow } from '@/domain/stocklist';
 import type { NoteEntry } from '@/hooks/useNotes';
 import type { SymbolModalTab } from '@/components/dashboard/SymbolModal';
-import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
+import { SetupBehaviorBadge } from '@/components/dashboard/SetupBehaviorBadge';
 import { COL_SPAN } from './stocklistTypes';
 import { StockListScorePanel } from './StockListScorePanel';
 import { StockListLevels } from './StockListLevels';
@@ -46,8 +46,9 @@ export const StockListExpandedRow = memo(({ row, entries, onAdd, onDelete, onOpe
     { label: 'ATR', value: `Rs ${fmt2(row.atr_14)}`, color: 'rgb(var(--dim))' },
     { label: 'ADV', value: fmtAdv(row.adv_20_cr), color: 'rgb(var(--dim))' },
     { label: '52W Gap', value: screenerPctText(row.f52h, true), color: screenerF52hColor(row.f52h) },
-    ...(row.iss_score != null ? [{ label: 'ISS', value: fmt2(row.iss_score), color: row.iss_score >= 60 ? 'rgb(var(--bull))' : row.iss_score >= 40 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
-    ...(row.comfort_score != null ? [{ label: 'Comfort', value: fmt2(row.comfort_score), color: comfortColor(row.comfort_score) }] : []),
+    ...(row.execution_score != null ? [{ label: 'Execution', value: fmt2(row.execution_score), color: row.execution_score >= 70 ? 'rgb(var(--bull))' : row.execution_score >= 52 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
+    ...(row.fakeout_rate != null ? [{ label: 'Fakeout', value: `${(row.fakeout_rate * 100).toFixed(0)}%`, color: row.fakeout_rate <= 0.25 ? 'rgb(var(--bull))' : row.fakeout_rate <= 0.45 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
+    ...(row.liquidity_score != null ? [{ label: 'Liquidity', value: fmt2(row.liquidity_score), color: row.liquidity_score >= 70 ? 'rgb(var(--bull))' : row.liquidity_score >= 45 ? 'rgb(var(--amber))' : 'rgb(var(--violet))' }] : []),
   ];
 
   return (
@@ -68,11 +69,11 @@ export const StockListExpandedRow = memo(({ row, entries, onAdd, onDelete, onOpe
             {row.bb_squeeze && <Badge color="amber">BB SQZ{row.squeeze_days != null ? ` ${row.squeeze_days}d` : ''}</Badge>}
             {row.nr7 && <Badge color="ghost">NR7</Badge>}
             {row.consolidation_days != null && <Badge color="dim">{row.consolidation_days}d consol</Badge>}
-            {row.comfort_interpretation && <span className="min-w-[180px] flex-1 text-[11px] italic text-ghost">{row.comfort_interpretation}</span>}
-            <IntradayBadge
-              sessionType={row.session_type_pred}
-              issScore={row.iss_score}
-              pullbackPred={row.pullback_depth_pred}
+            <SetupBehaviorBadge
+              executionScore={row.execution_score}
+              executionGrade={row.execution_grade}
+              fakeoutRate={row.fakeout_rate}
+              liquidityScore={row.liquidity_score}
             />
           </div>
           <div className="flex shrink-0 gap-1.5">

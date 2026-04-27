@@ -49,9 +49,6 @@ export const StockListScorePanel = memo(({ row }: ScorePanelProps) => {
         <ScoreBar value={row.trend_score ?? 0} color="bull" label="TRD" />
         <ScoreBar value={row.volatility_score ?? 0} color="amber" label="VOL" />
         <ScoreBar value={row.structure_score ?? 0} color="sky" label="STR" />
-        {row.comfort_score != null && (
-          <ScoreBar value={row.comfort_score} color="violet" label="CMF" />
-        )}
       </div>
     </div>
   );

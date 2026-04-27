@@ -13,7 +13,23 @@
       "Bash(python -c \"from src.infrastructure.redis._cluster_filter import cluster_check_signal; from src.domain.signal import Signal; print\\('imports OK'\\)\")",
       "Bash(make up *)",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(curl -s http://localhost:8004/api/v1/models)",
+      "Bash(curl -s -X POST http://localhost:8004/api/v1/models/comfort_scorer/build-training-data)",
+      "Bash(docker compose *)",
+      "Bash(curl -s -N -X POST \"http://localhost:8004/api/v1/models/comfort_scorer/pipeline-sse?force_retrain=true&lookback_years=5\")",
+      "Bash(curl -s -X POST \"http://localhost:8004/api/v1/models/comfort_scorer/build-training-data?lookback_years=5\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(curl -s -X POST \"http://localhost:8004/api/v1/models/comfort_scorer/build-training-data?lookback_years=5\" --max-time 600)",
+      "Bash(curl -s -X POST \"http://localhost:8004/api/v1/models/comfort_scorer/train\" --max-time 600)",
+      "Bash(curl -sf http://localhost:8004/api/v1/models)",
+      "Bash(docker exec *)",
+      "Bash(curl -s -X POST http://localhost:8004/api/v1/models/comfort_scorer/train)",
+      "Bash(curl -sf \"http://localhost:8004/api/v1/models/comfort_scorer/train/status\")",
+      "Bash(curl -s http://localhost:8004/api/v1/models/comfort_scorer/train/status)",
+      "Bash(git rm *)",
+      "Bash(git status *)",
+      "Bash(ls ModelingService/)"
     ],
     "defaultMode": "bypassPermissions"
   }

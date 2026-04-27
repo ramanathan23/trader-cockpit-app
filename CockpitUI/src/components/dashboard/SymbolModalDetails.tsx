@@ -3,14 +3,14 @@
 import { memo } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { fmt2, fmtAdv } from '@/lib/fmt';
-import { rsiColor, comfortColor } from '@/lib/scoreColors';
+import { rsiColor } from '@/lib/scoreColors';
 import { screenerF52hColor, screenerPctText, screenerStageColor, screenerStageLabel } from '@/lib/screenerDisplay';
 import type { StockRow } from '@/domain/stocklist';
 import type { NoteEntry } from '@/hooks/useNotes';
 import { StockListScorePanel } from '@/components/stocklist/StockListScorePanel';
 import { StockListLevels } from '@/components/stocklist/StockListLevels';
 import { StockListNoteSection } from '@/components/stocklist/StockListNoteSection';
-import { IntradayBadge } from './IntradayBadge';
+import { SetupBehaviorBadge } from './SetupBehaviorBadge';
 
 interface DetailsProps {
   symbol:    string;
@@ -46,13 +46,11 @@ export const SymbolModalDetails = memo(({ symbol, row, entries, onAdd, onDelete 
             {row.weekly_bias}
           </Badge>
         )}
-        {row.comfort_interpretation && (
-          <span className="text-[11px] text-dim">{row.comfort_interpretation}</span>
-        )}
-        <IntradayBadge
-          sessionType={row.session_type_pred}
-          issScore={row.iss_score}
-          pullbackPred={row.pullback_depth_pred}
+        <SetupBehaviorBadge
+          executionScore={row.execution_score}
+          executionGrade={row.execution_grade}
+          fakeoutRate={row.fakeout_rate}
+          liquidityScore={row.liquidity_score}
         />
       </div>
 
@@ -64,8 +62,8 @@ export const SymbolModalDetails = memo(({ symbol, row, entries, onAdd, onDelete 
           { label: 'ATR',     value: fmt2(row.atr_14), color: 'rgb(var(--dim))' },
           { label: 'ADV',     value: fmtAdv(row.adv_20_cr), color: 'rgb(var(--dim))' },
           { label: 'S2H%',    value: screenerPctText(row.f52h, true), color: screenerF52hColor(row.f52h) },
-          ...(row.iss_score != null ? [{ label: 'ISS', value: fmt2(row.iss_score), color: row.iss_score >= 60 ? 'rgb(var(--bull))' : row.iss_score >= 40 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
-          ...(row.comfort_score != null ? [{ label: 'COMFORT', value: fmt2(row.comfort_score), color: comfortColor(row.comfort_score) }] : []),
+          ...(row.execution_score != null ? [{ label: 'EXEC', value: fmt2(row.execution_score), color: row.execution_score >= 70 ? 'rgb(var(--bull))' : row.execution_score >= 52 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
+          ...(row.fakeout_rate != null ? [{ label: 'FAKEOUT', value: `${(row.fakeout_rate * 100).toFixed(0)}%`, color: row.fakeout_rate <= 0.25 ? 'rgb(var(--bull))' : row.fakeout_rate <= 0.45 ? 'rgb(var(--amber))' : 'rgb(var(--bear))' }] : []),
           { label: 'PRICE',   value: fmt2(row.display_price ?? row.prev_day_close), color: 'rgb(var(--fg))' },
         ].map(m => (
           <div key={m.label} className="flex flex-col rounded-md border border-border/50 bg-card/60 px-3 py-2">

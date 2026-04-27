@@ -29,7 +29,6 @@ export interface Signal {
   trail_stop?: number;
   watchlist_conflict?: boolean;
   regime?: Regime;
-  iss_score?: number;
   _count: number;
   _dedupKey?: string;
   _fromCatchup?: boolean;

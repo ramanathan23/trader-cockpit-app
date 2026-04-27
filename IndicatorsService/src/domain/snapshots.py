@@ -61,14 +61,27 @@ class PatternSnapshot:
 
 
 @dataclass(frozen=True)
-class IntradayProfileSnapshot:
+class SetupBehaviorProfileSnapshot:
     symbol: str
     sessions_analyzed: int = 0
-    choppiness_idx: float | None = None
-    stop_hunt_rate: float | None = None
-    orb_followthrough_rate: float | None = None
-    opening_drive_rate: float | None = None
-    pullback_depth_on_up_days: float | None = None
-    volatility_compression_ratio: float | None = None
-    trend_autocorr: float | None = None
-    iss_score: float | None = None
+    setups_analyzed: int = 0
+    breakout_attempts: int = 0
+    breakdown_attempts: int = 0
+    reversal_attempts: int = 0
+    breakout_success_rate: float | None = None
+    breakdown_success_rate: float | None = None
+    reversal_success_rate: float | None = None
+    fakeout_rate: float | None = None
+    deep_pullback_rate: float | None = None
+    avg_adverse_excursion_r: float | None = None
+    avg_pullback_depth_r: float | None = None
+    avg_time_to_1r_bars: float | None = None
+    trend_efficiency: float | None = None
+    vwap_hold_rate: float | None = None
+    avg_session_turnover_cr: float | None = None
+    liquidity_score: float | None = None
+    breakout_quality_score: float | None = None
+    breakdown_quality_score: float | None = None
+    reversal_quality_score: float | None = None
+    execution_score: float | None = None
+    execution_grade: str = "NA"

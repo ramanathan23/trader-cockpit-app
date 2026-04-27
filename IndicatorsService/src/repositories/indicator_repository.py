@@ -2,9 +2,9 @@ import asyncpg
 
 from ..domain.snapshots import (
     IndicatorSnapshot,
-    IntradayProfileSnapshot,
     MetricsSnapshot,
     PatternSnapshot,
+    SetupBehaviorProfileSnapshot,
 )
 
 
@@ -155,68 +155,94 @@ class IndicatorRepository:
             """, records)
         return len(records)
 
-    async def upsert_intraday_profiles_batch(self, snapshots: list[IntradayProfileSnapshot]) -> int:
+    async def upsert_setup_behavior_profiles_batch(self, snapshots: list[SetupBehaviorProfileSnapshot]) -> int:
         if not snapshots:
             return 0
         records = [
             (
-                s.symbol, s.sessions_analyzed, s.choppiness_idx, s.stop_hunt_rate,
-                s.orb_followthrough_rate, s.opening_drive_rate,
-                s.pullback_depth_on_up_days, s.volatility_compression_ratio,
-                s.trend_autocorr, s.iss_score,
+                s.symbol, s.sessions_analyzed, s.setups_analyzed,
+                s.breakout_attempts, s.breakdown_attempts, s.reversal_attempts,
+                s.breakout_success_rate, s.breakdown_success_rate, s.reversal_success_rate,
+                s.fakeout_rate, s.deep_pullback_rate,
+                s.avg_adverse_excursion_r, s.avg_pullback_depth_r, s.avg_time_to_1r_bars,
+                s.trend_efficiency, s.vwap_hold_rate,
+                s.avg_session_turnover_cr, s.liquidity_score,
+                s.breakout_quality_score, s.breakdown_quality_score,
+                s.reversal_quality_score, s.execution_score, s.execution_grade,
             )
             for s in snapshots
         ]
         async with self._pool.acquire() as conn:
             await conn.executemany("""
-                INSERT INTO symbol_intraday_profile (
-                    symbol, computed_at, sessions_analyzed, choppiness_idx,
-                    stop_hunt_rate, orb_followthrough_rate, opening_drive_rate,
-                    pullback_depth_on_up_days, volatility_compression_ratio,
-                    trend_autocorr, iss_score
+                INSERT INTO symbol_setup_behavior_profile (
+                    symbol, computed_at, sessions_analyzed, setups_analyzed,
+                    breakout_attempts, breakdown_attempts, reversal_attempts,
+                    breakout_success_rate, breakdown_success_rate, reversal_success_rate,
+                    fakeout_rate, deep_pullback_rate,
+                    avg_adverse_excursion_r, avg_pullback_depth_r, avg_time_to_1r_bars,
+                    trend_efficiency, vwap_hold_rate,
+                    avg_session_turnover_cr, liquidity_score,
+                    breakout_quality_score, breakdown_quality_score,
+                    reversal_quality_score, execution_score, execution_grade
                 ) VALUES (
-                    $1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10
+                    $1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9,
+                    $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                    $19, $20, $21, $22, $23
                 )
                 ON CONFLICT (symbol) DO UPDATE SET
-                    computed_at                  = NOW(),
-                    sessions_analyzed            = EXCLUDED.sessions_analyzed,
-                    choppiness_idx               = EXCLUDED.choppiness_idx,
-                    stop_hunt_rate               = EXCLUDED.stop_hunt_rate,
-                    orb_followthrough_rate       = EXCLUDED.orb_followthrough_rate,
-                    opening_drive_rate           = EXCLUDED.opening_drive_rate,
-                    pullback_depth_on_up_days    = EXCLUDED.pullback_depth_on_up_days,
-                    volatility_compression_ratio = EXCLUDED.volatility_compression_ratio,
-                    trend_autocorr               = EXCLUDED.trend_autocorr,
-                    iss_score                    = EXCLUDED.iss_score
+                    computed_at                = NOW(),
+                    sessions_analyzed          = EXCLUDED.sessions_analyzed,
+                    setups_analyzed            = EXCLUDED.setups_analyzed,
+                    breakout_attempts          = EXCLUDED.breakout_attempts,
+                    breakdown_attempts         = EXCLUDED.breakdown_attempts,
+                    reversal_attempts          = EXCLUDED.reversal_attempts,
+                    breakout_success_rate      = EXCLUDED.breakout_success_rate,
+                    breakdown_success_rate     = EXCLUDED.breakdown_success_rate,
+                    reversal_success_rate      = EXCLUDED.reversal_success_rate,
+                    fakeout_rate               = EXCLUDED.fakeout_rate,
+                    deep_pullback_rate         = EXCLUDED.deep_pullback_rate,
+                    avg_adverse_excursion_r    = EXCLUDED.avg_adverse_excursion_r,
+                    avg_pullback_depth_r       = EXCLUDED.avg_pullback_depth_r,
+                    avg_time_to_1r_bars        = EXCLUDED.avg_time_to_1r_bars,
+                    trend_efficiency           = EXCLUDED.trend_efficiency,
+                    vwap_hold_rate             = EXCLUDED.vwap_hold_rate,
+                    avg_session_turnover_cr    = EXCLUDED.avg_session_turnover_cr,
+                    liquidity_score            = EXCLUDED.liquidity_score,
+                    breakout_quality_score     = EXCLUDED.breakout_quality_score,
+                    breakdown_quality_score    = EXCLUDED.breakdown_quality_score,
+                    reversal_quality_score     = EXCLUDED.reversal_quality_score,
+                    execution_score            = EXCLUDED.execution_score,
+                    execution_grade            = EXCLUDED.execution_grade
             """, records)
         return len(records)
 
-    async def fetch_intraday_profile(self, symbol: str) -> dict | None:
+    async def fetch_setup_behavior_profile(self, symbol: str) -> dict | None:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow("""
-                SELECT symbol, computed_at, sessions_analyzed, choppiness_idx,
-                       stop_hunt_rate, orb_followthrough_rate, opening_drive_rate,
-                       pullback_depth_on_up_days, volatility_compression_ratio,
-                       trend_autocorr, iss_score
-                FROM symbol_intraday_profile
+                SELECT *
+                FROM symbol_setup_behavior_profile
                 WHERE symbol = $1
             """, symbol)
         if not row:
             return None
         out = dict(row)
         for key, value in list(out.items()):
-            if key != "computed_at" and value is not None:
-                out[key] = float(value) if key != "sessions_analyzed" else int(value)
+            if key in {"computed_at", "symbol", "execution_grade"} or value is None:
+                continue
+            if key.endswith("_attempts") or key in {"sessions_analyzed", "setups_analyzed"}:
+                out[key] = int(value)
+            else:
+                out[key] = float(value)
         if out.get("computed_at") is not None:
             out["computed_at"] = out["computed_at"].isoformat()
         return out
 
-    async def delete_intraday_profiles(self, symbols: list[str]) -> int:
+    async def delete_setup_behavior_profiles(self, symbols: list[str]) -> int:
         if not symbols:
             return 0
         async with self._pool.acquire() as conn:
             result = await conn.execute("""
-                DELETE FROM symbol_intraday_profile
+                DELETE FROM symbol_setup_behavior_profile
                 WHERE symbol = ANY($1::text[])
             """, symbols)
         return int(result.split()[-1]) if result.startswith("DELETE ") else 0

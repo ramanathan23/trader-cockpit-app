@@ -17,7 +17,7 @@ export function SectionHeader({ title, caption }: { title: string; caption: stri
 
 /**
  * Renders the full pipeline runner: parallel sync → sequential
- * indicators/ISS/scores/models, with a live workflow graph.
+ * indicators/setup behavior/scores, with a live workflow graph.
  */
 export function FullSyncPane() {
   const { states, tick, anyRunning, allDone, anyError, runPipeline } = useFullSync();
@@ -35,7 +35,7 @@ export function FullSyncPane() {
     <div>
       <SectionHeader
         title="Full Pipeline"
-        caption="Sync runs in parallel. Indicators → ISS → rankings → models run sequentially after."
+        caption="Sync runs in parallel. Indicators, setup behavior, rankings, and models run sequentially after."
       />
       <div className="mb-10 flex items-center gap-4">
         <button
@@ -70,14 +70,11 @@ export function FullSyncPane() {
         <MergeConnector />
         {node('indicators', 3)}
         <VLine />
-        {node('intraday', 4)}
+        {node('behavior', 4)}
         <VLine />
         {node('scores', 5)}
-        <VLine />
-        {node('models', 6)}
-        <VLine />
-        {node('session', 7)}
       </div>
     </div>
   );
 }
+

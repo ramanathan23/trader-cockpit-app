@@ -4,7 +4,7 @@ import type { Signal } from '@/domain/signal';
 import type { StockRow } from '@/domain/stocklist';
 import type { LivePriceData } from '@/components/ui/LivePrice';
 import { fmt2 } from '@/lib/fmt';
-import { IntradayBadge } from '@/components/dashboard/IntradayBadge';
+import { SetupBehaviorBadge } from '@/components/dashboard/SetupBehaviorBadge';
 import { computeChgPct, latestSignalLabel } from './overviewUtils';
 
 export function TopSetups({
@@ -52,10 +52,11 @@ function SetupCard({
         <SmallStat label="Day" value={chg == null ? '-' : `${chg > 0 ? '+' : ''}${chg.toFixed(2)}%`} tone={tone} />
       </div>
       <div className="mt-2">
-        <IntradayBadge
-          sessionType={row.session_type_pred}
-          issScore={row.iss_score}
-          pullbackPred={row.pullback_depth_pred}
+        <SetupBehaviorBadge
+          executionScore={row.execution_score}
+          executionGrade={row.execution_grade}
+          fakeoutRate={row.fakeout_rate}
+          liquidityScore={row.liquidity_score}
           compact
         />
       </div>

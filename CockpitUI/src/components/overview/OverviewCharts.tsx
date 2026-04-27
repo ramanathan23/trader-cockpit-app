@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { ScoredSymbol } from '@/domain/dashboard';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import type { Signal } from '@/domain/signal';
 import type { StockRow } from '@/domain/stocklist';
@@ -13,7 +12,6 @@ import { chartDefs, type ChartKey } from './overviewChartDefs';
 export function OverviewCharts(props: {
   rows: StockRow[];
   heatEntries: HeatMapEntry[];
-  scored: ScoredSymbol[];
   loading: boolean;
   signals: Signal[];
   metricsCache: Record<string, InstrumentMetrics | null>;

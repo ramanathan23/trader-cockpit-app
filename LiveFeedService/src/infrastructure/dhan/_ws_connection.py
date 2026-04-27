@@ -5,7 +5,7 @@ import logging
 import random
 from typing import Awaitable, Callable
 
-from dhanhq import marketfeed as mf
+from dhanhq import DhanContext, MarketFeed
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,9 @@ async def run_feed_loop(
         try:
             access_token = await token_getter()
             logger.info("Connecting to Dhan feed (%d instruments)…", len(instruments))
-            feed = mf.DhanFeed(
-                client_id    = client_id,
-                access_token = access_token,
+            context = DhanContext(client_id=client_id, access_token=access_token)
+            feed = MarketFeed(
+                dhan_context = context,
                 instruments  = instruments,
                 version      = "v2",
             )

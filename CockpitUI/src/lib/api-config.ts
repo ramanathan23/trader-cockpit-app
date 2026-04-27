@@ -7,7 +7,6 @@
  *   /scorer/*       → RankingService
  *   /indicators/*   → IndicatorsService
  *   /datasync/*     → DataSyncService
- *   /modeling/*     → ModelingService
  */
 
 // ── LiveFeedService endpoints ────────────────────────────────────────────────
@@ -45,7 +44,6 @@ export const ADMIN_CONFIG = {
   SCORER:   '/scorer/config',
   DATASYNC: '/datasync/config',
   LIVEFEED: '/api/v1/config',
-  MODELING: '/modeling/config',
 } as const;
 
 // ── WebSocket URL helpers ────────────────────────────────────────────────────

@@ -30,18 +30,17 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             sp.rect_breakout,
             sp.rect_range_pct,
             sp.consolidation_days,
-            sip.iss_score,
-            isp.session_type_pred,
-            isp.pullback_depth_pred,
+            sbp.execution_score,
+            sbp.execution_grade,
+            sbp.fakeout_rate,
+            sbp.deep_pullback_rate,
+            sbp.liquidity_score,
             COALESCE(ds.is_watchlist, FALSE)  AS is_watchlist
         FROM symbol_metrics sm
         LEFT JOIN symbols s ON s.symbol = sm.symbol
         LEFT JOIN symbol_indicators si ON si.symbol = sm.symbol
         LEFT JOIN symbol_patterns sp ON sp.symbol = sm.symbol
-        LEFT JOIN symbol_intraday_profile sip ON sip.symbol = sm.symbol
-        LEFT JOIN intraday_session_predictions isp
-            ON isp.symbol = sm.symbol
-           AND isp.prediction_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
+        LEFT JOIN symbol_setup_behavior_profile sbp ON sbp.symbol = sm.symbol
         LEFT JOIN (
             SELECT symbol, is_watchlist
             FROM daily_scores
@@ -78,9 +77,11 @@ async def load_daily_metrics(pool: asyncpg.Pool) -> dict[str, dict]:
             "consolidation_days": int(row["consolidation_days"])         if row["consolidation_days"] is not None else 0,
             "is_watchlist":           bool(row["is_watchlist"]),
             "cam_median_range_pct":   round(float(row["cam_median_range_pct"]), 6) if row["cam_median_range_pct"] else None,
-            "iss_score":              round(float(row["iss_score"]), 2) if row["iss_score"] is not None else None,
-            "session_type_pred":      row["session_type_pred"],
-            "pullback_depth_pred":    round(float(row["pullback_depth_pred"]), 4) if row["pullback_depth_pred"] is not None else None,
+            "execution_score":        round(float(row["execution_score"]), 2) if row["execution_score"] is not None else None,
+            "execution_grade":        row["execution_grade"],
+            "fakeout_rate":           round(float(row["fakeout_rate"]), 4) if row["fakeout_rate"] is not None else None,
+            "deep_pullback_rate":     round(float(row["deep_pullback_rate"]), 4) if row["deep_pullback_rate"] is not None else None,
+            "liquidity_score":        round(float(row["liquidity_score"]), 2) if row["liquidity_score"] is not None else None,
         }
         for row in rows
     }

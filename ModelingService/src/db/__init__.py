@@ -1,1 +1,0 @@
-"""Database schema for ModelingService."""

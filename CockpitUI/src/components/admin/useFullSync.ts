@@ -7,15 +7,6 @@ import { readSSE } from './sseUtils';
 
 const EMPTY_STEP = { status: 'idle' as StepStatus, message: null, startedAt: null, elapsedMs: null };
 
-async function fetchJson(endpoint: string, init?: RequestInit) {
-  const res = await fetch(endpoint, init);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new Error(data?.detail ?? data?.message ?? `HTTP ${res.status}`);
-  }
-  return data;
-}
-
 /** Manages full pipeline execution state and the runPipeline action. */
 export function useFullSync() {
   const [states, setStates] = useState<PipelineState>(() =>
@@ -82,8 +73,8 @@ export function useFullSync() {
       return;
     }
 
-    // indicators → ISS → scores run sequentially via SSE
-    for (const step of PIPELINE_STEPS.filter(s => s.key === 'indicators' || s.key === 'intraday' || s.key === 'scores')) {
+    // indicators -> setup behavior -> scores run sequentially via SSE
+    for (const step of PIPELINE_STEPS.filter(s => s.key === 'indicators' || s.key === 'behavior' || s.key === 'scores')) {
       const startedAt = Date.now();
       setStep(step.key, 'running', null, startedAt);
       try {
@@ -94,39 +85,6 @@ export function useFullSync() {
         running.current = false;
         return;
       }
-    }
-
-    const modelsStart = Date.now();
-    setStep('models', 'running', null, modelsStart);
-    try {
-      const data = await fetchJson('/modeling/models');
-      const list = Array.isArray(data) ? data : (Array.isArray(data?.models) ? data.models : []);
-      const names: string[] = list.map((m: { name?: string } | string) => typeof m === 'string' ? m : m.name ?? '').filter(Boolean);
-
-      if (names.length === 0) {
-        setStep('models', 'ok', 'no models registered', modelsStart, Date.now() - modelsStart);
-      } else {
-        const results = await Promise.allSettled(names.map(name => fetchJson(`/modeling/models/${name}/score-all`, { method: 'POST' })));
-        const failed = results.filter(result => result.status === 'rejected');
-        if (failed.length > 0) {
-          throw new Error(`${failed.length}/${names.length} model score-all failed`);
-        }
-        setStep('models', 'ok', `${names.length} model(s) scored`, modelsStart, Date.now() - modelsStart);
-      }
-    } catch (err) {
-      setStep('models', 'error', err instanceof Error ? err.message : 'failed', modelsStart, Date.now() - modelsStart);
-      running.current = false;
-      return;
-    }
-
-    const sessionStart = Date.now();
-    setStep('session', 'running', 'Scoring session classifier', sessionStart);
-    try {
-      const step = PIPELINE_STEPS.find(s => s.key === 'session')!;
-      const msg = await readSSE(step.endpoint, step.method, m => setStep('session', 'running', m, sessionStart));
-      setStep('session', 'ok', msg, sessionStart, Date.now() - sessionStart);
-    } catch (err) {
-      setStep('session', 'error', err instanceof Error ? err.message : 'failed', sessionStart, Date.now() - sessionStart);
     }
 
     running.current = false;

@@ -15,18 +15,18 @@ export interface StockRow extends ScreenerRow {
   nr7?:                   boolean | null;
   adx_14?:                number | null;
   rsi_14?:                number | null;
-  comfort_score?:         number | null;
-  comfort_score_v2?:      number | null;
-  comfort_score_v3?:      number | null;
-  comfort_interpretation?: string | null;
-  iss_score?:             number | null;
-  choppiness_idx?:        number | null;
-  stop_hunt_rate?:        number | null;
-  pullback_depth_hist?:   number | null;
-  session_type_pred?:     ScoredSymbol['session_type_pred'];
-  trend_up_prob?:         number | null;
-  chop_prob?:             number | null;
-  pullback_depth_pred?:   number | null;
+  execution_score?:          number | null;
+  execution_grade?:          string | null;
+  breakout_quality_score?:   number | null;
+  breakdown_quality_score?:  number | null;
+  reversal_quality_score?:   number | null;
+  fakeout_rate?:             number | null;
+  deep_pullback_rate?:       number | null;
+  avg_adverse_excursion_r?:  number | null;
+  avg_pullback_depth_r?:     number | null;
+  liquidity_score?:          number | null;
+  avg_session_turnover_cr?:  number | null;
+  setups_analyzed?:          number | null;
 }
 
 function pctFromReference(price?: number | null, reference?: number | null): number | undefined {
@@ -53,18 +53,18 @@ export function scoreToStockRow(s: ScoredSymbol): StockRow {
     nr7:                   s.nr7,
     adx_14:                s.adx_14,
     rsi_14:                s.rsi_14,
-    comfort_score:         s.comfort_score,
-    comfort_score_v2:      s.comfort_score_v2,
-    comfort_score_v3:      s.comfort_score_v3,
-    comfort_interpretation: s.comfort_interpretation,
-    iss_score:             s.iss_score,
-    choppiness_idx:        s.choppiness_idx,
-    stop_hunt_rate:        s.stop_hunt_rate,
-    pullback_depth_hist:   s.pullback_depth_hist,
-    session_type_pred:     s.session_type_pred,
-    trend_up_prob:         s.trend_up_prob,
-    chop_prob:             s.chop_prob,
-    pullback_depth_pred:   s.pullback_depth_pred,
+    execution_score:          s.execution_score,
+    execution_grade:          s.execution_grade,
+    breakout_quality_score:   s.breakout_quality_score,
+    breakdown_quality_score:  s.breakdown_quality_score,
+    reversal_quality_score:   s.reversal_quality_score,
+    fakeout_rate:             s.fakeout_rate,
+    deep_pullback_rate:       s.deep_pullback_rate,
+    avg_adverse_excursion_r:  s.avg_adverse_excursion_r,
+    avg_pullback_depth_r:     s.avg_pullback_depth_r,
+    liquidity_score:          s.liquidity_score,
+    avg_session_turnover_cr:  s.avg_session_turnover_cr,
+    setups_analyzed:          s.setups_analyzed,
     prev_day_close:        s.prev_day_close ?? undefined,
     display_price:         displayPrice,
     atr_14:                s.atr_14 ?? undefined,
@@ -108,18 +108,18 @@ export function mergeStockRows(
       nr7:                   s.nr7,
       adx_14:                s.adx_14,
       rsi_14:                s.rsi_14,
-      comfort_score:         s.comfort_score,
-      comfort_score_v2:      s.comfort_score_v2,
-      comfort_score_v3:      s.comfort_score_v3,
-      comfort_interpretation: s.comfort_interpretation,
-      iss_score:             s.iss_score,
-      choppiness_idx:        s.choppiness_idx,
-      stop_hunt_rate:        s.stop_hunt_rate,
-      pullback_depth_hist:   s.pullback_depth_hist,
-      session_type_pred:     s.session_type_pred,
-      trend_up_prob:         s.trend_up_prob,
-      chop_prob:             s.chop_prob,
-      pullback_depth_pred:   s.pullback_depth_pred,
+      execution_score:          s.execution_score,
+      execution_grade:          s.execution_grade,
+      breakout_quality_score:   s.breakout_quality_score,
+      breakdown_quality_score:  s.breakdown_quality_score,
+      reversal_quality_score:   s.reversal_quality_score,
+      fakeout_rate:             s.fakeout_rate,
+      deep_pullback_rate:       s.deep_pullback_rate,
+      avg_adverse_excursion_r:  s.avg_adverse_excursion_r,
+      avg_pullback_depth_r:     s.avg_pullback_depth_r,
+      liquidity_score:          s.liquidity_score,
+      avg_session_turnover_cr:  s.avg_session_turnover_cr,
+      setups_analyzed:          s.setups_analyzed,
       prev_day_close: r.prev_day_close ?? s.prev_day_close,
       atr_14:         r.atr_14         ?? s.atr_14,
       adv_20_cr:      r.adv_20_cr      ?? s.adv_20_cr,

@@ -1,11 +1,9 @@
 'use client';
 
-import type { ScoredSymbol } from '@/domain/dashboard';
 import type { InstrumentMetrics } from '@/domain/instrument_metrics';
 import type { Signal } from '@/domain/signal';
 import type { StockRow } from '@/domain/stocklist';
 import type { LivePriceData } from '@/components/ui/LivePrice';
-import { ClusterChart } from '@/components/dashboard/ClusterChart';
 import { HeatMapView } from '@/components/heatmap/HeatMapView';
 import type { HeatMapEntry } from '@/lib/heatmap';
 import { BreadthBars } from './BreadthBars';
@@ -14,13 +12,12 @@ import { ScoreHistogram } from './ScoreHistogram';
 import { SignalFlowChart } from './SignalFlowChart';
 import { TopSetups } from './TopSetups';
 
-export type ChartKey = 'heat' | 'cluster' | 'score' | 'matrix' | 'flow' | 'breadth' | 'setups';
+export type ChartKey = 'heat' | 'score' | 'matrix' | 'flow' | 'breadth' | 'setups';
 export type ChartRenderMode = 'body' | 'dock' | 'expand';
 
 interface DefProps {
   rows: StockRow[];
   heatEntries: HeatMapEntry[];
-  scored: ScoredSymbol[];
   loading: boolean;
   signals: Signal[];
   metricsCache: Record<string, InstrumentMetrics | null>;
@@ -33,9 +30,6 @@ export function chartDefs(p: DefProps) {
     def('heat', 'Top Movers', 'Liquid gainers and losers', 'xl:col-span-5',
       'flex h-[460px] min-h-0', 'flex h-[620px] min-h-0', 'flex min-h-0 flex-1',
       () => <HeatMapView entries={p.heatEntries} onCellClick={p.onSymbol} />),
-    def('cluster', 'Opportunity Cluster', 'Total score vs comfort', 'xl:col-span-7',
-      'flex h-[460px] min-h-0', 'flex h-[620px] min-h-0', 'flex min-h-0 flex-1',
-      () => <ClusterChart scores={p.scored} loading={p.loading} />),
     def('score', 'Score Distribution', 'Where the universe is concentrated', 'xl:col-span-6',
       '', 'h-80', 'flex min-h-0 flex-1', mode => <ScoreHistogram rows={p.rows} className={chartHeight(mode)} />),
     def('matrix', 'Momentum / Trend Matrix', 'Breakouts, pullbacks, spikes, ignores', 'xl:col-span-6',

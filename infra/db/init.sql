@@ -7,7 +7,6 @@
 --   IndicatorsService  : symbol_metrics, symbol_indicators, symbol_patterns
 --   RankingService     : daily_scores
 --   LiveFeedService    : candles_5min, index_future_candles_5min
---   ModelingService    : model_predictions
 
 -- ── Extensions ────────────────────────────────────────────────────────────────
 
@@ -294,25 +293,41 @@ CREATE TABLE IF NOT EXISTS symbol_patterns (
     consolidation_days SMALLINT    NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS symbol_intraday_profile (
-    symbol                       VARCHAR(30) PRIMARY KEY REFERENCES symbols(symbol),
-    computed_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    sessions_analyzed            INTEGER     NOT NULL DEFAULT 0,
-    choppiness_idx               NUMERIC(8,4),
-    stop_hunt_rate               NUMERIC(6,4),
-    orb_followthrough_rate       NUMERIC(6,4),
-    opening_drive_rate           NUMERIC(6,4),
-    pullback_depth_on_up_days    NUMERIC(6,4),
-    volatility_compression_ratio NUMERIC(8,4),
-    trend_autocorr               NUMERIC(8,4),
-    iss_score                    NUMERIC(6,2)
+CREATE TABLE IF NOT EXISTS symbol_setup_behavior_profile (
+    symbol                    VARCHAR(30) PRIMARY KEY REFERENCES symbols(symbol),
+    computed_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sessions_analyzed         INTEGER     NOT NULL DEFAULT 0,
+    setups_analyzed           INTEGER     NOT NULL DEFAULT 0,
+    breakout_attempts         INTEGER     NOT NULL DEFAULT 0,
+    breakdown_attempts        INTEGER     NOT NULL DEFAULT 0,
+    reversal_attempts         INTEGER     NOT NULL DEFAULT 0,
+    breakout_success_rate     NUMERIC(6,4),
+    breakdown_success_rate    NUMERIC(6,4),
+    reversal_success_rate     NUMERIC(6,4),
+    fakeout_rate              NUMERIC(6,4),
+    deep_pullback_rate        NUMERIC(6,4),
+    avg_adverse_excursion_r   NUMERIC(8,4),
+    avg_pullback_depth_r      NUMERIC(8,4),
+    avg_time_to_1r_bars       NUMERIC(8,4),
+    trend_efficiency          NUMERIC(6,4),
+    vwap_hold_rate            NUMERIC(6,4),
+    avg_session_turnover_cr   NUMERIC(12,2),
+    liquidity_score           NUMERIC(6,2),
+    breakout_quality_score    NUMERIC(6,2),
+    breakdown_quality_score   NUMERIC(6,2),
+    reversal_quality_score    NUMERIC(6,2),
+    execution_score           NUMERIC(6,2),
+    execution_grade           VARCHAR(20) NOT NULL DEFAULT 'NA'
 );
 
-CREATE INDEX IF NOT EXISTS idx_intraday_profile_computed
-    ON symbol_intraday_profile (computed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_setup_behavior_computed
+    ON symbol_setup_behavior_profile (computed_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_intraday_profile_iss
-    ON symbol_intraday_profile (iss_score DESC);
+CREATE INDEX IF NOT EXISTS idx_setup_behavior_execution
+    ON symbol_setup_behavior_profile (execution_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_setup_behavior_grade
+    ON symbol_setup_behavior_profile (execution_grade);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- RankingService
@@ -421,89 +436,6 @@ SELECT create_hypertable(
 
 CREATE INDEX IF NOT EXISTS idx_fut_candles_5min_symbol_time
     ON index_future_candles_5min (symbol, time DESC);
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- ModelingService
--- ═══════════════════════════════════════════════════════════════════════════════
-
--- ── model_predictions ────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS model_predictions (
-    id               BIGSERIAL    PRIMARY KEY,
-    model_name       TEXT         NOT NULL,
-    model_version    TEXT         NOT NULL,
-    symbol           TEXT         NOT NULL,
-    prediction_date  DATE         NOT NULL,
-    predictions      JSONB        NOT NULL,
-    confidence       REAL,
-    created_at       TIMESTAMPTZ  DEFAULT NOW(),
-    UNIQUE (model_name, symbol, prediction_date)
-);
-
-CREATE INDEX IF NOT EXISTS idx_predictions_model
-    ON model_predictions(model_name, prediction_date DESC);
-
-CREATE INDEX IF NOT EXISTS idx_predictions_symbol
-    ON model_predictions(symbol, prediction_date DESC);
-
-CREATE INDEX IF NOT EXISTS idx_predictions_created
-    ON model_predictions(created_at DESC);
-
-CREATE TABLE IF NOT EXISTS intraday_training_sessions (
-    symbol                  VARCHAR(30)   NOT NULL,
-    session_date            DATE          NOT NULL,
-    prev_rsi                NUMERIC(8,4),
-    prev_adx                NUMERIC(8,4),
-    prev_di_spread          NUMERIC(8,4),
-    prev_atr_ratio          NUMERIC(8,4),
-    prev_roc_5              NUMERIC(8,4),
-    prev_roc_20             NUMERIC(8,4),
-    prev_vol_ratio          NUMERIC(8,4),
-    prev_bb_squeeze         BOOLEAN,
-    prev_squeeze_days       INTEGER,
-    prev_rs_vs_nifty        NUMERIC(8,4),
-    stage_encoded           SMALLINT,
-    day_of_week             SMALLINT,
-    nifty_gap_pct           NUMERIC(8,4),
-    iss_score               NUMERIC(6,2),
-    choppiness_idx          NUMERIC(8,4),
-    stop_hunt_rate          NUMERIC(6,4),
-    orb_followthrough_rate  NUMERIC(6,4),
-    pullback_depth_hist     NUMERIC(6,4),
-    high_close_ratio        NUMERIC(6,4),
-    range_vs_atr            NUMERIC(6,4),
-    pullback_depth          NUMERIC(6,4),
-    session_type            VARCHAR(15),
-    trend_up                BOOLEAN,
-    trend_down              BOOLEAN,
-    chop_day                BOOLEAN,
-    volatile_day            BOOLEAN,
-    computed_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (symbol, session_date)
-);
-
-CREATE INDEX IF NOT EXISTS idx_its_session_date
-    ON intraday_training_sessions (session_date DESC);
-
-CREATE INDEX IF NOT EXISTS idx_its_session_type
-    ON intraday_training_sessions (session_type);
-
-CREATE TABLE IF NOT EXISTS intraday_session_predictions (
-    symbol                  VARCHAR(30) NOT NULL,
-    prediction_date         DATE        NOT NULL,
-    session_type_pred       VARCHAR(15),
-    trend_up_prob           NUMERIC(6,4),
-    trend_down_prob         NUMERIC(6,4),
-    chop_prob               NUMERIC(6,4),
-    volatile_prob           NUMERIC(6,4),
-    pullback_depth_pred     NUMERIC(6,4),
-    model_version           VARCHAR(20) NOT NULL DEFAULT 'session_v1',
-    computed_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (symbol, prediction_date)
-);
-
-CREATE INDEX IF NOT EXISTS idx_isp_date
-    ON intraday_session_predictions (prediction_date DESC);
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Shared: service_config

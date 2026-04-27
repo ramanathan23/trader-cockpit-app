@@ -166,14 +166,12 @@ services:
         SCORER_URL: http://ranking:8000
         INDICATORS_URL: http://indicators:8000
         DATASYNC_URL: http://data-sync:8000
-        MODELING_URL: http://modeling:8000
         NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     environment:
       LIVE_FEED_URL: http://live-feed:8000
       SCORER_URL: http://ranking:8000
       INDICATORS_URL: http://indicators:8000
       DATASYNC_URL: http://data-sync:8000
-      MODELING_URL: http://modeling:8000
       NEXT_PUBLIC_LIVE_FEED_URL: http://localhost:8003
     container_name: trader_cockpit_ui
     ports:
@@ -185,61 +183,9 @@ services:
         condition: service_started
       ranking:
         condition: service_started
-      modeling:
-        condition: service_started
     networks:
       - trader-bridge
     restart: unless-stopped
-
-  modeling:
-    build:
-      context: .
-      dockerfile: ModelingService/Dockerfile
-    container_name: trader_modeling
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      MODEL_BASE_PATH: /models
-      AUTO_RETRAIN_ENABLED: ${AUTO_RETRAIN_ENABLED:-true}
-      MAX_MODEL_AGE_DAYS: ${MAX_MODEL_AGE_DAYS:-90}
-      COMFORT_SCORER_RETRAIN_THRESHOLD_RMSE: ${COMFORT_SCORER_RETRAIN_THRESHOLD_RMSE:-8.0}
-      COMFORT_SCORER_SHADOW_DAYS: ${COMFORT_SCORER_SHADOW_DAYS:-7}
-    ports:
-      - "8004:8000"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./ModelingService/models:/models
-      - ./ModelingService/src:/app/src:ro
-      - ./shared/shared:/usr/local/lib/python3.12/site-packages/shared:ro
-    networks:
-      - trader-bridge
-    restart: unless-stopped
-
-  notebooks:
-    build:
-      context: ./notebooks
-      dockerfile: Dockerfile
-    container_name: trader_notebooks
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-trader}:${DB_PASSWORD:-trader_secret}@${POSTGRES_HOST:-host.docker.internal}:${POSTGRES_PORT:-5432}/${DB_NAME:-trader_cockpit}
-    ports:
-      - "8888:8888"
-    depends_on:
-      db-init:
-        condition: service_completed_successfully
-    volumes:
-      - ./notebooks:/app/notebooks
-    networks:
-      - trader-bridge
-    restart: unless-stopped
-
-volumes:
-  ml_models:
 
 networks:
   trader-bridge:
