@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error
-from sklearn.model_selection import GroupShuffleSplit
 
 from ._features import CATEGORICAL, FEATURES, SESSION_CLASSES
 from ._labels import CLASS_TO_ID
@@ -19,29 +18,40 @@ def train_session_classifier(sessions_df: pd.DataFrame):
     X = _feature_frame(clean)
     y = clean["session_type"].map(CLASS_TO_ID)
     train_idx, test_idx = _split(X, y, clean["session_date"])
+    sample_weight = _balanced_weights(y.iloc[train_idx])
 
     model = lgb.LGBMClassifier(
         objective="multiclass",
         num_class=len(SESSION_CLASSES),
-        num_leaves=63,
+        num_leaves=31,
+        max_depth=8,
         learning_rate=0.05,
         feature_fraction=0.8,
         bagging_fraction=0.8,
         bagging_freq=5,
-        min_child_samples=30,
-        n_estimators=500,
+        min_child_samples=150,
+        reg_alpha=0.05,
+        reg_lambda=0.25,
+        n_estimators=800,
         verbosity=-1,
     )
     model.fit(
         X.iloc[train_idx],
         y.iloc[train_idx],
+        sample_weight=sample_weight,
         eval_set=[(X.iloc[test_idx], y.iloc[test_idx])],
         categorical_feature=CATEGORICAL,
         callbacks=[lgb.early_stopping(30, verbose=False), lgb.log_evaluation(50)],
     )
     pred = model.predict(X.iloc[test_idx])
+    labels = list(range(len(SESSION_CLASSES)))
+    predicted_distribution = pd.Series(pred).value_counts().reindex(labels, fill_value=0)
     return model, {
         "accuracy": round(float(accuracy_score(y.iloc[test_idx], pred)), 4),
+        "predicted_distribution": {
+            SESSION_CLASSES[idx]: int(predicted_distribution[idx])
+            for idx in labels
+        },
         "class_report": classification_report(
             y.iloc[test_idx],
             pred,
@@ -147,5 +157,24 @@ def _feature_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _split(X: pd.DataFrame, y, groups):
-    splitter = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-    return next(splitter.split(X, y, groups))
+    dates = pd.Series(pd.to_datetime(groups).dt.date.unique()).sort_values().tolist()
+    if len(dates) < 5:
+        split_at = max(1, int(len(X) * 0.8))
+        return list(range(split_at)), list(range(split_at, len(X)))
+
+    cutoff = dates[max(1, int(len(dates) * 0.8)) - 1]
+    group_dates = pd.Series(pd.to_datetime(groups).dt.date.to_numpy())
+    train_idx = group_dates[group_dates <= cutoff].index.tolist()
+    test_idx = group_dates[group_dates > cutoff].index.tolist()
+    if not train_idx or not test_idx:
+        split_at = max(1, int(len(X) * 0.8))
+        return list(range(split_at)), list(range(split_at, len(X)))
+    return train_idx, test_idx
+
+
+def _balanced_weights(y: pd.Series) -> pd.Series:
+    counts = y.value_counts()
+    total = float(len(y))
+    class_count = float(len(counts))
+    weights = y.map(lambda cls: total / (class_count * float(counts[cls])))
+    return weights.clip(lower=0.55, upper=3.0)

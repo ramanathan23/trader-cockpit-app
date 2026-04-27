@@ -12,6 +12,7 @@ import pandas as pd
 
 from ..models.comfort_scorer._model_predict import apply_comfort_v3
 from ..config import settings
+from ..models.session_classifier._features import FEATURES
 from ..models.session_classifier._predict import predict_session
 from ..models.session_classifier._train import (
     evaluate_session_models,
@@ -22,6 +23,14 @@ from ..models.session_classifier._train import (
 logger = logging.getLogger(__name__)
 _IST = ZoneInfo("Asia/Kolkata")
 _MODEL_VERSION = "session_v1"
+_MAX_MODELING_ROWS = 750_000
+_TRAINING_COLUMNS = [
+    "symbol",
+    "session_date",
+    *FEATURES,
+    "pullback_depth",
+    "session_type",
+]
 
 
 class SessionClassifierService:
@@ -32,7 +41,7 @@ class SessionClassifierService:
         self._pullback = None
 
     async def train(self) -> dict:
-        sessions = await self._load_training_sessions()
+        sessions = await self._load_training_sessions(limit=_MAX_MODELING_ROWS)
         if sessions.empty:
             raise ValueError("No intraday_training_sessions rows found")
         classifier, cls_metrics = await asyncio.to_thread(train_session_classifier, sessions)
@@ -47,8 +56,10 @@ class SessionClassifierService:
             json.dumps({
                 "model_version": _MODEL_VERSION,
                 "trained_at": datetime.now(tz=_IST).isoformat(),
+                "training_rows": int(len(sessions)),
                 "accuracy": cls_metrics["accuracy"],
                 "pullback_mae": pb_metrics["mae"],
+                "predicted_distribution": cls_metrics.get("predicted_distribution"),
             }, indent=2),
             encoding="utf-8",
         )
@@ -56,13 +67,15 @@ class SessionClassifierService:
         self._pullback = pullback
         return {
             "model_version": _MODEL_VERSION,
+            "training_rows": int(len(sessions)),
             "accuracy": cls_metrics["accuracy"],
+            "predicted_distribution": cls_metrics.get("predicted_distribution"),
             "class_report": cls_metrics["class_report"],
             "pullback_mae": pb_metrics["mae"],
         }
 
     async def evaluate(self) -> dict:
-        sessions = await self._load_training_sessions()
+        sessions = await self._load_training_sessions(limit=_MAX_MODELING_ROWS)
         if sessions.empty:
             raise ValueError("No intraday_training_sessions rows found")
         self._ensure_loaded()
@@ -109,10 +122,22 @@ class SessionClassifierService:
         await self._upsert_predictions([_prediction_record(symbol, prediction_date, pred)])
         return await self._fetch_prediction(symbol, prediction_date) or pred
 
-    async def _load_training_sessions(self) -> pd.DataFrame:
+    async def _load_training_sessions(self, limit: int | None = None) -> pd.DataFrame:
+        columns = ", ".join(_TRAINING_COLUMNS)
+        sql = f"""
+            SELECT {columns}
+            FROM intraday_training_sessions
+            WHERE session_type IS NOT NULL
+            ORDER BY md5(symbol || ':' || session_date::text)
+        """
+        args: tuple[int, ...] = ()
+        if limit is not None:
+            sql = f"{sql}\nLIMIT $1"
+            args = (limit,)
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM intraday_training_sessions ORDER BY session_date ASC",
+                sql,
+                *args,
                 timeout=600,
             )
         return pd.DataFrame([dict(r) for r in rows])
@@ -165,8 +190,24 @@ class SessionClassifierService:
                 WITH prev AS (
                     SELECT *
                     FROM daily_scores
-                    WHERE symbol = $1 AND score_date <= $2
+                    WHERE symbol = $1 AND score_date < $2
                     ORDER BY score_date DESC
+                    LIMIT 1
+                ),
+                nifty_bars AS (
+                    SELECT
+                        time::date AS session_date,
+                        open,
+                        LAG(close) OVER (ORDER BY time) AS prev_close
+                    FROM price_data_daily
+                    WHERE symbol = 'NIFTY500'
+                      AND time::date <= $2
+                ),
+                nifty_gap AS (
+                    SELECT
+                        ((open - prev_close) / NULLIF(prev_close, 0)) * 100 AS gap_pct
+                    FROM nifty_bars
+                    WHERE session_date = $2
                     LIMIT 1
                 )
                 SELECT
@@ -188,7 +229,7 @@ class SessionClassifierService:
                         ELSE 0
                     END AS stage_encoded,
                     EXTRACT(ISODOW FROM $2::date)::int - 1 AS day_of_week,
-                    0::numeric AS nifty_gap_pct,
+                    COALESCE((SELECT gap_pct FROM nifty_gap), 0::numeric) AS nifty_gap_pct,
                     sip.iss_score,
                     sip.choppiness_idx,
                     sip.stop_hunt_rate,
